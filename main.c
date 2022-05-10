@@ -3,6 +3,7 @@
 #include <GLFW/glfw3.h>
 
 #include "img_loader.h"
+#include "dff_loader.h"
 
 #define WINDOW_WIDTH 800
 #define WINDOW_HEIGHT 600
@@ -28,10 +29,13 @@ int main(void)
 
 	glfwMakeContextCurrent(window);
 
-	dir_file_open("./models/gta3.dir");
-	img_file_open("./models/gta3.img");
+	dir_file_open("E:/games/Grand Theft Auto Vice City/models/gta3.dir");
+	img_file_open("E:/games/Grand Theft Auto Vice City/models/gta3.img");
 
-	img_file_save_by_id(2);
+	dir_file_dump();
+	char *file = img_file_get(399);
+	dff_load(file);
+	free(file);
 
 	dir_file_close();
 	img_file_close();

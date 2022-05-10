@@ -30,9 +30,12 @@ int dir_file_open(const char *filepath)
 
     fread(files_dir, sizeof(struct dir_entry) * count_files, 1, fptr_dir);
 
-    printf("file name = %s\n", files_dir[0].name);
-
     return 0;
+}
+
+void dir_file_dump()
+{
+	printf("[Dump] dir file[0].name = %s\n", files_dir[0].name);
 }
 
 void dir_file_close()
@@ -54,11 +57,41 @@ int img_file_open(const char *filepath)
 
 int img_file_save_by_id(uint32_t id)
 {
-    img_file_save(files_dir[id].offset,
+	int err;
+
+    err = img_file_save(files_dir[id].offset,
 		files_dir[id].size,
 		files_dir[id].name);
 
+	if (err == 0) {
+		printf("file saved name = %s\n", files_dir[id].name);
+	}
+
     return 0;
+}
+
+char *img_file_get(uint32_t id)
+{
+	char *buff;
+	int32_t file_size;
+	int32_t file_offset;
+
+	file_size = files_dir[id].size * IMG_BLOCK_SIZE;
+	file_offset = files_dir[id].offset * IMG_BLOCK_SIZE;
+
+	buff = (char*)malloc(file_size);
+	if (buff == NULL) {
+		printf("Cannot allocate memory var buff\n");
+		return NULL;
+	}
+
+	/* read from img_file to buff */
+	fseek(fptr_img, file_offset, SEEK_CUR);
+	fread(buff, file_size, 1, fptr_img);
+	fseek(fptr_img, 0, SEEK_CUR);
+
+	/* do not remember to free memory */
+	return buff;
 }
 
 int img_file_save(int32_t offset, int32_t size, const char *name)

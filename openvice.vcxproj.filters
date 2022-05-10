@@ -21,9 +21,15 @@
     <ClCompile Include="img_loader.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="dff_loader.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="img_loader.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="dff_loader.h">
       <Filter>Source Files</Filter>
     </ClInclude>
   </ItemGroup>

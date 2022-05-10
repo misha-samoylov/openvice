@@ -18,7 +18,10 @@ int dir_file_open(const char *filepath);
 int img_file_open(const char *filepath);
 
 int img_file_save_by_id(uint32_t id);
+char *img_file_get(uint32_t id);
 int img_file_save(int32_t offset, int32_t size, const char *name);
+
+void dir_file_dump();
 
 void dir_file_close();
 void img_file_close();
