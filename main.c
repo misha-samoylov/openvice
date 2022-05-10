@@ -32,6 +32,8 @@ int main(void)
 	dir_file_open("E:/games/Grand Theft Auto Vice City/models/gta3.dir");
 	img_file_open("E:/games/Grand Theft Auto Vice City/models/gta3.img");
 
+	/* img_file_save_by_id(399); */
+
 	dir_file_dump();
 	char *file = img_file_get(399);
 	dff_load(file);
