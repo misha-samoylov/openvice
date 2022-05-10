@@ -29,6 +29,13 @@ int main(void)
 
 	glfwMakeContextCurrent(window);
 
+	GLenum err = glewInit();
+	if (err != GLEW_OK) {
+		printf("glewInit failed: %s\n", glewGetErrorString(err));
+		glfwTerminate();
+		return -1;
+	}
+
 	dir_file_open("E:/games/Grand Theft Auto Vice City/models/gta3.dir");
 	img_file_open("E:/games/Grand Theft Auto Vice City/models/gta3.img");
 
