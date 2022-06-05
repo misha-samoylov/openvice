@@ -78,4 +78,8 @@
       <Filter>Source Files</Filter>
     </ClInclude>
   </ItemGroup>
+  <ItemGroup>
+    <FxCompile Include="pixel_shader.hlsl" />
+    <FxCompile Include="vertex_shader.hlsl" />
+  </ItemGroup>
 </Project>
