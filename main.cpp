@@ -18,10 +18,10 @@
 
 ID3D11Device *g_pd3dDevice;
 ID3D11DeviceContext *g_pImmediateContext;
-IDXGISwapChain  *g_pSwapChain;
-ID3D11RenderTargetView* g_pRenderTargetView;
+IDXGISwapChain *g_pSwapChain;
+ID3D11RenderTargetView *g_pRenderTargetView;
 
-LRESULT CALLBACK winproc(HWND hwnd, UINT wm, WPARAM wp, LPARAM lp)
+LRESULT CALLBACK WndProc(HWND hwnd, UINT wm, WPARAM wp, LPARAM lp)
 {
 	return DefWindowProc(hwnd, wm, wp, lp);
 }
@@ -30,8 +30,8 @@ void InitViewport()
 {
 	D3D11_VIEWPORT vp;
 
-	vp.Width = (FLOAT)640;
-	vp.Height = (FLOAT)480;
+	vp.Width = (FLOAT)WINDOW_WIDTH;
+	vp.Height = (FLOAT)WINDOW_HEIGHT;
 	vp.MinDepth = 0.0f;
 	vp.MaxDepth = 1.0f;
 	vp.TopLeftX = 0;
@@ -71,8 +71,8 @@ HRESULT InitD3DX11(HWND hWnd)
 	ZeroMemory(&sd, sizeof(sd));
 
 	sd.BufferCount = 1;
-	sd.BufferDesc.Width = 640;
-	sd.BufferDesc.Height = 480;
+	sd.BufferDesc.Width = WINDOW_WIDTH;
+	sd.BufferDesc.Height = WINDOW_HEIGHT;
 	sd.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
 	sd.BufferDesc.RefreshRate.Numerator = 60;
 	sd.BufferDesc.RefreshRate.Denominator = 1;
@@ -130,29 +130,25 @@ HWND CreateWindowApp(HINSTANCE hInstance, int nCmdShow)
 {
 	LPCWSTR CLASS_NAME = L"OpenViceWndClass";
 
-	WNDCLASS wc = { };
-
-	wc.lpfnWndProc = winproc;
+	WNDCLASS wc = { 0 };
+	wc.lpfnWndProc = WndProc;
 	wc.hInstance = hInstance;
 	wc.lpszClassName = CLASS_NAME;
 
 	RegisterClass(&wc);
 
-	// Create the window.
-
+	// Создание окна
 	HWND hWnd = CreateWindowEx(
-		0,                              // Optional window styles.
-		CLASS_NAME,                     // Window class
-		WINDOW_TITLE,					// Window text
-		WS_OVERLAPPEDWINDOW,            // Window style
-
-		// Size and position
-		CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT,
-
-		NULL,       // Parent window    
-		NULL,       // Menu
-		hInstance,  // Instance handle
-		NULL        // Additional application data
+		0, // Доп. стили
+		CLASS_NAME, // Класс окна
+		WINDOW_TITLE, // Название окна
+		WS_OVERLAPPEDWINDOW, // Стиль
+		CW_USEDEFAULT, CW_USEDEFAULT, // Размер
+		WINDOW_WIDTH, WINDOW_HEIGHT, // Позиция
+		NULL, // Родительское окно
+		NULL, // Меню
+		hInstance, // Instance handle
+		NULL // Additional application data
 	);
 
 	if (hWnd == NULL) {
@@ -178,13 +174,6 @@ void ShowConsole()
 	SetConsoleTitle(L"appconsole");
 }
 
-struct membuf : std::streambuf
-{
-	membuf(char* begin, char* end) {
-		this->setg(begin, begin, end);
-	}
-};
-
 void CleanupDevice()
 {
 	// Сначала отключим контекст устройства, потом отпустим объекты.
@@ -195,7 +184,6 @@ void CleanupDevice()
 	if (g_pSwapChain) g_pSwapChain->Release();
 	if (g_pImmediateContext) g_pImmediateContext->Release();
 	if (g_pd3dDevice) g_pd3dDevice->Release();
-
 }
 
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine, int nCmdShow)
@@ -219,12 +207,6 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 	// dff_load(file);
 	// free(file);
 
-	
-
-
-	std::istream iss(std::string(s));
-
-
 	std::ifstream in("C:/Files/projects/openvice/lawyer.dff", std::ios::binary);
 	if (!in.is_open()) {
 		printf("cannot open file\n");
@@ -233,7 +215,6 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 
 	rw::Clump *clump = new rw::Clump();
 	clump->read(in);
-	//clump->read(iss);
 
 	clump->dump();
 	clump->clear();
