@@ -1,4 +1,4 @@
-#include "img_loader.h"
+#include "img_loader.hpp"
 
 struct dir_entry* files_dir;
 
