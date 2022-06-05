@@ -21,17 +21,39 @@ ID3D11DeviceContext *g_pImmediateContext;
 IDXGISwapChain *g_pSwapChain;
 ID3D11RenderTargetView *g_pRenderTargetView;
 
-LRESULT CALLBACK WndProc(HWND hwnd, UINT wm, WPARAM wp, LPARAM lp)
+LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wp, LPARAM lp)
 {
-	return DefWindowProc(hwnd, wm, wp, lp);
+	PAINTSTRUCT ps;
+	HDC hdc;
+
+	switch (message)
+	{
+	case WM_PAINT:
+		hdc = BeginPaint(hwnd, &ps);
+		EndPaint(hwnd, &ps);
+		break;
+
+	case WM_DESTROY:
+		PostQuitMessage(0);
+		break;
+
+	default:
+		return DefWindowProc(hwnd, message, wp, lp);
+	}
+
+	return 0;
 }
 
-void InitViewport()
+void InitViewport(HWND hWnd)
 {
-	D3D11_VIEWPORT vp;
+	RECT rc;
+	GetClientRect(hWnd, &rc);
+	UINT width = rc.right - rc.left; // получаем ширину
+	UINT height = rc.bottom - rc.top; // и высоту окна
 
-	vp.Width = (FLOAT)WINDOW_WIDTH;
-	vp.Height = (FLOAT)WINDOW_HEIGHT;
+	D3D11_VIEWPORT vp;
+	vp.Width = (FLOAT)width;
+	vp.Height = (FLOAT)height;
 	vp.MinDepth = 0.0f;
 	vp.MaxDepth = 1.0f;
 	vp.TopLeftX = 0;
@@ -43,7 +65,7 @@ void InitViewport()
 
 HRESULT CreateBackBuffer()
 {
-	// Теперь создаем задний буфер. Обратите внимание, в SDK
+	// Создаем задний буфер. Обратите внимание, в SDK
 	// RenderTargetOutput - это передний буфер, а RenderTargetView - задний.
 	ID3D11Texture2D* pBackBuffer = NULL;
 	HRESULT hr = g_pSwapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), (LPVOID*)&pBackBuffer);
@@ -67,20 +89,25 @@ HRESULT CreateBackBuffer()
 
 HRESULT InitD3DX11(HWND hWnd)
 {
+	RECT rc;
+	GetClientRect(hWnd, &rc);
+	UINT width = rc.right - rc.left; // получаем ширину
+	UINT height = rc.bottom - rc.top; // и высоту окна
+
+	/* свойства переднего буфера и привязывает его к нашему окну */
 	DXGI_SWAP_CHAIN_DESC sd;
 	ZeroMemory(&sd, sizeof(sd));
-
-	sd.BufferCount = 1;
-	sd.BufferDesc.Width = WINDOW_WIDTH;
-	sd.BufferDesc.Height = WINDOW_HEIGHT;
-	sd.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-	sd.BufferDesc.RefreshRate.Numerator = 60;
+	sd.BufferCount = 1; // у нас один задний буфер
+	sd.BufferDesc.Width = width; // ширина буфера
+	sd.BufferDesc.Height = height; // высота буфера
+	sd.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM; // формат пикселя в буфере
+	sd.BufferDesc.RefreshRate.Numerator = 60; // частота обновления экрана
 	sd.BufferDesc.RefreshRate.Denominator = 1;
-	sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-	sd.OutputWindow = hWnd;
+	sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT; // назначение буфера - задний буфер
+	sd.OutputWindow = hWnd; // привязываем к нашему окну
 	sd.SampleDesc.Count = 1;
 	sd.SampleDesc.Quality = 0;
-	sd.Windowed = TRUE;
+	sd.Windowed = TRUE; // не полноэкранный режим (оконный)
 
 	D3D_FEATURE_LEVEL featureLevel = D3D_FEATURE_LEVEL_11_0;
 
@@ -111,7 +138,7 @@ HRESULT InitD3DX11(HWND hWnd)
 		return hr;
 	}
 
-	InitViewport();
+	InitViewport(hWnd);
 
 	return hr;
 }
@@ -134,8 +161,15 @@ HWND CreateWindowApp(HINSTANCE hInstance, int nCmdShow)
 	wc.lpfnWndProc = WndProc;
 	wc.hInstance = hInstance;
 	wc.lpszClassName = CLASS_NAME;
+	wc.style = CS_HREDRAW | CS_VREDRAW;
 
-	RegisterClass(&wc);
+	if (!RegisterClass(&wc)) {
+		MessageBox(NULL, L"Cannot register window", L"Error", MB_ICONERROR | MB_OK);
+		return NULL;
+	}
+
+	RECT rc = { 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT };
+	AdjustWindowRect(&rc, WS_OVERLAPPEDWINDOW, FALSE);
 
 	// Создание окна
 	HWND hWnd = CreateWindowEx(
@@ -143,12 +177,12 @@ HWND CreateWindowApp(HINSTANCE hInstance, int nCmdShow)
 		CLASS_NAME, // Класс окна
 		WINDOW_TITLE, // Название окна
 		WS_OVERLAPPEDWINDOW, // Стиль
-		CW_USEDEFAULT, CW_USEDEFAULT, // Размер
-		WINDOW_WIDTH, WINDOW_HEIGHT, // Позиция
+		CW_USEDEFAULT, CW_USEDEFAULT, // Позиция: x, y
+		rc.right - rc.left, rc.bottom - rc.top, // Размер: ширина, высота
 		NULL, // Родительское окно
 		NULL, // Меню
 		hInstance, // Instance handle
-		NULL // Additional application data
+		NULL // Доп. информация приложения
 	);
 
 	if (hWnd == NULL) {
