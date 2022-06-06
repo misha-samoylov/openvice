@@ -1,8 +1,6 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
-#include <assert.h>
-#include <sstream>
 
 #include <windows.h>
 #include <d3d11.h>
@@ -23,43 +21,33 @@ ID3D11DeviceContext *g_pImmediateContext;
 IDXGISwapChain *g_pSwapChain;
 ID3D11RenderTargetView *g_pRenderTargetView;
 
-// object
+// Объект
 
 struct SimpleVertex
 {
 	float x, y, z;
 };
-ID3D11VertexShader*     g_pVertexShader = NULL;             // Вершинный шейдер
-ID3D11PixelShader*      g_pPixelShader = NULL;        // Пиксельный шейдер
-ID3D11InputLayout*      g_pVertexLayout = NULL;             // Описание формата вершин
-ID3D11Buffer*         g_pVertexBuffer = NULL;         // Буфер вершин
 
-HRESULT InitGeometry();    // Инициализация шаблона ввода и буфера вершин
+ID3D11VertexShader *g_pVertexShader = NULL; // Вершинный шейдер
+ID3D11PixelShader *g_pPixelShader = NULL; // Пиксельный шейдер
+ID3D11InputLayout *g_pVertexLayout = NULL; // Описание формата вершин
+ID3D11Buffer *g_pVertexBuffer = NULL; // Буфер вершин
 
-//--------------------------------------------------------------------------------------
+HRESULT InitGeometry(); // Инициализация шаблона ввода и буфера вершин
 
 // Вспомогательная функция для компиляции шейдеров в D3DX11
-
-//--------------------------------------------------------------------------------------
-
 HRESULT CompileShaderFromFile(LPCWSTR szFileName, LPCSTR szEntryPoint, LPCSTR szShaderModel, ID3DBlob** ppBlobOut)
 {
 	HRESULT hr = S_OK;
 	DWORD dwShaderFlags = D3DCOMPILE_ENABLE_STRICTNESS;
-	//ID3DBlob* pErrorBlob;
 
 	hr = D3DCompileFromFile(szFileName, NULL, NULL, szEntryPoint, szShaderModel,
 		dwShaderFlags, 0, ppBlobOut, NULL);
 
 	if (FAILED(hr)) {
-		//if (pErrorBlob != NULL)
-		//	OutputDebugStringA((char*)pErrorBlob->GetBufferPointer());
-
-		//if (pErrorBlob) pErrorBlob->Release();
+		MessageBox(NULL, L"Cannot compile shader", L"Error", MB_ICONERROR | MB_OK);
 		return hr;
 	}
-
-	//if (pErrorBlob) pErrorBlob->Release();
 
 	return S_OK;
 }
@@ -103,7 +91,8 @@ void InitViewport(HWND hWnd)
 	vp.TopLeftY = 0;
 
 	// Подключаем вьюпорт к контексту устройства
-	g_pImmediateContext->RSSetViewports(1, &vp);
+	UINT countViewports = 1;
+	g_pImmediateContext->RSSetViewports(countViewports, &vp);
 }
 
 HRESULT CreateBackBuffer()
@@ -114,6 +103,7 @@ HRESULT CreateBackBuffer()
 	HRESULT hr = g_pSwapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), (LPVOID*)&pBackBuffer);
 
 	if (FAILED(hr)) {
+		MessageBox(NULL, L"Cannot create backbuffer", L"Error", MB_OK);
 		return hr;
 	}
 
@@ -121,6 +111,7 @@ HRESULT CreateBackBuffer()
 	hr = g_pd3dDevice->CreateRenderTargetView(pBackBuffer, NULL, &g_pRenderTargetView);
 	pBackBuffer->Release(); // Больше этот объект не потребуется
 	if (FAILED(hr)) {
+		MessageBox(NULL, L"Cannot create render target view", L"Error", MB_OK);
 		return hr;
 	}
 
@@ -196,17 +187,12 @@ void Render()
 	float ClearColor[4] = { 0.0f, 0.0f, 1.0f, 1.0f }; // красный, зеленый, синий, альфа-канал
 	g_pImmediateContext->ClearRenderTargetView(g_pRenderTargetView, ClearColor);
 
-
 	// Подключить к устройству рисования шейдеры
-
 	g_pImmediateContext->VSSetShader(g_pVertexShader, NULL, 0);
-
 	g_pImmediateContext->PSSetShader(g_pPixelShader, NULL, 0);
 
 	// Нарисовать три вершины
-
 	g_pImmediateContext->Draw(3, 0);
-
 
 	// Выбросить задний буфер на экран
 	g_pSwapChain->Present(0, 0);
@@ -245,6 +231,7 @@ HWND CreateWindowApp(HINSTANCE hInstance, int nCmdShow)
 	);
 
 	if (hWnd == NULL) {
+		MessageBox(NULL, L"Cannot create window", L"Error", MB_OK);
 		return NULL;
 	}
 
@@ -290,7 +277,6 @@ void CleanupDevice()
 }
 
 
-
 HRESULT InitGeometry()
 {
 	HRESULT hr = S_OK;
@@ -308,6 +294,7 @@ HRESULT InitGeometry()
 	hr = g_pd3dDevice->CreateVertexShader(pVSBlob->GetBufferPointer(), pVSBlob->GetBufferSize(), NULL, &g_pVertexShader);
 	if (FAILED(hr)) {
 		pVSBlob->Release();
+		MessageBox(NULL, L"Cannot create vertex shader", L"Error", MB_OK);
 		return hr;
 	}
 
@@ -325,8 +312,10 @@ HRESULT InitGeometry()
 
 	pVSBlob->Release();
 
-	if (FAILED(hr)) 
+	if (FAILED(hr)) {
+		MessageBox(NULL, L"Cannot create input layout", L"Error", MB_OK);
 		return hr;
+	}
 
 	// Подключение шаблона вершин
 	g_pImmediateContext->IASetInputLayout(g_pVertexLayout);
@@ -344,8 +333,10 @@ HRESULT InitGeometry()
 	hr = g_pd3dDevice->CreatePixelShader(pPSBlob->GetBufferPointer(), pPSBlob->GetBufferSize(), NULL, &g_pPixelShader);
 	pPSBlob->Release();
 
-	if (FAILED(hr))
+	if (FAILED(hr)) {
+		MessageBox(NULL, L"Cannot create pixel shader", L"Error", MB_OK);
 		return hr;
+	}
 
 	// Создание буфера вершин (три вершины треугольника)
 	SimpleVertex vertices[3];
@@ -368,17 +359,20 @@ HRESULT InitGeometry()
 	// Вызов метода g_pd3dDevice создаст объект буфера вершин ID3D11Buffer
 	hr = g_pd3dDevice->CreateBuffer(&bd, &InitData, &g_pVertexBuffer);
 
-	if (FAILED(hr)) 
+	if (FAILED(hr)) {
+		MessageBox(NULL, L"Cannot create buffer", L"Error", MB_OK);
 		return hr;
+	}
 
-	// Установка буфера вершин:
+	// Установка буфера вершин
 	UINT stride = sizeof(SimpleVertex);
 	UINT offset = 0;
-
 	g_pImmediateContext->IASetVertexBuffers(0, 1, &g_pVertexBuffer, &stride, &offset);
 
 	// Установка способа отрисовки вершин в буфере
 	g_pImmediateContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+	return hr;
 }
 
 
@@ -389,10 +383,15 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 
 	HRESULT hr = InitD3DX11(hWnd);
 	if (FAILED(hr)) {
+		MessageBox(NULL, L"Cannot init d3dx11", L"Error", MB_ICONERROR | MB_OK);
 		return -1;
 	}
 
-	InitGeometry();
+	hr = InitGeometry();
+	if (FAILED(hr)) {
+		MessageBox(NULL, L"Cannot init geometry", L"Error", MB_ICONERROR | MB_OK);
+		return -1;
+	}
 
 	dir_file_open("E:/games/Grand Theft Auto Vice City/models/gta3.dir");
 	img_file_open("E:/games/Grand Theft Auto Vice City/models/gta3.img");
@@ -407,7 +406,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 
 	std::ifstream in("C:/Files/projects/openvice/lawyer.dff", std::ios::binary);
 	if (!in.is_open()) {
-		printf("cannot open file\n");
+		MessageBox(NULL, L"Cannot open file", L"Error", MB_ICONERROR | MB_OK);
 		return -1;
 	}
 
