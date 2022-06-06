@@ -276,17 +276,52 @@ void CleanupDevice()
 	if (g_pd3dDevice) g_pd3dDevice->Release();
 }
 
+HRESULT CreatePixelShader()
+{
+	HRESULT hr = S_OK;
+
+	// Компиляция пиксельного шейдера из файла
+	// ID3DBlob* pPSBlob = NULL;
+	// hr = CompileShaderFromFile(L"pixel_shader.hlsl", "PS", "ps_4_0", &pPSBlob);
+
+	// Использование уже скомпилированного PS шейдера
+	ID3DBlob* pPSBlob = NULL;
+	hr = D3DReadFileToBlob(L"pixel_shader.cso", &pPSBlob);
+
+	if (FAILED(hr)) {
+		MessageBox(NULL, L"Cannot read compiled pixel shader", L"Error", MB_OK);
+		return hr;
+	}
+
+	// Создание пиксельного шейдера
+	hr = g_pd3dDevice->CreatePixelShader(pPSBlob->GetBufferPointer(), pPSBlob->GetBufferSize(), NULL, &g_pPixelShader);
+	pPSBlob->Release();
+
+	if (FAILED(hr)) {
+		MessageBox(NULL, L"Cannot create pixel shader", L"Error", MB_OK);
+		return hr;
+	}
+
+	return hr;
+}
 
 HRESULT InitGeometry()
 {
 	HRESULT hr = S_OK;
 
 	// Компиляция вершинного шейдера из файла
-	ID3DBlob* pVSBlob = NULL; // Вспомогательный объект - просто место в оперативной памяти
-	hr = CompileShaderFromFile(L"vertex_shader.hlsl", "VS", "vs_4_0", &pVSBlob);
+	//ID3DBlob* pVSBlob = NULL; // Вспомогательный объект - просто место в оперативной памяти
+	//hr = CompileShaderFromFile(L"vertex_shader.hlsl", "VS", "vs_4_0", &pVSBlob);
+	//if (FAILED(hr))	{
+	//	MessageBox(NULL, L"Cannot compile vertex shader", L"Error", MB_OK);
+	//	return hr;
+	//}
 
+	// Использование скомпилированного шейдера (например заранее в MS Visual Studio)
+	ID3DBlob* pVSBlob = NULL;
+	hr = D3DReadFileToBlob(L"vertex_shader.cso", &pVSBlob);
 	if (FAILED(hr))	{
-		MessageBox(NULL, L"Cannot compile vertex shader", L"Error", MB_OK);
+		MessageBox(NULL, L"Cannot read compiled vertex shader", L"Error", MB_OK);
 		return hr;
 	}
 
@@ -320,23 +355,8 @@ HRESULT InitGeometry()
 	// Подключение шаблона вершин
 	g_pImmediateContext->IASetInputLayout(g_pVertexLayout);
 
-	// Компиляция пиксельного шейдера из файла
-	ID3DBlob* pPSBlob = NULL;
-	hr = CompileShaderFromFile(L"pixel_shader.hlsl", "PS", "ps_4_0", &pPSBlob);
-
-	if (FAILED(hr))	{
-		MessageBox(NULL, L"Cannot compile pixel shader", L"Error", MB_OK);
-		return hr;
-	}
-
 	// Создание пиксельного шейдера
-	hr = g_pd3dDevice->CreatePixelShader(pPSBlob->GetBufferPointer(), pPSBlob->GetBufferSize(), NULL, &g_pPixelShader);
-	pPSBlob->Release();
-
-	if (FAILED(hr)) {
-		MessageBox(NULL, L"Cannot create pixel shader", L"Error", MB_OK);
-		return hr;
-	}
+	CreatePixelShader();
 
 	// Создание буфера вершин (три вершины треугольника)
 	SimpleVertex vertices[3];
