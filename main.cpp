@@ -314,7 +314,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 				mouseLastState = mouseCurrState;
 			}
 
-			gameCamera->UpdateCamera(camPitch, camYaw, moveLeftRight, moveBackForward);
+			gameCamera->Update(camPitch, camYaw, moveLeftRight, moveBackForward);
 
 			Render(gameRender, gameCamera, gameModel, frameTime);
 

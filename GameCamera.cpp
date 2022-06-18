@@ -20,7 +20,7 @@ void GameCamera::Cleanup()
 	// none
 }
 
-void GameCamera::UpdateCamera(float camPitch, float camYaw, float moveLeftRight, float moveBackForward)
+void GameCamera::Update(float camPitch, float camYaw, float moveLeftRight, float moveBackForward)
 {
 	camRotationMatrix = XMMatrixRotationRollPitchYaw(camPitch, camYaw, 0);
 	camTarget = XMVector3TransformCoord(DefaultForward, camRotationMatrix);

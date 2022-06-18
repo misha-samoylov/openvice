@@ -133,7 +133,6 @@
     <ClCompile Include="dffconv.cpp" />
     <ClCompile Include="dffread.cpp" />
     <ClCompile Include="dffwrite.cpp" />
-    <ClCompile Include="dff_loader.cpp" />
     <ClCompile Include="dumprwtree.cpp" />
     <ClCompile Include="GameCamera.cpp" />
     <ClCompile Include="GameInput.cpp" />
@@ -155,7 +154,6 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="args.h" />
-    <ClInclude Include="dff_loader.hpp" />
     <ClInclude Include="GameCamera.h" />
     <ClInclude Include="GameInput.h" />
     <ClInclude Include="GameModel.h" />

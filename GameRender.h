@@ -28,4 +28,3 @@ public:
 	ID3D11Device *getDevice();
 	ID3D11DeviceContext *getDeviceContext();
 };
-

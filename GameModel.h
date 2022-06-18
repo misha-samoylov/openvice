@@ -41,15 +41,15 @@ private:
 	XMMATRIX WVP;
 	XMMATRIX World;
 
-public:
-	HRESULT Init(GameRender *render);
-	void Cleanup();
-	void Render(GameRender * render, GameCamera *camera);
-
 	HRESULT CreateConstBuffer(GameRender *render);
 	HRESULT CreatePixelShader(GameRender *render);
 	HRESULT CreateVertexShader(GameRender *render);
 	HRESULT CreateInputLayout(GameRender *render);
 	HRESULT CreateBufferModel(GameRender *render);
+
+public:
+	HRESULT Init(GameRender *render);
+	void Cleanup();
+	void Render(GameRender * render, GameCamera *camera);
 };
 
