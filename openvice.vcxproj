@@ -137,6 +137,8 @@
     <ClCompile Include="dumprwtree.cpp" />
     <ClCompile Include="GameCamera.cpp" />
     <ClCompile Include="GameInput.cpp" />
+    <ClCompile Include="GameModel.cpp" />
+    <ClCompile Include="GameRender.cpp" />
     <ClCompile Include="img_loader.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="oglnative.cpp" />
@@ -154,6 +156,8 @@
     <ClInclude Include="dff_loader.hpp" />
     <ClInclude Include="GameCamera.h" />
     <ClInclude Include="GameInput.h" />
+    <ClInclude Include="GameModel.h" />
+    <ClInclude Include="GameRender.h" />
     <ClInclude Include="img_loader.hpp" />
     <ClInclude Include="renderware.h" />
   </ItemGroup>
