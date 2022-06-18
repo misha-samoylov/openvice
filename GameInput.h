@@ -19,7 +19,7 @@ private:
 public:
 	HRESULT Init(HINSTANCE hInstance, HWND hWnd);
 	void Cleanup();
-	void Detect();
+	HRESULT Detect();
 
 	bool IsKey(BYTE key);
 	float GetMouseSpeedX();

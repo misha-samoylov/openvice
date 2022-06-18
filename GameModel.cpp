@@ -1,6 +1,6 @@
 #include "GameModel.h"
 
-HRESULT GameModel::CreateConstBuffer(GameRender *render)
+HRESULT GameModel::CreateConstBuffer(GameRender *pRender)
 {
 	HRESULT hr;
 
@@ -13,66 +13,66 @@ HRESULT GameModel::CreateConstBuffer(GameRender *render)
 	cbbd.CPUAccessFlags = 0;
 	cbbd.MiscFlags = 0;
 
-	hr = render->getDevice()->CreateBuffer(&cbbd, NULL, &m_pPerObjectBuffer);
+	hr = pRender->getDevice()->CreateBuffer(&cbbd, NULL, &m_pPerObjectBuffer);
 	return hr;
 }
 
 void GameModel::Cleanup()
 {
-	// clear buffers
+	/* clear buffers */
 	if (m_pVertexBuffer) m_pVertexBuffer->Release();
 	if (m_pIndexBuffer) m_pIndexBuffer->Release();
 	if (m_pPerObjectBuffer) m_pPerObjectBuffer->Release();
 
-	// clear layout
+	/* clear layout */
 	if (m_pVertexLayout) m_pVertexLayout->Release();
 
-	// clear shaders
+	/* clear shaders */
 	if (m_pVertexShader) m_pVertexShader->Release();
 	if (m_pPixelShader) m_pPixelShader->Release();
 }
 
-void GameModel::Render(GameRender * render, GameCamera *camera)
+void GameModel::Render(GameRender * pRender, GameCamera *pCamera)
 {
+	pRender->getDeviceContext()->IASetInputLayout(m_pVertexLayout);
 
-	render->getDeviceContext()->IASetInputLayout(m_pVertexLayout);
+	/* set index buffer */
+	pRender->getDeviceContext()->IASetIndexBuffer(m_pIndexBuffer, DXGI_FORMAT_R32_UINT, 0);
 
-	// Set the buffer
-	render->getDeviceContext()->IASetIndexBuffer(m_pIndexBuffer, DXGI_FORMAT_R32_UINT, 0);
-
-	// Установка буфера вершин
+	// set vertex buffer
 	UINT stride = sizeof(struct SimpleVertex);
 	UINT offset = 0;
-	render->getDeviceContext()->IASetVertexBuffers(0, 1, &m_pVertexBuffer, &stride, &offset);
+	pRender->getDeviceContext()->IASetVertexBuffers(0, 1, &m_pVertexBuffer, &stride, &offset);
 
-	render->getDeviceContext()->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	pRender->getDeviceContext()->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-	// Set shaders
-	render->getDeviceContext()->VSSetShader(m_pVertexShader, NULL, 0);
-	render->getDeviceContext()->PSSetShader(m_pPixelShader, NULL, 0);
+	/* set shaders */
+	pRender->getDeviceContext()->VSSetShader(m_pVertexShader, NULL, 0);
+	pRender->getDeviceContext()->PSSetShader(m_pPixelShader, NULL, 0);
 
-	//XMMATRIX Scale = XMMatrixScaling(1.0f, 1.0f, 1.0f);
-	//XMMATRIX Translation = XMMatrixTranslation(0.0f, 0.0f, 0.0f);
-	//World = Scale * Translation;
+	XMMATRIX modelPosition = XMMatrixIdentity();
+	XMMATRIX modelScale = XMMatrixScaling(1.0f, 1.0f, 1.0f);
+	XMMATRIX modelTranslation = XMMatrixTranslation(0.0f, 0.0f, 0.0f);
+	mWorld = modelPosition * modelScale * modelTranslation;
 
-	mWVP = mWorld * camera->getView() * camera->getProjection();
+	mWVP = mWorld * pCamera->getView() * pCamera->getProjection();
 	mPerObj.WVP = XMMatrixTranspose(mWVP);
 
-	render->getDeviceContext()->UpdateSubresource(m_pPerObjectBuffer, 0, NULL, &mPerObj, 0, 0);
-	render->getDeviceContext()->VSSetConstantBuffers(0, 1, &m_pPerObjectBuffer);
+	pRender->getDeviceContext()->UpdateSubresource(m_pPerObjectBuffer, 0, NULL, &mPerObj, 0, 0);
+	pRender->getDeviceContext()->VSSetConstantBuffers(0, 1, &m_pPerObjectBuffer);
 
-	// Render indexed vertices
-	render->getDeviceContext()->DrawIndexed(6, 0, 0);
+	/* render indexed vertices */
+	pRender->getDeviceContext()->DrawIndexed(6, 0, 0);
 }
 
 
-HRESULT GameModel::CreatePixelShader(GameRender *render)
+HRESULT GameModel::CreatePixelShader(GameRender *pRender)
 {
 	HRESULT hr = S_OK;
 
-	// Compile shaders from file
-	// ID3DBlob* pPSBlob = NULL;
-	// hr = CompileShaderFromFile(L"pixel_shader.hlsl", "PS", "ps_4_0", &pPSBlob);
+	/* compile shaders from file */
+	/* ID3DBlob* pPSBlob = NULL;
+	hr = CompileShaderFromFile(L"pixel_shader.hlsl", "PS", "ps_4_0", &pPSBlob); */
 
 	ID3DBlob* pPSBlob = NULL;
 	hr = D3DReadFileToBlob(L"pixel_shader.cso", &pPSBlob);
@@ -82,7 +82,7 @@ HRESULT GameModel::CreatePixelShader(GameRender *render)
 		return hr;
 	}
 
-	hr = render->getDevice()->CreatePixelShader(pPSBlob->GetBufferPointer(),
+	hr = pRender->getDevice()->CreatePixelShader(pPSBlob->GetBufferPointer(),
 		pPSBlob->GetBufferSize(), NULL, &m_pPixelShader);
 
 	pPSBlob->Release();
@@ -95,7 +95,7 @@ HRESULT GameModel::CreatePixelShader(GameRender *render)
 	return hr;
 }
 
-HRESULT GameModel::CreateVertexShader(GameRender *render)
+HRESULT GameModel::CreateVertexShader(GameRender *pRender)
 {
 	HRESULT hr;
 
@@ -106,7 +106,7 @@ HRESULT GameModel::CreateVertexShader(GameRender *render)
 		return hr;
 	}
 
-	hr = render->getDevice()->CreateVertexShader(m_pVSBlob->GetBufferPointer(),
+	hr = pRender->getDevice()->CreateVertexShader(m_pVSBlob->GetBufferPointer(),
 		m_pVSBlob->GetBufferSize(), NULL, &m_pVertexShader);
 
 	if (FAILED(hr)) {
@@ -118,20 +118,26 @@ HRESULT GameModel::CreateVertexShader(GameRender *render)
 	return hr;
 }
 
-HRESULT GameModel::CreateInputLayout(GameRender * render)
+HRESULT GameModel::CreateInputLayout(GameRender *pRender)
 {
 	HRESULT hr;
 
-	// Определение шаблона вершин
+	/* setup layout */
 	D3D11_INPUT_ELEMENT_DESC layout[] = {
-		/* семантическое имя, семантический индекс, размер, входящий слот (0-15), адрес начала данных в буфере вершин, класс входящего слота (не важно), InstanceDataStepRate (не важно) */
-		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+		{
+			"POSITION",  /* name */
+			0, /* index */
+			DXGI_FORMAT_R32G32B32_FLOAT, /* size */
+			0, /* incoming slot (0-15) */ 
+			0, /* address start data in vertex buffer */
+			D3D11_INPUT_PER_VERTEX_DATA, /* class incoming slot (no matter) */
+			0 /* InstanceDataStepRate (no matter) */
+		},
 	};
 
 	UINT numElements = ARRAYSIZE(layout);
 
-	// Создание шаблона вершин
-	hr = render->getDevice()->CreateInputLayout(layout, numElements, m_pVSBlob->GetBufferPointer(),
+	hr = pRender->getDevice()->CreateInputLayout(layout, numElements, m_pVSBlob->GetBufferPointer(),
 		m_pVSBlob->GetBufferSize(), &m_pVertexLayout);
 
 	if (FAILED(hr)) {
@@ -141,7 +147,7 @@ HRESULT GameModel::CreateInputLayout(GameRender * render)
 	return hr;
 }
 
-HRESULT GameModel::CreateBufferModel(GameRender * render)
+HRESULT GameModel::CreateBufferModel(GameRender * pRender)
 {
 	HRESULT hr;
 
@@ -165,7 +171,7 @@ HRESULT GameModel::CreateBufferModel(GameRender * render)
 		InitData.pSysMem = vertices;               // указатель на наши 3 вершины
 
 		// Вызов метода g_pd3dDevice создаст объект буфера вершин ID3D11Buffer
-		hr = render->getDevice()->CreateBuffer(&bd, &InitData, &m_pVertexBuffer);
+		hr = pRender->getDevice()->CreateBuffer(&bd, &InitData, &m_pVertexBuffer);
 
 		if (FAILED(hr)) {
 			MessageBox(NULL, L"Cannot create buffer", L"Error", MB_OK);
@@ -194,12 +200,12 @@ HRESULT GameModel::CreateBufferModel(GameRender * render)
 	InitData.SysMemSlicePitch = 0;
 
 	// Create the buffer with the device.
-	hr = render->getDevice()->CreateBuffer(&bufferDesc, &InitData, &m_pIndexBuffer);
+	hr = pRender->getDevice()->CreateBuffer(&bufferDesc, &InitData, &m_pIndexBuffer);
 
 	return hr;
 }
 
-HRESULT GameModel::Init(GameRender *render)
+HRESULT GameModel::Init(GameRender *pRender)
 {
 	HRESULT hr = S_OK;
 
@@ -208,13 +214,29 @@ HRESULT GameModel::Init(GameRender *render)
 	mWVP = XMMatrixIdentity();
 	mWorld = XMMatrixIdentity();
 
-	CreateVertexShader(render);
-	CreatePixelShader(render);
-	CreateConstBuffer(render);
-	CreateInputLayout(render);
-	CreateBufferModel(render);
+	CreateVertexShader(pRender);
+	CreatePixelShader(pRender);
+	CreateConstBuffer(pRender);
+	CreateInputLayout(pRender);
+	CreateBufferModel(pRender);
 
 	m_pVSBlob->Release();
 
 	return hr;
+}
+
+HRESULT GameModel::CompileShaderFromFile(LPCWSTR szFileName, LPCSTR szEntryPoint, LPCSTR szShaderModel, ID3DBlob** ppBlobOut)
+{
+	HRESULT hr;
+	DWORD dwShaderFlags = D3DCOMPILE_ENABLE_STRICTNESS;
+
+	hr = D3DCompileFromFile(szFileName, NULL, NULL, szEntryPoint, szShaderModel,
+		dwShaderFlags, 0, ppBlobOut, NULL);
+
+	if (FAILED(hr)) {
+		MessageBox(NULL, L"Cannot compile shader", L"Error", MB_ICONERROR | MB_OK);
+		return hr;
+	}
+
+	return S_OK;
 }

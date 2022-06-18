@@ -35,18 +35,17 @@ HWND GameWindow::CreateWindowApp(HINSTANCE hInstance, int nCmdShow,
 	RECT rc = { 0, 0, width, height };
 	AdjustWindowRect(&rc, WS_OVERLAPPEDWINDOW, FALSE);
 
-	// Создание окна
 	mHWnd = CreateWindowEx(
-		0, // Доп. стили
-		CLASS_NAME, // Класс окна
-		windowTitle, // Название окна
-		WS_OVERLAPPEDWINDOW, // Стиль
-		CW_USEDEFAULT, CW_USEDEFAULT, // Позиция: x, y
-		rc.right - rc.left, rc.bottom - rc.top, // Размер: ширина, высота
-		NULL, // Родительское окно
-		NULL, // Меню
-		hInstance, // Instance handle
-		NULL // Доп. информация приложения
+		0, /* extended styles */
+		CLASS_NAME,
+		windowTitle,
+		WS_OVERLAPPEDWINDOW, /* style */
+		CW_USEDEFAULT, CW_USEDEFAULT, /* position: x, y */
+		rc.right - rc.left, rc.bottom - rc.top, /* size: weight, height */
+		NULL, /* parent window */
+		NULL, /* menu */
+		hInstance,
+		NULL /* extended app info */
 	);
 
 	if (mHWnd == NULL) {

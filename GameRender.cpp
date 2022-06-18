@@ -25,15 +25,15 @@ void GameRender::InitViewport(HWND hWnd)
 	vp.TopLeftX = 0;
 	vp.TopLeftY = 0;
 
-	// Connect viewport to device context
+	/* connect viewport to device context */
 	UINT countViewports = 1;
 	m_pDeviceContext->RSSetViewports(countViewports, &vp);
 }
 
 HRESULT GameRender::CreateBackBuffer()
 {
-	// RenderTargetOutput - front buffer
-	// RenderTargetView - back buffer
+	/* front buffer - RenderTargetOutput */
+	/* back buffer - RenderTargetView */
 	ID3D11Texture2D* pBackBuffer = NULL;
 	HRESULT hr = m_pSwapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), (LPVOID*)&pBackBuffer);
 
@@ -42,15 +42,14 @@ HRESULT GameRender::CreateBackBuffer()
 		return hr;
 	}
 
-	// Device used for create all objects
 	hr = m_pDevice->CreateRenderTargetView(pBackBuffer, NULL, &m_pRenderTargetView);
-	pBackBuffer->Release(); // That's object does not needed
+	pBackBuffer->Release(); /* now that's object does not needed */
 	if (FAILED(hr)) {
 		MessageBox(NULL, L"Cannot create render target view", L"Error", MB_OK);
 		return hr;
 	}
 
-	// Connect back buffer to device context
+	/* connect back buffer to device context */
 	m_pDeviceContext->OMSetRenderTargets(1, &m_pRenderTargetView, NULL);
 
 	return hr;
@@ -63,20 +62,20 @@ HRESULT GameRender::Init(HWND hWnd)
 	UINT width = rc.right - rc.left;
 	UINT height = rc.bottom - rc.top;
 
-	/* Properties front buffer and attach it to window */
+	/* properties front buffer and attach it to window */
 	DXGI_SWAP_CHAIN_DESC sd;
 	ZeroMemory(&sd, sizeof(sd));
-	sd.BufferCount = 1; // counts buffer = 1
-	sd.BufferDesc.Width = width; // width buffer
-	sd.BufferDesc.Height = height; // height buffer
-	sd.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM; // pixel format in buffer
-	sd.BufferDesc.RefreshRate.Numerator = 60; // частота обновления экрана
+	sd.BufferCount = 1; /* counts buffer = 1 */
+	sd.BufferDesc.Width = width; /* buffer width */
+	sd.BufferDesc.Height = height; /* buffer height */
+	sd.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM; /* pixel format in buffer */
+	sd.BufferDesc.RefreshRate.Numerator = 60; /* screen refresh rate */
 	sd.BufferDesc.RefreshRate.Denominator = 1;
-	sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT; // назначение буфера - задний буфер
-	sd.OutputWindow = hWnd; // attach to window
+	sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT; /* target - back buffer */
+	sd.OutputWindow = hWnd; /* attach to window */
 	sd.SampleDesc.Count = 1;
 	sd.SampleDesc.Quality = 0;
-	sd.Windowed = TRUE; // windowed
+	sd.Windowed = TRUE; /* windowed */
 
 	D3D_FEATURE_LEVEL featureLevels[] = {
 		D3D_FEATURE_LEVEL_11_0
@@ -118,25 +117,29 @@ HRESULT GameRender::Init(HWND hWnd)
 
 void GameRender::Cleanup()
 {
-	if (m_pDeviceContext) m_pDeviceContext->ClearState();
+	if (m_pDeviceContext) 
+		m_pDeviceContext->ClearState();
 
-	//CleanupGeometry();
+	if (m_pRenderTargetView) 
+		m_pRenderTargetView->Release();
+	if (m_pSwapChain) 
+		m_pSwapChain->Release();
 
-	if (m_pRenderTargetView) m_pRenderTargetView->Release();
-	if (m_pSwapChain) m_pSwapChain->Release();
-	if (m_pDeviceContext) m_pDeviceContext->Release();
-	if (m_pDevice) m_pDevice->Release();
+	if (m_pDeviceContext) 
+		m_pDeviceContext->Release();
+	if (m_pDevice) 
+		m_pDevice->Release();
 }
 
 void GameRender::RenderStart()
 {
-	// Clear back buffer
+	/* clear back buffer */
 	float clearColor[4] = { 0.0f, 0.0f, 1.0f, 1.0f };
 	m_pDeviceContext->ClearRenderTargetView(m_pRenderTargetView, clearColor);
 }
 
 void GameRender::RenderEnd()
 {
-	// Show back buffer to screen
+	/* show back buffer to screen */
 	m_pSwapChain->Present(0, 0);
 }

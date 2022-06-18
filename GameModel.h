@@ -41,15 +41,17 @@ private:
 	XMMATRIX mWVP;
 	XMMATRIX mWorld;
 
-	HRESULT CreateConstBuffer(GameRender *render);
-	HRESULT CreatePixelShader(GameRender *render);
-	HRESULT CreateVertexShader(GameRender *render);
-	HRESULT CreateInputLayout(GameRender *render);
-	HRESULT CreateBufferModel(GameRender *render);
+	HRESULT CreateConstBuffer(GameRender *pRender);
+	HRESULT CreatePixelShader(GameRender *pRender);
+	HRESULT CreateVertexShader(GameRender *pRender);
+	HRESULT CreateInputLayout(GameRender *pRender);
+	HRESULT CreateBufferModel(GameRender *pRender);
+
+	HRESULT CompileShaderFromFile(LPCWSTR szFileName, LPCSTR szEntryPoint, LPCSTR szShaderModel, ID3DBlob** ppBlobOut);
 
 public:
-	HRESULT Init(GameRender *render);
+	HRESULT Init(GameRender *pRender);
 	void Cleanup();
-	void Render(GameRender * render, GameCamera *camera);
+	void Render(GameRender *pRender, GameCamera *pCamera);
 };
 
