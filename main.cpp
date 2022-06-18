@@ -6,23 +6,21 @@
 #include <d3d11.h>
 #include <d3dcompiler.h>
 #include <DirectXMath.h>
-
-#pragma comment (lib, "d3d11.lib")
-#pragma comment (lib, "d3dcompiler.lib")
+#include <dinput.h>
 
 #include "img_loader.hpp"
 #include "renderware.h"
 
+#pragma comment (lib, "d3d11.lib")
+#pragma comment (lib, "d3dcompiler.lib")
 #pragma comment (lib, "dinput8.lib")
 #pragma comment (lib, "dxguid.lib")
-#include <dinput.h>
 
-#define WINDOW_WIDTH 800
-#define WINDOW_HEIGHT 600
+#define WINDOW_WIDTH 1400
+#define WINDOW_HEIGHT 1200
 #define WINDOW_TITLE L"openvice"
 
-
-using namespace DirectX; // DirectXMath.h
+using namespace DirectX; /* DirectXMath.h */
 
 XMMATRIX WVP;
 XMMATRIX World;
@@ -55,22 +53,10 @@ void UpdateCamera()
 	camTarget = XMVector3TransformCoord(DefaultForward, camRotationMatrix);
 	camTarget = XMVector3Normalize(camTarget);
 
-	///////////////**************new**************////////////////////
-		/*
-		// First-Person Camera
-		XMMATRIX RotateYTempMatrix;
-		RotateYTempMatrix = XMMatrixRotationY(camYaw);
-
-		camRight = XMVector3TransformCoord(DefaultRight, RotateYTempMatrix);
-		camUp = XMVector3TransformCoord(camUp, RotateYTempMatrix);
-		camForward = XMVector3TransformCoord(DefaultForward, RotateYTempMatrix);*/
-
-		// Free-Look Camera
 	camRight = XMVector3TransformCoord(DefaultRight, camRotationMatrix);
 	camForward = XMVector3TransformCoord(DefaultForward, camRotationMatrix);
 	camUp = XMVector3Cross(camForward, camRight);
-	///////////////**************new**************////////////////////
-
+	
 	camPosition += moveLeftRight * camRight;
 	camPosition += moveBackForward * camForward;
 
@@ -81,10 +67,6 @@ void UpdateCamera()
 
 	camView = XMMatrixLookAtLH(camPosition, camTarget, camUp);
 }
-///
-
-bool keyUp = false;
-
 
 ID3D11Device *g_pd3dDevice;
 ID3D11DeviceContext *g_pImmediateContext;
@@ -123,19 +105,12 @@ struct cbPerObject
 cbPerObject cbPerObj;
 
 
-
-
-/// dinput
+// DirectInput
 IDirectInputDevice8* DIKeyboard;
 IDirectInputDevice8* DIMouse;
 
 DIMOUSESTATE mouseLastState;
 LPDIRECTINPUT8 DirectInput;
-
-float rotx = 0;
-float rotz = 0;
-float scaleX = 1.0f;
-float scaleY = 1.0f;
 
 XMMATRIX Rotationx;
 XMMATRIX Rotationz;
@@ -144,8 +119,7 @@ HRESULT InitDirectInput(HINSTANCE hInstance, HWND hWnd);
 void DetectInput(double time, HWND hWnd);
 
 
-float rot = 0.01f;
-
+// utils
 double countsPerSecond = 0.0;
 __int64 CounterStart = 0;
 
@@ -154,10 +128,6 @@ int fps = 0;
 
 __int64 frameTimeOld = 0;
 double frameTime;
-///
-
-
-
 
 void createConstBuffer()
 {
@@ -173,9 +143,6 @@ void createConstBuffer()
 
 	g_pd3dDevice->CreateBuffer(&cbbd, NULL, &cbPerObjectBuffer);
 }
-
-
-
 
 // Вспомогательная функция для компиляции шейдеров в D3DX11
 HRESULT CompileShaderFromFile(LPCWSTR szFileName, LPCSTR szEntryPoint, LPCSTR szShaderModel, ID3DBlob** ppBlobOut)
@@ -193,7 +160,6 @@ HRESULT CompileShaderFromFile(LPCWSTR szFileName, LPCSTR szEntryPoint, LPCSTR sz
 
 	return S_OK;
 }
-
 
 class Model {
 
@@ -232,7 +198,6 @@ public:
 
 	HRESULT createModel(std::vector<rw::uint16> faces, std::vector<rw::float32> vertices)
 	{
-
 		this->faces = faces;
 		this->vertices = vertices;
 
@@ -260,11 +225,6 @@ public:
 		}
 
 
-
-
-
-
-
 		// Fill in a buffer description.
 		D3D11_BUFFER_DESC bufferDesc;
 		bufferDesc.Usage = D3D11_USAGE_DEFAULT;
@@ -286,11 +246,6 @@ public:
 
 		// Set the buffer.
 		g_pImmediateContext->IASetIndexBuffer(pIndexBuffer, DXGI_FORMAT_R32_UINT, 0);
-
-
-
-
-
 
 
 		return hr;
@@ -324,8 +279,8 @@ void InitViewport(HWND hWnd)
 {
 	RECT rc;
 	GetClientRect(hWnd, &rc);
-	UINT width = rc.right - rc.left; // получаем ширину
-	UINT height = rc.bottom - rc.top; // и высоту окна
+	UINT width = rc.right - rc.left;
+	UINT height = rc.bottom - rc.top;
 
 	D3D11_VIEWPORT vp;
 	vp.Width = (FLOAT)width;
@@ -335,15 +290,15 @@ void InitViewport(HWND hWnd)
 	vp.TopLeftX = 0;
 	vp.TopLeftY = 0;
 
-	// Подключаем вьюпорт к контексту устройства
+	// Connect viewport to device context
 	UINT countViewports = 1;
 	g_pImmediateContext->RSSetViewports(countViewports, &vp);
 }
 
 HRESULT CreateBackBuffer()
 {
-	// Создаем задний буфер
-	// RenderTargetOutput - это передний буфер, а RenderTargetView - задний
+	// RenderTargetOutput - front buffer
+	// RenderTargetView - back buffer
 	ID3D11Texture2D* pBackBuffer = NULL;
 	HRESULT hr = g_pSwapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), (LPVOID*)&pBackBuffer);
 
@@ -352,15 +307,15 @@ HRESULT CreateBackBuffer()
 		return hr;
 	}
 
-	// Интерфейс g_pd3dDevice используется для создания всех объектов
+	// Device used for create all objects
 	hr = g_pd3dDevice->CreateRenderTargetView(pBackBuffer, NULL, &g_pRenderTargetView);
-	pBackBuffer->Release(); // Больше этот объект не потребуется
+	pBackBuffer->Release(); // That's object does not needed
 	if (FAILED(hr)) {
 		MessageBox(NULL, L"Cannot create render target view", L"Error", MB_OK);
 		return hr;
 	}
 
-	// Подключаем объект заднего буфера к контексту устройства
+	// Connect back buffer to device context
 	g_pImmediateContext->OMSetRenderTargets(1, &g_pRenderTargetView, NULL);
 
 	return hr;
@@ -370,23 +325,23 @@ HRESULT InitD3DX11(HWND hWnd)
 {
 	RECT rc;
 	GetClientRect(hWnd, &rc);
-	UINT width = rc.right - rc.left; // получаем ширину
-	UINT height = rc.bottom - rc.top; // и высоту окна
+	UINT width = rc.right - rc.left;
+	UINT height = rc.bottom - rc.top;
 
-	/* свойства переднего буфера и привязывает его к нашему окну */
+	/* Properties front buffer and attach it to window */
 	DXGI_SWAP_CHAIN_DESC sd;
 	ZeroMemory(&sd, sizeof(sd));
-	sd.BufferCount = 1; // у нас один задний буфер
-	sd.BufferDesc.Width = width; // ширина буфера
-	sd.BufferDesc.Height = height; // высота буфера
-	sd.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM; // формат пикселя в буфере
+	sd.BufferCount = 1; // counts buffer = 1
+	sd.BufferDesc.Width = width; // width buffer
+	sd.BufferDesc.Height = height; // height buffer
+	sd.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM; // pixel format in buffer
 	sd.BufferDesc.RefreshRate.Numerator = 60; // частота обновления экрана
 	sd.BufferDesc.RefreshRate.Denominator = 1;
 	sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT; // назначение буфера - задний буфер
-	sd.OutputWindow = hWnd; // привязываем к нашему окну
+	sd.OutputWindow = hWnd; // attach to window
 	sd.SampleDesc.Count = 1;
 	sd.SampleDesc.Quality = 0;
-	sd.Windowed = TRUE; // оконный режим
+	sd.Windowed = TRUE; // windowed
 
 	D3D_FEATURE_LEVEL featureLevels[] = {
 		D3D_FEATURE_LEVEL_11_0
@@ -431,14 +386,13 @@ std::vector<Model*> gModels;
 
 void Render(float time)
 {
-	// Очищаем задний буфер
-	float ClearColor[4] = { 0.0f, 0.0f, 1.0f, 1.0f }; // красный, зеленый, синий, альфа-канал
-	g_pImmediateContext->ClearRenderTargetView(g_pRenderTargetView, ClearColor);
+	// Clear back buffer
+	float clearColor[4] = { 0.0f, 0.0f, 1.0f, 1.0f };
+	g_pImmediateContext->ClearRenderTargetView(g_pRenderTargetView, clearColor);
 
-	// Подключить к устройству рисования шейдеры
+	// Set shaders
 	g_pImmediateContext->VSSetShader(g_pVertexShader, NULL, 0);
 	g_pImmediateContext->PSSetShader(g_pPixelShader, NULL, 0);
-
 
 	XMMATRIX Scale = XMMatrixScaling(1.0f, 1.0f, 1.0f);
 	XMMATRIX Translation = XMMatrixTranslation(0.0f, 0.0f, 0.0f);
@@ -451,14 +405,14 @@ void Render(float time)
 	g_pImmediateContext->UpdateSubresource(cbPerObjectBuffer, 0, NULL, &cbPerObj, 0, 0);
 	g_pImmediateContext->VSSetConstantBuffers(0, 1, &cbPerObjectBuffer);
 
-	// Нарисовать три вершины
+	// Render indexed vertices
 	g_pImmediateContext->DrawIndexed(6, 0, 0);
 
 	/*for (int i = 0; i < gModels.size(); i++) {
 		gModels[i]->render();
 	}*/
 
-	// Выбросить задний буфер на экран
+	// Show back buffer to screen
 	g_pSwapChain->Present(0, 0);
 }
 
@@ -522,10 +476,14 @@ void ShowConsole()
 
 void CleanupGeometry()
 {
+	// clear buffers
 	if (g_pVertexBuffer) g_pVertexBuffer->Release();
 	if (g_pIndexBuffer) g_pIndexBuffer->Release();
+	
+	// clear layout
 	if (g_pVertexLayout) g_pVertexLayout->Release();
 
+	// clear shaders
 	if (g_pVertexShader) g_pVertexShader->Release();
 	if (g_pPixelShader) g_pPixelShader->Release();
 }
@@ -653,13 +611,6 @@ HRESULT InitGeometry()
 		}
 	}
 
-
-
-
-
-
-	
-
 	// Create indices
 	unsigned int indices[]  = {
 		0, 1, 2,
@@ -685,10 +636,8 @@ HRESULT InitGeometry()
 	if (FAILED(hr))
 		return hr;
 
-	// Set the buffer.
+	// Set the buffer
 	g_pImmediateContext->IASetIndexBuffer(g_pIndexBuffer, DXGI_FORMAT_R32_UINT, 0);
-
-
 
 
 
@@ -744,27 +693,27 @@ void DetectInput(double time, HWND hwnd)
 
 	DIKeyboard->GetDeviceState(sizeof(keyboardState), (LPVOID)&keyboardState);
 
-	//if (keyboardState[DIK_ESCAPE] & 0x80)
-	//	PostMessage(hwnd, WM_DESTROY, 0, 0);
+	// if (keyboardState[DIK_ESCAPE] & 0x80)
+	//    PostMessage(hwnd, WM_DESTROY, 0, 0);
 
-	float speed = 15.0f * time;
+	float speed = 10.0f * time;
 
-	if (keyboardState[DIK_A] & 0x80)
-	{
+	if (keyboardState[DIK_A] & 0x80) {
 		moveLeftRight -= speed;
 	}
-	if (keyboardState[DIK_D] & 0x80)
-	{
+
+	if (keyboardState[DIK_D] & 0x80) {
 		moveLeftRight += speed;
 	}
-	if (keyboardState[DIK_W] & 0x80)
-	{
+
+	if (keyboardState[DIK_W] & 0x80) {
 		moveBackForward += speed;
 	}
-	if (keyboardState[DIK_S] & 0x80)
-	{
+
+	if (keyboardState[DIK_S] & 0x80) {
 		moveBackForward -= speed;
 	}
+
 	if ((mouseCurrState.lX != mouseLastState.lX)
 		|| (mouseCurrState.lY != mouseLastState.lY)) {
 
@@ -865,8 +814,6 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 
 	clump->dump();
 
-	
-
 	/*for (uint32_t index = 0; index < clump->geometryList.size(); index++) {
 		std::vector<rw::uint16> faces;
 
@@ -920,15 +867,10 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 	camUp = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
 
 	camView = XMMatrixLookAtLH(camPosition, camTarget, camUp);
-
 	camProjection = XMMatrixPerspectiveFovLH(0.4f*3.14f, (float)WINDOW_WIDTH / WINDOW_HEIGHT, 1.0f, 1000.0f);
 
 	World = XMMatrixIdentity();
-
-
-
 	WVP = World * camView * camProjection;
-
 
 	// Главный цикл сообщений
 	MSG msg = { 0 };
@@ -936,8 +878,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 		if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
 			TranslateMessage(&msg);
 			DispatchMessage(&msg);
-		} else { // Если сообщений нет
-			// run game code
+		} else { // If have not messagess
 			frameCount++;
 			if (GetTime() > 1.0f)
 			{
@@ -947,13 +888,8 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 			}
 
 			frameTime = GetFrameTime();
-
-			///////////////**************new**************////////////////////
 			DetectInput(frameTime, hWnd);
-			///////////////**************new**************////////////////////
-
-			Render(frameTime); // Рисуем
-
+			Render(frameTime);
 		}
 	}
 
