@@ -69,19 +69,31 @@
     <ClCompile Include="xboxnative.cpp">
       <Filter>Source Files\renderware</Filter>
     </ClCompile>
+    <ClCompile Include="GameInput.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="GameCamera.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="dff_loader.hpp">
-      <Filter>Source Files</Filter>
-    </ClInclude>
-    <ClInclude Include="img_loader.hpp">
-      <Filter>Source Files</Filter>
-    </ClInclude>
     <ClInclude Include="args.h">
       <Filter>Source Files\renderware</Filter>
     </ClInclude>
     <ClInclude Include="renderware.h">
       <Filter>Source Files\renderware</Filter>
+    </ClInclude>
+    <ClInclude Include="GameInput.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="img_loader.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="dff_loader.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="GameCamera.h">
+      <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

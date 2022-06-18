@@ -6,15 +6,15 @@
 #include <d3d11.h>
 #include <d3dcompiler.h>
 #include <DirectXMath.h>
-#include <dinput.h>
 
 #include "img_loader.hpp"
 #include "renderware.h"
 
+#include "GameCamera.h"
+#include "GameInput.h"
+
 #pragma comment (lib, "d3d11.lib")
 #pragma comment (lib, "d3dcompiler.lib")
-#pragma comment (lib, "dinput8.lib")
-#pragma comment (lib, "dxguid.lib")
 
 #define WINDOW_WIDTH 1400
 #define WINDOW_HEIGHT 1200
@@ -24,21 +24,7 @@ using namespace DirectX; /* DirectXMath.h */
 
 XMMATRIX WVP;
 XMMATRIX World;
-XMMATRIX camView;
-XMMATRIX camProjection;
 
-XMVECTOR camPosition;
-XMVECTOR camTarget;
-XMVECTOR camUp;
-
-///camera
-XMVECTOR DefaultForward = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
-XMVECTOR DefaultRight = XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f);
-XMVECTOR camForward = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
-XMVECTOR camRight = XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f);
-
-XMMATRIX camRotationMatrix;
-XMMATRIX groundWorld;
 
 float moveLeftRight = 0.0f;
 float moveBackForward = 0.0f;
@@ -46,27 +32,7 @@ float moveBackForward = 0.0f;
 float camYaw = 0.0f;
 float camPitch = 0.0f;
 
-void UpdateCamera();
-void UpdateCamera()
-{
-	camRotationMatrix = XMMatrixRotationRollPitchYaw(camPitch, camYaw, 0);
-	camTarget = XMVector3TransformCoord(DefaultForward, camRotationMatrix);
-	camTarget = XMVector3Normalize(camTarget);
 
-	camRight = XMVector3TransformCoord(DefaultRight, camRotationMatrix);
-	camForward = XMVector3TransformCoord(DefaultForward, camRotationMatrix);
-	camUp = XMVector3Cross(camForward, camRight);
-	
-	camPosition += moveLeftRight * camRight;
-	camPosition += moveBackForward * camForward;
-
-	moveLeftRight = 0.0f;
-	moveBackForward = 0.0f;
-
-	camTarget = camPosition + camTarget;
-
-	camView = XMMatrixLookAtLH(camPosition, camTarget, camUp);
-}
 
 ID3D11Device *g_pd3dDevice;
 ID3D11DeviceContext *g_pImmediateContext;
@@ -91,11 +57,7 @@ ID3D11Buffer *g_pIndexBuffer = NULL;
 HRESULT InitGeometry(); // Инициализация шаблона ввода и буфера вершин
 
 
-
-
 ID3D11Buffer* cbPerObjectBuffer;
-
-
 
 struct cbPerObject
 {
@@ -103,21 +65,6 @@ struct cbPerObject
 };
 
 cbPerObject cbPerObj;
-
-
-// DirectInput
-IDirectInputDevice8* DIKeyboard;
-IDirectInputDevice8* DIMouse;
-
-DIMOUSESTATE mouseLastState;
-LPDIRECTINPUT8 DirectInput;
-
-XMMATRIX Rotationx;
-XMMATRIX Rotationz;
-
-HRESULT InitDirectInput(HINSTANCE hInstance, HWND hWnd);
-void DetectInput(double time, HWND hWnd);
-
 
 // utils
 double countsPerSecond = 0.0;
@@ -384,7 +331,7 @@ HRESULT InitD3DX11(HWND hWnd)
 
 std::vector<Model*> gModels;
 
-void Render(float time)
+void Render(GameCamera *gameCamera, float time)
 {
 	// Clear back buffer
 	float clearColor[4] = { 0.0f, 0.0f, 1.0f, 1.0f };
@@ -398,7 +345,7 @@ void Render(float time)
 	XMMATRIX Translation = XMMatrixTranslation(0.0f, 0.0f, 0.0f);
 	World = Scale * Translation;
 
-	WVP = World * camView * camProjection;
+	WVP = World * gameCamera->getView() * gameCamera->getProjection();
 
 	cbPerObj.WVP = XMMatrixTranspose(WVP);
 
@@ -653,87 +600,6 @@ HRESULT InitGeometry()
 }
 
 
-HRESULT InitDirectInput(HINSTANCE hInstance, HWND hwnd)
-{
-	HRESULT hr;
-
-	hr = DirectInput8Create(hInstance,
-		DIRECTINPUT_VERSION,
-		IID_IDirectInput8,
-		(void**)&DirectInput,
-		NULL);
-
-	hr = DirectInput->CreateDevice(GUID_SysKeyboard,
-		&DIKeyboard,
-		NULL);
-
-	hr = DirectInput->CreateDevice(GUID_SysMouse,
-		&DIMouse,
-		NULL);
-
-	hr = DIKeyboard->SetDataFormat(&c_dfDIKeyboard);
-	hr = DIKeyboard->SetCooperativeLevel(hwnd, DISCL_FOREGROUND | DISCL_NONEXCLUSIVE);
-
-	hr = DIMouse->SetDataFormat(&c_dfDIMouse);
-	hr = DIMouse->SetCooperativeLevel(hwnd, DISCL_NONEXCLUSIVE | DISCL_BACKGROUND);
-
-	return hr;
-}
-
-void DetectInput(double time, HWND hwnd)
-{
-	DIMOUSESTATE mouseCurrState;
-
-	BYTE keyboardState[256];
-
-	DIKeyboard->Acquire();
-	DIMouse->Acquire();
-
-	DIMouse->GetDeviceState(sizeof(DIMOUSESTATE), &mouseCurrState);
-
-	DIKeyboard->GetDeviceState(sizeof(keyboardState), (LPVOID)&keyboardState);
-
-	// if (keyboardState[DIK_ESCAPE] & 0x80)
-	//    PostMessage(hwnd, WM_DESTROY, 0, 0);
-
-	float speed = 10.0f * time;
-
-	if (keyboardState[DIK_A] & 0x80) {
-		moveLeftRight -= speed;
-	}
-
-	if (keyboardState[DIK_D] & 0x80) {
-		moveLeftRight += speed;
-	}
-
-	if (keyboardState[DIK_W] & 0x80) {
-		moveBackForward += speed;
-	}
-
-	if (keyboardState[DIK_S] & 0x80) {
-		moveBackForward -= speed;
-	}
-
-	if ((mouseCurrState.lX != mouseLastState.lX)
-		|| (mouseCurrState.lY != mouseLastState.lY)) {
-
-		camYaw += mouseLastState.lX * 0.001f;
-		camPitch += mouseCurrState.lY * 0.001f;
-
-		mouseLastState = mouseCurrState;
-	}
-
-	UpdateCamera();
-
-	return;
-}
-
-void CleanupDXInput()
-{
-	DIKeyboard->Unacquire();
-	DIMouse->Unacquire();
-	DirectInput->Release();
-}
 
 void StartTimer()
 {
@@ -785,7 +651,13 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 		return -1;
 	}
 
-	if (InitDirectInput(hInstance, hWnd) == S_FALSE)
+	GameInput *gameInput = new GameInput();
+	GameCamera *gameCamera = new GameCamera();
+
+	gameCamera->Init(WINDOW_WIDTH, WINDOW_HEIGHT);
+	
+
+	if (gameInput->Init(hInstance, hWnd) == S_FALSE)
 	{
 		MessageBox(0, L"Direct Input Initialization - Failed",
 			L"Error", MB_OK);
@@ -862,15 +734,9 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 
 	createConstBuffer();
 
-	camPosition = XMVectorSet(0.0f, 0.0f, -3.0f, 0.0f);
-	camTarget = XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f);
-	camUp = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
-
-	camView = XMMatrixLookAtLH(camPosition, camTarget, camUp);
-	camProjection = XMMatrixPerspectiveFovLH(0.4f*3.14f, (float)WINDOW_WIDTH / WINDOW_HEIGHT, 1.0f, 1000.0f);
-
+	
 	World = XMMatrixIdentity();
-	WVP = World * camView * camProjection;
+	WVP = World * gameCamera->getView() * gameCamera->getProjection();
 
 	// Главный цикл сообщений
 	MSG msg = { 0 };
@@ -888,13 +754,47 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 			}
 
 			frameTime = GetFrameTime();
-			DetectInput(frameTime, hWnd);
-			Render(frameTime);
+
+			gameInput->Detect();
+
+			float speed = 10.0f * frameTime;
+
+			if (gameInput->IsKey(DIK_ESCAPE)) {
+				PostQuitMessage(-1);
+			}
+
+			if (gameInput->IsKey(DIK_W)) {
+				moveBackForward += speed;
+			}
+
+			if (gameInput->IsKey(DIK_A)) {
+				moveLeftRight -= speed;
+			}
+
+			if (gameInput->IsKey(DIK_S)) {
+				moveBackForward -= speed;
+			}
+
+			if (gameInput->IsKey(DIK_D)) {
+				moveLeftRight += speed;
+			}
+
+			gameCamera->UpdateCamera(camPitch, camYaw, moveLeftRight, moveBackForward);
+
+			Render(gameCamera, frameTime);
+
+			moveLeftRight = 0.0f;
+			moveBackForward = 0.0f;
 		}
 	}
 
 	CleanupDevice();
-	CleanupDXInput();
+
+	gameCamera->Cleanup();
+	gameInput->Cleanup();
+
+	delete gameInput;
+	delete gameCamera;
 
 	return msg.wParam;
 }
