@@ -13,6 +13,12 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="Source Files\renderware">
+      <UniqueIdentifier>{3abdc80a-c7a8-4d18-9fa0-1a71a85d049e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\shaders">
+      <UniqueIdentifier>{80043fb7-6c00-40c1-8a5a-4c5a5480e7be}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="dff_loader.cpp">
@@ -25,43 +31,43 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="dffconv.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\renderware</Filter>
     </ClCompile>
     <ClCompile Include="dffread.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\renderware</Filter>
     </ClCompile>
     <ClCompile Include="dffwrite.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\renderware</Filter>
     </ClCompile>
     <ClCompile Include="dumprwtree.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\renderware</Filter>
     </ClCompile>
     <ClCompile Include="oglnative.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\renderware</Filter>
     </ClCompile>
     <ClCompile Include="ps2native.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\renderware</Filter>
     </ClCompile>
     <ClCompile Include="renderware.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\renderware</Filter>
     </ClCompile>
     <ClCompile Include="txdconv.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\renderware</Filter>
     </ClCompile>
     <ClCompile Include="txdex.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\renderware</Filter>
     </ClCompile>
     <ClCompile Include="txdread.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\renderware</Filter>
     </ClCompile>
     <ClCompile Include="txdwrite.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\renderware</Filter>
     </ClCompile>
     <ClCompile Include="uvanim.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\renderware</Filter>
     </ClCompile>
     <ClCompile Include="xboxnative.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\renderware</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -72,14 +78,18 @@
       <Filter>Source Files</Filter>
     </ClInclude>
     <ClInclude Include="args.h">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\renderware</Filter>
     </ClInclude>
     <ClInclude Include="renderware.h">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\renderware</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <FxCompile Include="pixel_shader.hlsl" />
-    <FxCompile Include="vertex_shader.hlsl" />
+    <FxCompile Include="vertex_shader.hlsl">
+      <Filter>Source Files\shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="pixel_shader.hlsl">
+      <Filter>Source Files\shaders</Filter>
+    </FxCompile>
   </ItemGroup>
 </Project>

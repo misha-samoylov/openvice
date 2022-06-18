@@ -30,8 +30,11 @@ struct SimpleVertex
 
 ID3D11VertexShader *g_pVertexShader = NULL; // Вершинный шейдер
 ID3D11PixelShader *g_pPixelShader = NULL; // Пиксельный шейдер
+
 ID3D11InputLayout *g_pVertexLayout = NULL; // Описание формата вершин
+
 ID3D11Buffer *g_pVertexBuffer = NULL; // Буфер вершин
+ID3D11Buffer *g_pIndexBuffer = NULL;
 
 HRESULT InitGeometry(); // Инициализация шаблона ввода и буфера вершин
 
@@ -51,6 +54,109 @@ HRESULT CompileShaderFromFile(LPCWSTR szFileName, LPCSTR szEntryPoint, LPCSTR sz
 
 	return S_OK;
 }
+
+
+class Model {
+
+public:
+	ID3D11Buffer *pVertexBuffer = NULL; // Буфер вершин
+	ID3D11Buffer *pIndexBuffer = NULL;
+
+	std::vector<rw::uint16> faces;
+	std::vector<rw::float32> vertices;
+
+	void render()
+	{
+		// Set the buffer.
+		g_pImmediateContext->IASetIndexBuffer(pIndexBuffer, DXGI_FORMAT_R32_UINT, 0);
+
+		// Установка буфера вершин
+		UINT stride = sizeof(rw::float32) * 3;
+		UINT offset = 0;
+		g_pImmediateContext->IASetVertexBuffers(0, 1, &pVertexBuffer, &stride, &offset);
+
+		// Установка способа отрисовки вершин в буфере
+		g_pImmediateContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+		// Подключить к устройству рисования шейдеры
+		g_pImmediateContext->VSSetShader(g_pVertexShader, NULL, 0);
+		g_pImmediateContext->PSSetShader(g_pPixelShader, NULL, 0);
+
+		// Нарисовать три вершины
+		g_pImmediateContext->DrawIndexed(faces.size(), 0, 0);
+	};
+
+	void cleanup()
+	{
+
+	};
+
+	HRESULT createModel(std::vector<rw::uint16> faces, std::vector<rw::float32> vertices)
+	{
+
+		this->faces = faces;
+		this->vertices = vertices;
+
+		HRESULT hr = S_OK;
+
+		D3D11_BUFFER_DESC bd;  // Структура, описывающая создаваемый буфер
+		ZeroMemory(&bd, sizeof(bd));                    // очищаем ее
+		bd.Usage = D3D11_USAGE_DEFAULT;
+		bd.ByteWidth = sizeof(rw::float32) * vertices.size(); // размер буфера = размер одной вершины * 3
+		bd.BindFlags = D3D11_BIND_VERTEX_BUFFER;          // тип буфера - буфер вершин
+		bd.CPUAccessFlags = 0;
+
+		{
+			D3D11_SUBRESOURCE_DATA InitData; // Структура, содержащая данные буфера
+			ZeroMemory(&InitData, sizeof(InitData)); // очищаем ее
+			InitData.pSysMem = reinterpret_cast<char*>(vertices.data());               // указатель на наши 3 вершины
+
+			// Вызов метода g_pd3dDevice создаст объект буфера вершин ID3D11Buffer
+			hr = g_pd3dDevice->CreateBuffer(&bd, &InitData, &pVertexBuffer);
+
+			if (FAILED(hr)) {
+				MessageBox(NULL, L"Cannot create buffer", L"Error", MB_OK);
+				return hr;
+			}
+		}
+
+
+
+
+
+
+
+		// Fill in a buffer description.
+		D3D11_BUFFER_DESC bufferDesc;
+		bufferDesc.Usage = D3D11_USAGE_DEFAULT;
+		bufferDesc.ByteWidth = sizeof(rw::uint16) * faces.size();
+		bufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
+		bufferDesc.CPUAccessFlags = 0;
+		bufferDesc.MiscFlags = 0;
+
+		// Define the resource data.
+		D3D11_SUBRESOURCE_DATA InitData;
+		InitData.pSysMem = reinterpret_cast<char*>(faces.data());;
+		InitData.SysMemPitch = 0;
+		InitData.SysMemSlicePitch = 0;
+
+		// Create the buffer with the device.
+		hr = g_pd3dDevice->CreateBuffer(&bufferDesc, &InitData, &pIndexBuffer);
+		if (FAILED(hr))
+			return hr;
+
+		// Set the buffer.
+		g_pImmediateContext->IASetIndexBuffer(pIndexBuffer, DXGI_FORMAT_R32_UINT, 0);
+
+
+
+
+
+
+
+		return hr;
+	}
+};
 
 LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wp, LPARAM lp)
 {
@@ -97,8 +203,8 @@ void InitViewport(HWND hWnd)
 
 HRESULT CreateBackBuffer()
 {
-	// Создаем задний буфер. Обратите внимание, в SDK
-	// RenderTargetOutput - это передний буфер, а RenderTargetView - задний.
+	// Создаем задний буфер
+	// RenderTargetOutput - это передний буфер, а RenderTargetView - задний
 	ID3D11Texture2D* pBackBuffer = NULL;
 	HRESULT hr = g_pSwapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), (LPVOID*)&pBackBuffer);
 
@@ -141,7 +247,7 @@ HRESULT InitD3DX11(HWND hWnd)
 	sd.OutputWindow = hWnd; // привязываем к нашему окну
 	sd.SampleDesc.Count = 1;
 	sd.SampleDesc.Quality = 0;
-	sd.Windowed = TRUE; // не полноэкранный режим (оконный)
+	sd.Windowed = TRUE; // оконный режим
 
 	D3D_FEATURE_LEVEL featureLevels[] = {
 		D3D_FEATURE_LEVEL_11_0
@@ -181,6 +287,9 @@ HRESULT InitD3DX11(HWND hWnd)
 	return hr;
 }
 
+
+std::vector<Model*> gModels;
+
 void Render()
 {
 	// Очищаем задний буфер
@@ -192,7 +301,11 @@ void Render()
 	g_pImmediateContext->PSSetShader(g_pPixelShader, NULL, 0);
 
 	// Нарисовать три вершины
-	g_pImmediateContext->Draw(3, 0);
+	//g_pImmediateContext->DrawIndexed(6, 0, 0);
+
+	for (int i = 0; i < gModels.size(); i++) {
+		gModels[i]->render();
+	}
 
 	// Выбросить задний буфер на экран
 	g_pSwapChain->Present(0, 0);
@@ -256,16 +369,16 @@ void ShowConsole()
 
 void CleanupGeometry()
 {
-	if( g_pVertexBuffer ) g_pVertexBuffer->Release();
-	if( g_pVertexLayout ) g_pVertexLayout->Release();
+	if (g_pVertexBuffer) g_pVertexBuffer->Release();
+	if (g_pIndexBuffer) g_pIndexBuffer->Release();
+	if (g_pVertexLayout) g_pVertexLayout->Release();
 
-	if( g_pVertexShader ) g_pVertexShader->Release();
-	if( g_pPixelShader ) g_pPixelShader->Release();
+	if (g_pVertexShader) g_pVertexShader->Release();
+	if (g_pPixelShader) g_pPixelShader->Release();
 }
 
 void CleanupDevice()
 {
-	// Сначала отключим контекст устройства, потом отпустим объекты
 	if (g_pImmediateContext) g_pImmediateContext->ClearState();
 
 	CleanupGeometry();
@@ -310,14 +423,14 @@ HRESULT InitGeometry()
 	HRESULT hr = S_OK;
 
 	// Компиляция вершинного шейдера из файла
-	//ID3DBlob* pVSBlob = NULL; // Вспомогательный объект - просто место в оперативной памяти
-	//hr = CompileShaderFromFile(L"vertex_shader.hlsl", "VS", "vs_4_0", &pVSBlob);
-	//if (FAILED(hr))	{
-	//	MessageBox(NULL, L"Cannot compile vertex shader", L"Error", MB_OK);
-	//	return hr;
-	//}
+	// ID3DBlob* pVSBlob = NULL; // Вспомогательный объект
+	// hr = CompileShaderFromFile(L"vertex_shader.hlsl", "VS", "vs_4_0", &pVSBlob);
+	// if (FAILED(hr))	{
+	// 	 MessageBox(NULL, L"Cannot compile vertex shader", L"Error", MB_OK);
+	//	 return hr;
+	// }
 
-	// Использование скомпилированного шейдера (например заранее в MS Visual Studio)
+	// Использование скомпилированного VS шейдера
 	ID3DBlob* pVSBlob = NULL;
 	hr = D3DReadFileToBlob(L"vertex_shader.cso", &pVSBlob);
 	if (FAILED(hr))	{
@@ -359,33 +472,75 @@ HRESULT InitGeometry()
 	CreatePixelShader();
 
 	// Создание буфера вершин (три вершины треугольника)
-	SimpleVertex vertices[3];
+	struct SimpleVertex vertices[4];
 
-	vertices[0].x = 0.0f;  vertices[0].y = 0.5f;  vertices[0].z = 0.5f;
-	vertices[1].x = 0.5f;  vertices[1].y = -0.5f;  vertices[1].z = 0.5f;
-	vertices[2].x = -0.5f;  vertices[2].y = -0.5f;  vertices[2].z = 0.5f;
+	vertices[0].x = -0.5f;  vertices[0].y = -0.5f;  vertices[0].z = 0.5f;
+	vertices[1].x = -0.5f;  vertices[1].y = 0.5f;  vertices[1].z = 0.5f;
+	vertices[2].x = 0.5f;  vertices[2].y = 0.5f;  vertices[2].z = 0.5f;
+	vertices[3].x = 0.5f;  vertices[3].y = -0.5f;  vertices[3].z = 0.5f;
 
 	D3D11_BUFFER_DESC bd;  // Структура, описывающая создаваемый буфер
 	ZeroMemory(&bd, sizeof(bd));                    // очищаем ее
 	bd.Usage = D3D11_USAGE_DEFAULT;
-	bd.ByteWidth = sizeof(SimpleVertex) * 3; // размер буфера = размер одной вершины * 3
+	bd.ByteWidth = sizeof(struct SimpleVertex) * 4; // размер буфера = размер одной вершины * 3
 	bd.BindFlags = D3D11_BIND_VERTEX_BUFFER;          // тип буфера - буфер вершин
 	bd.CPUAccessFlags = 0;
 
-	D3D11_SUBRESOURCE_DATA InitData; // Структура, содержащая данные буфера
-	ZeroMemory(&InitData, sizeof(InitData)); // очищаем ее
-	InitData.pSysMem = vertices;               // указатель на наши 3 вершины
+	{
+		D3D11_SUBRESOURCE_DATA InitData; // Структура, содержащая данные буфера
+		ZeroMemory(&InitData, sizeof(InitData)); // очищаем ее
+		InitData.pSysMem = vertices;               // указатель на наши 3 вершины
 
-	// Вызов метода g_pd3dDevice создаст объект буфера вершин ID3D11Buffer
-	hr = g_pd3dDevice->CreateBuffer(&bd, &InitData, &g_pVertexBuffer);
+		// Вызов метода g_pd3dDevice создаст объект буфера вершин ID3D11Buffer
+		hr = g_pd3dDevice->CreateBuffer(&bd, &InitData, &g_pVertexBuffer);
 
-	if (FAILED(hr)) {
-		MessageBox(NULL, L"Cannot create buffer", L"Error", MB_OK);
-		return hr;
+		if (FAILED(hr)) {
+			MessageBox(NULL, L"Cannot create buffer", L"Error", MB_OK);
+			return hr;
+		}
 	}
 
+
+
+
+
+
+	
+
+	// Create indices
+	unsigned int indices[]  = {
+		0, 1, 2,
+		0, 2, 3,
+	};
+
+	// Fill in a buffer description.
+	D3D11_BUFFER_DESC bufferDesc;
+	bufferDesc.Usage = D3D11_USAGE_DEFAULT;
+	bufferDesc.ByteWidth = sizeof(unsigned int) * 2 * 3;
+	bufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
+	bufferDesc.CPUAccessFlags = 0;
+	bufferDesc.MiscFlags = 0;
+
+	// Define the resource data.
+	D3D11_SUBRESOURCE_DATA InitData;
+	InitData.pSysMem = indices;
+	InitData.SysMemPitch = 0;
+	InitData.SysMemSlicePitch = 0;
+
+	// Create the buffer with the device.
+	hr = g_pd3dDevice->CreateBuffer(&bufferDesc, &InitData, &g_pIndexBuffer);
+	if (FAILED(hr))
+		return hr;
+
+	// Set the buffer.
+	g_pImmediateContext->IASetIndexBuffer(g_pIndexBuffer, DXGI_FORMAT_R32_UINT, 0);
+
+
+
+
+
 	// Установка буфера вершин
-	UINT stride = sizeof(SimpleVertex);
+	UINT stride = sizeof(struct SimpleVertex);
 	UINT offset = 0;
 	g_pImmediateContext->IASetVertexBuffers(0, 1, &g_pVertexBuffer, &stride, &offset);
 
@@ -394,6 +549,7 @@ HRESULT InitGeometry()
 
 	return hr;
 }
+
 
 
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine, int nCmdShow)
@@ -434,6 +590,49 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 	clump->read(in);
 
 	clump->dump();
+
+	
+
+	for (uint32_t index = 0; index < clump->geometryList.size(); index++) {
+		std::vector<rw::uint16> faces;
+
+		
+
+		for (uint32_t i = 0; i < clump->geometryList[index].faces.size() / 4; i++) {
+			float f1 = clump->geometryList[index].faces[i * 4 + 0];
+			faces.push_back(f1);
+
+			float f2 = clump->geometryList[index].faces[i * 4 + 1];
+			faces.push_back(f2);
+
+			float f3 = clump->geometryList[index].faces[i * 4 + 2];
+			faces.push_back(f3);
+
+			float f4 = clump->geometryList[index].faces[i * 4 + 3];
+			faces.push_back(f4);
+		}
+
+		std::vector <rw::float32> vertices;
+
+		for (uint32_t i = 0; i < clump->geometryList[index].vertices.size() / 3; i++) {
+			float x = clump->geometryList[index].vertices[i * 3 + 0];
+			vertices.push_back(x);
+
+			float y = clump->geometryList[index].vertices[i * 3 + 1];
+			vertices.push_back(y);
+
+			float z = clump->geometryList[index].vertices[i * 3 + 2];
+			vertices.push_back(z);
+		}
+
+		
+		Model *model = new Model();
+		model->createModel(faces, vertices);
+
+		gModels.push_back(model);
+		
+	}
+
 	clump->clear();
 	delete clump;
 
