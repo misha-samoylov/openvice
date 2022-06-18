@@ -12,14 +12,17 @@ private:
 	IDirectInputDevice8* DIMouse;
 
 	LPDIRECTINPUT8 DirectInput;
-	DIMOUSESTATE mouseLastState;
 
 	BYTE keyboardState[256];
+	DIMOUSESTATE mouseCurrState;
 
 public:
 	HRESULT Init(HINSTANCE hInstance, HWND hWnd);
 	void Cleanup();
 	void Detect();
+
 	bool IsKey(BYTE key);
+	float GetMouseSpeedX();
+	float GetMouseSpeedY();
 };
 

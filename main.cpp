@@ -26,11 +26,6 @@ XMMATRIX WVP;
 XMMATRIX World;
 
 
-float moveLeftRight = 0.0f;
-float moveBackForward = 0.0f;
-
-float camYaw = 0.0f;
-float camPitch = 0.0f;
 
 
 
@@ -738,6 +733,22 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 	World = XMMatrixIdentity();
 	WVP = World * gameCamera->getView() * gameCamera->getProjection();
 
+
+	float moveLeftRight = 0.0f;
+	float moveBackForward = 0.0f;
+
+	float camYaw = 0.0f;
+	float camPitch = 0.0f;
+
+	DIMOUSESTATE mouseLastState;
+	DIMOUSESTATE mouseCurrState;
+
+	mouseCurrState.lX = gameInput->GetMouseSpeedX();
+	mouseCurrState.lY = gameInput->GetMouseSpeedY();
+
+	mouseLastState.lX = gameInput->GetMouseSpeedX();
+	mouseLastState.lY = gameInput->GetMouseSpeedY();
+
 	// Главный цикл сообщений
 	MSG msg = { 0 };
 	while (WM_QUIT != msg.message) {
@@ -746,8 +757,8 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 			DispatchMessage(&msg);
 		} else { // If have not messagess
 			frameCount++;
-			if (GetTime() > 1.0f)
-			{
+
+			if (GetTime() > 1.0f) {
 				fps = frameCount;
 				frameCount = 0;
 				StartTimer();
@@ -779,7 +790,20 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 				moveLeftRight += speed;
 			}
 
+			mouseCurrState.lX = gameInput->GetMouseSpeedX();
+			mouseCurrState.lY = gameInput->GetMouseSpeedY();
+
+			if ((mouseCurrState.lX != mouseLastState.lX)
+				|| (mouseCurrState.lY != mouseLastState.lY)) {
+
+				camYaw += mouseLastState.lX * 0.001f;
+				camPitch += mouseCurrState.lY * 0.001f;
+
+				mouseLastState = mouseCurrState;
+			}
+
 			gameCamera->UpdateCamera(camPitch, camYaw, moveLeftRight, moveBackForward);
+
 
 			Render(gameCamera, frameTime);
 
