@@ -5,6 +5,7 @@
 #include <windows.h>
 #include <d3d11.h>
 #include <d3dcompiler.h>
+#include <DirectXMath.h>
 
 #pragma comment (lib, "d3d11.lib")
 #pragma comment (lib, "d3dcompiler.lib")
@@ -15,6 +16,8 @@
 #define WINDOW_WIDTH 800
 #define WINDOW_HEIGHT 600
 #define WINDOW_TITLE L"openvice"
+
+using namespace DirectX; // DirectXMath.h
 
 ID3D11Device *g_pd3dDevice;
 ID3D11DeviceContext *g_pImmediateContext;
@@ -37,6 +40,46 @@ ID3D11Buffer *g_pVertexBuffer = NULL; // Буфер вершин
 ID3D11Buffer *g_pIndexBuffer = NULL;
 
 HRESULT InitGeometry(); // Инициализация шаблона ввода и буфера вершин
+
+
+
+
+ID3D11Buffer* cbPerObjectBuffer;
+
+XMMATRIX WVP;
+XMMATRIX World;
+XMMATRIX camView;
+XMMATRIX camProjection;
+
+XMVECTOR camPosition;
+XMVECTOR camTarget;
+XMVECTOR camUp;
+
+struct cbPerObject
+{
+	XMMATRIX  WVP;
+};
+
+cbPerObject cbPerObj;
+
+
+void createConstBuffer()
+{
+	D3D11_BUFFER_DESC cbbd;
+	ZeroMemory(&cbbd, sizeof(D3D11_BUFFER_DESC));
+
+	cbbd.Usage = D3D11_USAGE_DEFAULT;
+	cbbd.ByteWidth = sizeof(cbPerObject);
+	cbbd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+	cbbd.CPUAccessFlags = 0;
+	cbbd.MiscFlags = 0;
+
+
+	g_pd3dDevice->CreateBuffer(&cbbd, NULL, &cbPerObjectBuffer);
+}
+
+
+
 
 // Вспомогательная функция для компиляции шейдеров в D3DX11
 HRESULT CompileShaderFromFile(LPCWSTR szFileName, LPCSTR szEntryPoint, LPCSTR szShaderModel, ID3DBlob** ppBlobOut)
@@ -296,16 +339,39 @@ void Render()
 	float ClearColor[4] = { 0.0f, 0.0f, 1.0f, 1.0f }; // красный, зеленый, синий, альфа-канал
 	g_pImmediateContext->ClearRenderTargetView(g_pRenderTargetView, ClearColor);
 
+
+
+
+
+
+
+
 	// Подключить к устройству рисования шейдеры
 	g_pImmediateContext->VSSetShader(g_pVertexShader, NULL, 0);
 	g_pImmediateContext->PSSetShader(g_pPixelShader, NULL, 0);
 
-	// Нарисовать три вершины
-	//g_pImmediateContext->DrawIndexed(6, 0, 0);
 
-	for (int i = 0; i < gModels.size(); i++) {
+
+
+	//Set the World/View/Projection matrix, then send it to constant buffer in effect file
+	World = XMMatrixIdentity();
+
+	WVP = World * camView * camProjection;
+
+	cbPerObj.WVP = XMMatrixTranspose(WVP);
+
+	g_pImmediateContext->UpdateSubresource(cbPerObjectBuffer, 0, NULL, &cbPerObj, 0, 0);
+	g_pImmediateContext->VSSetConstantBuffers(0, 1, &cbPerObjectBuffer);
+
+
+
+
+	// Нарисовать три вершины
+	g_pImmediateContext->DrawIndexed(6, 0, 0);
+
+	/*for (int i = 0; i < gModels.size(); i++) {
 		gModels[i]->render();
-	}
+	}*/
 
 	// Выбросить задний буфер на экран
 	g_pSwapChain->Present(0, 0);
@@ -593,7 +659,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 
 	
 
-	for (uint32_t index = 0; index < clump->geometryList.size(); index++) {
+	/*for (uint32_t index = 0; index < clump->geometryList.size(); index++) {
 		std::vector<rw::uint16> faces;
 
 		
@@ -626,18 +692,35 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 		}
 
 		
-		Model *model = new Model();
-		model->createModel(faces, vertices);
+		//Model *model = new Model();
+		//model->createModel(faces, vertices);
 
-		gModels.push_back(model);
+		//gModels.push_back(model);
 		
-	}
+	}*/
 
 	clump->clear();
 	delete clump;
 
 	dir_file_close();
 	img_file_close();
+
+	createConstBuffer();
+
+	camPosition = XMVectorSet(0.0f, 0.0f, -3.0f, 0.0f);
+	camTarget = XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f);
+	camUp = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+
+	camView = XMMatrixLookAtLH(camPosition, camTarget, camUp);
+
+	camProjection = XMMatrixPerspectiveFovLH(90.0f, (float)800 / 600, 1.0f, 1000.0f);
+
+	World = XMMatrixIdentity();
+
+
+
+	WVP = World * camView * camProjection;
+
 
 	// Главный цикл сообщений
 	MSG msg = { 0 };
