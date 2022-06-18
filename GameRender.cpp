@@ -2,12 +2,12 @@
 
 ID3D11Device *GameRender::getDevice()
 {
-	return g_pd3dDevice;
+	return m_pDevice;
 }
 
 ID3D11DeviceContext *GameRender::getDeviceContext()
 {
-	return g_pImmediateContext;
+	return m_pDeviceContext;
 }
 
 void GameRender::InitViewport(HWND hWnd)
@@ -27,7 +27,7 @@ void GameRender::InitViewport(HWND hWnd)
 
 	// Connect viewport to device context
 	UINT countViewports = 1;
-	g_pImmediateContext->RSSetViewports(countViewports, &vp);
+	m_pDeviceContext->RSSetViewports(countViewports, &vp);
 }
 
 HRESULT GameRender::CreateBackBuffer()
@@ -35,7 +35,7 @@ HRESULT GameRender::CreateBackBuffer()
 	// RenderTargetOutput - front buffer
 	// RenderTargetView - back buffer
 	ID3D11Texture2D* pBackBuffer = NULL;
-	HRESULT hr = g_pSwapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), (LPVOID*)&pBackBuffer);
+	HRESULT hr = m_pSwapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), (LPVOID*)&pBackBuffer);
 
 	if (FAILED(hr)) {
 		MessageBox(NULL, L"Cannot create backbuffer", L"Error", MB_OK);
@@ -43,7 +43,7 @@ HRESULT GameRender::CreateBackBuffer()
 	}
 
 	// Device used for create all objects
-	hr = g_pd3dDevice->CreateRenderTargetView(pBackBuffer, NULL, &g_pRenderTargetView);
+	hr = m_pDevice->CreateRenderTargetView(pBackBuffer, NULL, &m_pRenderTargetView);
 	pBackBuffer->Release(); // That's object does not needed
 	if (FAILED(hr)) {
 		MessageBox(NULL, L"Cannot create render target view", L"Error", MB_OK);
@@ -51,7 +51,7 @@ HRESULT GameRender::CreateBackBuffer()
 	}
 
 	// Connect back buffer to device context
-	g_pImmediateContext->OMSetRenderTargets(1, &g_pRenderTargetView, NULL);
+	m_pDeviceContext->OMSetRenderTargets(1, &m_pRenderTargetView, NULL);
 
 	return hr;
 }
@@ -93,10 +93,10 @@ HRESULT GameRender::Init(HWND hWnd)
 		arraySize,
 		D3D11_SDK_VERSION,
 		&sd,
-		&g_pSwapChain,
-		&g_pd3dDevice,
+		&m_pSwapChain,
+		&m_pDevice,
 		NULL,
-		&g_pImmediateContext
+		&m_pDeviceContext
 	);
 
 	if (FAILED(hr)) {
@@ -118,25 +118,25 @@ HRESULT GameRender::Init(HWND hWnd)
 
 void GameRender::Cleanup()
 {
-	if (g_pImmediateContext) g_pImmediateContext->ClearState();
+	if (m_pDeviceContext) m_pDeviceContext->ClearState();
 
 	//CleanupGeometry();
 
-	if (g_pRenderTargetView) g_pRenderTargetView->Release();
-	if (g_pSwapChain) g_pSwapChain->Release();
-	if (g_pImmediateContext) g_pImmediateContext->Release();
-	if (g_pd3dDevice) g_pd3dDevice->Release();
+	if (m_pRenderTargetView) m_pRenderTargetView->Release();
+	if (m_pSwapChain) m_pSwapChain->Release();
+	if (m_pDeviceContext) m_pDeviceContext->Release();
+	if (m_pDevice) m_pDevice->Release();
 }
 
 void GameRender::RenderStart()
 {
 	// Clear back buffer
 	float clearColor[4] = { 0.0f, 0.0f, 1.0f, 1.0f };
-	g_pImmediateContext->ClearRenderTargetView(g_pRenderTargetView, clearColor);
+	m_pDeviceContext->ClearRenderTargetView(m_pRenderTargetView, clearColor);
 }
 
 void GameRender::RenderEnd()
 {
 	// Show back buffer to screen
-	g_pSwapChain->Present(0, 0);
+	m_pSwapChain->Present(0, 0);
 }

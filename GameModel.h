@@ -25,21 +25,21 @@ struct cbPerObject
 class GameModel
 {
 private:
-	ID3D11VertexShader *g_pVertexShader;
-	ID3D11PixelShader *g_pPixelShader;
+	ID3D11VertexShader *m_pVertexShader;
+	ID3D11PixelShader *m_pPixelShader;
 
-	ID3D11InputLayout *g_pVertexLayout; // Описание формата вершин
+	ID3D11InputLayout *m_pVertexLayout; // Описание формата вершин
 
-	ID3D11Buffer *g_pVertexBuffer;
-	ID3D11Buffer *g_pIndexBuffer;
-	ID3D11Buffer* cbPerObjectBuffer;
+	ID3D11Buffer *m_pVertexBuffer;
+	ID3D11Buffer *m_pIndexBuffer;
+	ID3D11Buffer* m_pPerObjectBuffer;
 
-	cbPerObject cbPerObj;
+	cbPerObject mPerObj;
 
-	ID3DBlob *pVSBlob;
+	ID3DBlob *m_pVSBlob;
 
-	XMMATRIX WVP;
-	XMMATRIX World;
+	XMMATRIX mWVP;
+	XMMATRIX mWorld;
 
 	HRESULT CreateConstBuffer(GameRender *render);
 	HRESULT CreatePixelShader(GameRender *render);

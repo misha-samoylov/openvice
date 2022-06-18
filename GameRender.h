@@ -9,11 +9,11 @@
 class GameRender
 {
 private:
-	ID3D11Device *g_pd3dDevice;
-	ID3D11DeviceContext *g_pImmediateContext;
+	ID3D11Device *m_pDevice;
+	ID3D11DeviceContext *m_pDeviceContext;
 
-	IDXGISwapChain *g_pSwapChain;
-	ID3D11RenderTargetView *g_pRenderTargetView;
+	IDXGISwapChain *m_pSwapChain;
+	ID3D11RenderTargetView *m_pRenderTargetView;
 
 	void InitViewport(HWND hWnd);
 	HRESULT CreateBackBuffer();

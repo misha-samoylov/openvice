@@ -2,7 +2,7 @@
 
 HWND GameWindow::GetHandleWindow()
 {
-	return hWnd;
+	return mHWnd;
 }
 
 void GameWindow::Init(HINSTANCE hInstance, int nCmdShow, 
@@ -36,7 +36,7 @@ HWND GameWindow::CreateWindowApp(HINSTANCE hInstance, int nCmdShow,
 	AdjustWindowRect(&rc, WS_OVERLAPPEDWINDOW, FALSE);
 
 	// Создание окна
-	hWnd = CreateWindowEx(
+	mHWnd = CreateWindowEx(
 		0, // Доп. стили
 		CLASS_NAME, // Класс окна
 		windowTitle, // Название окна
@@ -49,13 +49,13 @@ HWND GameWindow::CreateWindowApp(HINSTANCE hInstance, int nCmdShow,
 		NULL // Доп. информация приложения
 	);
 
-	if (hWnd == NULL) {
+	if (mHWnd == NULL) {
 		MessageBox(NULL, L"Cannot create window", L"Error", MB_OK);
 		return NULL;
 	}
 
-	ShowWindow(hWnd, nCmdShow);
-	UpdateWindow(hWnd);
+	ShowWindow(mHWnd, nCmdShow);
+	UpdateWindow(mHWnd);
 
 	ShowCursor(FALSE);
 }

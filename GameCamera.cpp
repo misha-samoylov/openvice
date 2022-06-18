@@ -2,17 +2,17 @@
 
 void GameCamera::Init(float width, float height)
 {
-	camPosition = XMVectorSet(0.0f, 0.0f, -3.0f, 0.0f);
-	camTarget = XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f);
-	camUp = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+	mCameraPosition = XMVectorSet(0.0f, 0.0f, -3.0f, 0.0f);
+	mCameraTarget = XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f);
+	mCameraUp = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
 
-	camView = XMMatrixLookAtLH(camPosition, camTarget, camUp);
-	camProjection = XMMatrixPerspectiveFovLH(0.4f*3.14f, (float)width / height, 1.0f, 1000.0f);
+	mCameraView = XMMatrixLookAtLH(mCameraPosition, mCameraTarget, mCameraUp);
+	mCameraProjection = XMMatrixPerspectiveFovLH(0.4f*3.14f, (float)width / height, 1.0f, 1000.0f);
 
-	DefaultForward = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
-	DefaultRight = XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f);
-	camForward = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
-	camRight = XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f);
+	mDefaultForward = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
+	mDefaultRight = XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f);
+	mCameraForward = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
+	mCameraRight = XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f);
 }
 
 void GameCamera::Cleanup()
@@ -22,28 +22,28 @@ void GameCamera::Cleanup()
 
 void GameCamera::Update(float camPitch, float camYaw, float moveLeftRight, float moveBackForward)
 {
-	camRotationMatrix = XMMatrixRotationRollPitchYaw(camPitch, camYaw, 0);
-	camTarget = XMVector3TransformCoord(DefaultForward, camRotationMatrix);
-	camTarget = XMVector3Normalize(camTarget);
+	mCameraRotationMatrix = XMMatrixRotationRollPitchYaw(camPitch, camYaw, 0);
+	mCameraTarget = XMVector3TransformCoord(mDefaultForward, mCameraRotationMatrix);
+	mCameraTarget = XMVector3Normalize(mCameraTarget);
 
-	camRight = XMVector3TransformCoord(DefaultRight, camRotationMatrix);
-	camForward = XMVector3TransformCoord(DefaultForward, camRotationMatrix);
-	camUp = XMVector3Cross(camForward, camRight);
+	mCameraRight = XMVector3TransformCoord(mDefaultRight, mCameraRotationMatrix);
+	mCameraForward = XMVector3TransformCoord(mDefaultForward, mCameraRotationMatrix);
+	mCameraUp = XMVector3Cross(mCameraForward, mCameraRight);
 
-	camPosition += moveLeftRight * camRight;
-	camPosition += moveBackForward * camForward;
+	mCameraPosition += moveLeftRight * mCameraRight;
+	mCameraPosition += moveBackForward * mCameraForward;
 
-	camTarget = camPosition + camTarget;
+	mCameraTarget = mCameraPosition + mCameraTarget;
 
-	camView = XMMatrixLookAtLH(camPosition, camTarget, camUp);
+	mCameraView = XMMatrixLookAtLH(mCameraPosition, mCameraTarget, mCameraUp);
 }
 
 XMMATRIX GameCamera::getView()
 {
-	return camView;
+	return mCameraView;
 }
 
 XMMATRIX GameCamera::getProjection()
 {
-	return camProjection;
+	return mCameraProjection;
 }

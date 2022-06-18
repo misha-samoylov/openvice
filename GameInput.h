@@ -2,19 +2,19 @@
 
 #include <dinput.h>
 
-#pragma comment (lib, "dinput8.lib")
-#pragma comment (lib, "dxguid.lib")
+#pragma comment(lib, "dinput8.lib")
+#pragma comment(lib, "dxguid.lib")
 
 class GameInput
 {
 private:
-	IDirectInputDevice8* DIKeyboard;
-	IDirectInputDevice8* DIMouse;
+	LPDIRECTINPUT8 m_pDirectInput;
 
-	LPDIRECTINPUT8 DirectInput;
+	IDirectInputDevice8 *m_pDIKeyboard;
+	IDirectInputDevice8 *m_pDIMouse;
 
-	BYTE keyboardState[256];
-	DIMOUSESTATE mouseCurrState;
+	BYTE mKeyboardState[256];
+	DIMOUSESTATE mMouseCurrState;
 
 public:
 	HRESULT Init(HINSTANCE hInstance, HWND hWnd);

@@ -6,7 +6,8 @@
 class GameWindow
 {
 private:
-	HWND hWnd;
+	HWND mHWnd;
+
 	HWND CreateWindowApp(HINSTANCE hInstance, int nCmdShow, int width, int height, LPCWSTR windowTitle);
 	void ShowConsole();
 	static LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wp, LPARAM lp);

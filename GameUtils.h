@@ -2,9 +2,9 @@
 
 #include <Windows.h>
 
-static double countsPerSecond;
-static __int64 CounterStart;
-static __int64 frameTimeOld;
+static double g_countsPerSecond;
+static __int64 g_counterStart;
+static __int64 g_frameTimeOld;
 
 class GameUtils
 {
