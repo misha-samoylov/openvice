@@ -134,8 +134,6 @@ HRESULT GameModel::CreateInputLayout(GameRender * render)
 	hr = render->getDevice()->CreateInputLayout(layout, numElements, pVSBlob->GetBufferPointer(),
 		pVSBlob->GetBufferSize(), &g_pVertexLayout);
 
-	pVSBlob->Release(); // Now thats not needed
-
 	if (FAILED(hr)) {
 		MessageBox(NULL, L"Cannot create input layout", L"Error", MB_OK);
 	}
@@ -205,6 +203,8 @@ HRESULT GameModel::Init(GameRender *render)
 {
 	HRESULT hr = S_OK;
 
+	pVSBlob = NULL;
+
 	WVP = XMMatrixIdentity();
 	World = XMMatrixIdentity();
 
@@ -213,6 +213,8 @@ HRESULT GameModel::Init(GameRender *render)
 	CreateConstBuffer(render);
 	CreateInputLayout(render);
 	CreateBufferModel(render);
+
+	pVSBlob->Release();
 
 	return hr;
 }

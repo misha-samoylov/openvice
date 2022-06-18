@@ -12,22 +12,14 @@
 #include "GameRender.h"
 #include "GameCamera.h"
 #include "GameInput.h"
+#include "GameWindow.h"
+#include "GameUtils.h"
 
 #define WINDOW_WIDTH 1400
 #define WINDOW_HEIGHT 1200
 #define WINDOW_TITLE L"openvice"
 
 using namespace DirectX; /* DirectXMath.h */
-
-// utils
-double countsPerSecond = 0.0;
-__int64 CounterStart = 0;
-
-int frameCount = 0;
-int fps = 0;
-
-__int64 frameTimeOld = 0;
-double frameTime;
 
 /*
 // Вспомогательная функция для компиляции шейдеров в D3DX11
@@ -143,153 +135,8 @@ std::vector<Model*> gModels;
 
 */
 
-LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wp, LPARAM lp)
+int temp()
 {
-	PAINTSTRUCT ps;
-	HDC hdc;
-
-	switch (message)
-	{
-	case WM_PAINT:
-		hdc = BeginPaint(hwnd, &ps);
-		EndPaint(hwnd, &ps);
-		break;
-
-	case WM_DESTROY:
-		PostQuitMessage(0);
-		break;
-
-	default:
-		return DefWindowProc(hwnd, message, wp, lp);
-	}
-
-	return 0;
-}
-
-
-void Render(GameRender *render, GameCamera *camera, GameModel *model, float time)
-{
-	render->RenderStart();
-
-	model->Render(render, camera);
-
-	/*for (int i = 0; i < gModels.size(); i++) {
-		gModels[i]->render();
-	}*/
-
-	render->RenderEnd();
-}
-
-HWND CreateWindowApp(HINSTANCE hInstance, int nCmdShow)
-{
-	LPCWSTR CLASS_NAME = L"OpenViceWndClass";
-
-	WNDCLASS wc = { 0 };
-	wc.lpfnWndProc = WndProc;
-	wc.hInstance = hInstance;
-	wc.lpszClassName = CLASS_NAME;
-	wc.style = CS_HREDRAW | CS_VREDRAW;
-
-	if (!RegisterClass(&wc)) {
-		MessageBox(NULL, L"Cannot register window", L"Error", MB_ICONERROR | MB_OK);
-		return NULL;
-	}
-
-	RECT rc = { 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT };
-	AdjustWindowRect(&rc, WS_OVERLAPPEDWINDOW, FALSE);
-
-	// Создание окна
-	HWND hWnd = CreateWindowEx(
-		0, // Доп. стили
-		CLASS_NAME, // Класс окна
-		WINDOW_TITLE, // Название окна
-		WS_OVERLAPPEDWINDOW, // Стиль
-		CW_USEDEFAULT, CW_USEDEFAULT, // Позиция: x, y
-		rc.right - rc.left, rc.bottom - rc.top, // Размер: ширина, высота
-		NULL, // Родительское окно
-		NULL, // Меню
-		hInstance, // Instance handle
-		NULL // Доп. информация приложения
-	);
-
-	if (hWnd == NULL) {
-		MessageBox(NULL, L"Cannot create window", L"Error", MB_OK);
-		return NULL;
-	}
-
-	ShowWindow(hWnd, nCmdShow);
-	UpdateWindow(hWnd);
-
-	ShowCursor(FALSE);
-
-	return hWnd;
-}
-
-void ShowConsole()
-{
-	FILE* conin = stdin;
-	FILE* conout = stdout;
-	FILE* conerr = stderr;
-	AllocConsole();
-	AttachConsole(GetCurrentProcessId());
-	freopen_s(&conin, "CONIN$", "r", stdin);
-	freopen_s(&conout, "CONOUT$", "w", stdout);
-	freopen_s(&conerr, "CONOUT$", "w", stderr);
-	SetConsoleTitle(L"appconsole");
-}
-
-
-void StartTimer()
-{
-	LARGE_INTEGER frequencyCount;
-	QueryPerformanceFrequency(&frequencyCount);
-
-	countsPerSecond = double(frequencyCount.QuadPart);
-
-	QueryPerformanceCounter(&frequencyCount);
-	CounterStart = frequencyCount.QuadPart;
-}
-
-double GetTime()
-{
-	LARGE_INTEGER currentTime;
-	QueryPerformanceCounter(&currentTime);
-	return double(currentTime.QuadPart - CounterStart) / countsPerSecond;
-}
-
-double GetFrameTime()
-{
-	LARGE_INTEGER currentTime;
-	__int64 tickCount;
-	QueryPerformanceCounter(&currentTime);
-
-	tickCount = currentTime.QuadPart - frameTimeOld;
-	frameTimeOld = currentTime.QuadPart;
-
-	if (tickCount < 0.0f)
-		tickCount = 0.0f;
-
-	return float(tickCount) / countsPerSecond;
-}
-
-int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
-	PWSTR pCmdLine, int nCmdShow)
-{
-	HWND hWnd = CreateWindowApp(hInstance, nCmdShow);
-	ShowConsole();
-
-	GameInput *gameInput = new GameInput();
-	gameInput->Init(hInstance, hWnd);
-	
-	GameCamera *gameCamera = new GameCamera();
-	gameCamera->Init(WINDOW_WIDTH, WINDOW_HEIGHT);
-	
-	GameRender *gameRender = new GameRender();
-	gameRender->Init(hWnd);
-
-	GameModel *gameModel = new GameModel();
-	gameModel->Init(gameRender);
-
 	dir_file_open("E:/games/Grand Theft Auto Vice City/models/gta3.dir");
 	img_file_open("E:/games/Grand Theft Auto Vice City/models/gta3.img");
 
@@ -314,8 +161,6 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 
 	/*for (uint32_t index = 0; index < clump->geometryList.size(); index++) {
 		std::vector<rw::uint16> faces;
-
-		
 
 		for (uint32_t i = 0; i < clump->geometryList[index].faces.size() / 4; i++) {
 			float f1 = clump->geometryList[index].faces[i * 4 + 0];
@@ -344,12 +189,12 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 			vertices.push_back(z);
 		}
 
-		
+
 		//Model *model = new Model();
 		//model->createModel(faces, vertices);
 
 		//gModels.push_back(model);
-		
+
 	}*/
 
 	clump->clear();
@@ -361,6 +206,41 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 
 	//World = XMMatrixIdentity();
 	//WVP = World * gameCamera->getView() * gameCamera->getProjection();
+
+	return 0;
+}
+
+void Render(GameRender *render, GameCamera *camera, GameModel *model, float time)
+{
+	render->RenderStart();
+	model->Render(render, camera);
+
+	/* for (int i = 0; i < gModels.size(); i++) {
+		gModels[i]->render();
+	} */
+
+	render->RenderEnd();
+}
+
+int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
+	PWSTR pCmdLine, int nCmdShow)
+{
+	GameWindow *gameWindow = new GameWindow();
+	gameWindow->Init(hInstance, nCmdShow, WINDOW_WIDTH, WINDOW_HEIGHT, WINDOW_TITLE);
+
+	GameInput *gameInput = new GameInput();
+	gameInput->Init(hInstance, gameWindow->GetHandleWindow());
+	
+	GameCamera *gameCamera = new GameCamera();
+	gameCamera->Init(WINDOW_WIDTH, WINDOW_HEIGHT);
+	
+	GameRender *gameRender = new GameRender();
+	gameRender->Init(gameWindow->GetHandleWindow());
+
+	GameModel *gameModel = new GameModel();
+	gameModel->Init(gameRender);
+
+	temp();
 
 	float moveLeftRight = 0.0f;
 	float moveBackForward = 0.0f;
@@ -377,6 +257,10 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 	mouseLastState.lX = gameInput->GetMouseSpeedX();
 	mouseLastState.lY = gameInput->GetMouseSpeedY();
 
+	int frameCount = 0;
+	double frameTime;
+	int fps = 0;
+
 	// Главный цикл сообщений
 	MSG msg = { 0 };
 	while (WM_QUIT != msg.message) {
@@ -386,13 +270,13 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 		} else { // If have not messagess
 			frameCount++;
 
-			if (GetTime() > 1.0f) {
+			if (GameUtils::GetTime() > 1.0f) {
 				fps = frameCount;
 				frameCount = 0;
-				StartTimer();
+				GameUtils::StartTimer();
 			}
 
-			frameTime = GetFrameTime();
+			frameTime = GameUtils::GetFrameTime();
 
 			gameInput->Detect();
 
@@ -442,10 +326,12 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 	gameRender->Cleanup();
 	gameCamera->Cleanup();
 	gameInput->Cleanup();
+	gameModel->Cleanup();
 
-	delete gameRender;
-	delete gameInput;
+	delete gameModel;
 	delete gameCamera;
+	delete gameInput;
+	delete gameRender;
 
 	return msg.wParam;
 }
