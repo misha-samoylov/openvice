@@ -13,11 +13,78 @@
 #include "img_loader.hpp"
 #include "renderware.h"
 
+#pragma comment (lib, "dinput8.lib")
+#pragma comment (lib, "dxguid.lib")
+#include <dinput.h>
+
 #define WINDOW_WIDTH 800
 #define WINDOW_HEIGHT 600
 #define WINDOW_TITLE L"openvice"
 
+
 using namespace DirectX; // DirectXMath.h
+
+XMMATRIX WVP;
+XMMATRIX World;
+XMMATRIX camView;
+XMMATRIX camProjection;
+
+XMVECTOR camPosition;
+XMVECTOR camTarget;
+XMVECTOR camUp;
+
+///camera
+XMVECTOR DefaultForward = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
+XMVECTOR DefaultRight = XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f);
+XMVECTOR camForward = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
+XMVECTOR camRight = XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f);
+
+XMMATRIX camRotationMatrix;
+XMMATRIX groundWorld;
+
+float moveLeftRight = 0.0f;
+float moveBackForward = 0.0f;
+
+float camYaw = 0.0f;
+float camPitch = 0.0f;
+
+void UpdateCamera();
+void UpdateCamera()
+{
+	camRotationMatrix = XMMatrixRotationRollPitchYaw(camPitch, camYaw, 0);
+	camTarget = XMVector3TransformCoord(DefaultForward, camRotationMatrix);
+	camTarget = XMVector3Normalize(camTarget);
+
+	///////////////**************new**************////////////////////
+		/*
+		// First-Person Camera
+		XMMATRIX RotateYTempMatrix;
+		RotateYTempMatrix = XMMatrixRotationY(camYaw);
+
+		camRight = XMVector3TransformCoord(DefaultRight, RotateYTempMatrix);
+		camUp = XMVector3TransformCoord(camUp, RotateYTempMatrix);
+		camForward = XMVector3TransformCoord(DefaultForward, RotateYTempMatrix);*/
+
+		// Free-Look Camera
+	camRight = XMVector3TransformCoord(DefaultRight, camRotationMatrix);
+	camForward = XMVector3TransformCoord(DefaultForward, camRotationMatrix);
+	camUp = XMVector3Cross(camForward, camRight);
+	///////////////**************new**************////////////////////
+
+	camPosition += moveLeftRight * camRight;
+	camPosition += moveBackForward * camForward;
+
+	moveLeftRight = 0.0f;
+	moveBackForward = 0.0f;
+
+	camTarget = camPosition + camTarget;
+
+	camView = XMMatrixLookAtLH(camPosition, camTarget, camUp);
+}
+///
+
+bool keyUp = false;
+
 
 ID3D11Device *g_pd3dDevice;
 ID3D11DeviceContext *g_pImmediateContext;
@@ -46,14 +113,7 @@ HRESULT InitGeometry(); // Инициализация шаблона ввода и буфера вершин
 
 ID3D11Buffer* cbPerObjectBuffer;
 
-XMMATRIX WVP;
-XMMATRIX World;
-XMMATRIX camView;
-XMMATRIX camProjection;
 
-XMVECTOR camPosition;
-XMVECTOR camTarget;
-XMVECTOR camUp;
 
 struct cbPerObject
 {
@@ -61,6 +121,42 @@ struct cbPerObject
 };
 
 cbPerObject cbPerObj;
+
+
+
+
+/// dinput
+IDirectInputDevice8* DIKeyboard;
+IDirectInputDevice8* DIMouse;
+
+DIMOUSESTATE mouseLastState;
+LPDIRECTINPUT8 DirectInput;
+
+float rotx = 0;
+float rotz = 0;
+float scaleX = 1.0f;
+float scaleY = 1.0f;
+
+XMMATRIX Rotationx;
+XMMATRIX Rotationz;
+
+HRESULT InitDirectInput(HINSTANCE hInstance, HWND hWnd);
+void DetectInput(double time, HWND hWnd);
+
+
+float rot = 0.01f;
+
+double countsPerSecond = 0.0;
+__int64 CounterStart = 0;
+
+int frameCount = 0;
+int fps = 0;
+
+__int64 frameTimeOld = 0;
+double frameTime;
+///
+
+
 
 
 void createConstBuffer()
@@ -333,28 +429,20 @@ HRESULT InitD3DX11(HWND hWnd)
 
 std::vector<Model*> gModels;
 
-void Render()
+void Render(float time)
 {
 	// Очищаем задний буфер
 	float ClearColor[4] = { 0.0f, 0.0f, 1.0f, 1.0f }; // красный, зеленый, синий, альфа-канал
 	g_pImmediateContext->ClearRenderTargetView(g_pRenderTargetView, ClearColor);
-
-
-
-
-
-
-
 
 	// Подключить к устройству рисования шейдеры
 	g_pImmediateContext->VSSetShader(g_pVertexShader, NULL, 0);
 	g_pImmediateContext->PSSetShader(g_pPixelShader, NULL, 0);
 
 
-
-
-	//Set the World/View/Projection matrix, then send it to constant buffer in effect file
-	World = XMMatrixIdentity();
+	XMMATRIX Scale = XMMatrixScaling(1.0f, 1.0f, 1.0f);
+	XMMATRIX Translation = XMMatrixTranslation(0.0f, 0.0f, 0.0f);
+	World = Scale * Translation;
 
 	WVP = World * camView * camProjection;
 
@@ -362,9 +450,6 @@ void Render()
 
 	g_pImmediateContext->UpdateSubresource(cbPerObjectBuffer, 0, NULL, &cbPerObj, 0, 0);
 	g_pImmediateContext->VSSetConstantBuffers(0, 1, &cbPerObjectBuffer);
-
-
-
 
 	// Нарисовать три вершины
 	g_pImmediateContext->DrawIndexed(6, 0, 0);
@@ -416,6 +501,8 @@ HWND CreateWindowApp(HINSTANCE hInstance, int nCmdShow)
 
 	ShowWindow(hWnd, nCmdShow);
 	UpdateWindow(hWnd);
+
+	ShowCursor(FALSE);
 
 	return hWnd;
 }
@@ -617,6 +704,120 @@ HRESULT InitGeometry()
 }
 
 
+HRESULT InitDirectInput(HINSTANCE hInstance, HWND hwnd)
+{
+	HRESULT hr;
+
+	hr = DirectInput8Create(hInstance,
+		DIRECTINPUT_VERSION,
+		IID_IDirectInput8,
+		(void**)&DirectInput,
+		NULL);
+
+	hr = DirectInput->CreateDevice(GUID_SysKeyboard,
+		&DIKeyboard,
+		NULL);
+
+	hr = DirectInput->CreateDevice(GUID_SysMouse,
+		&DIMouse,
+		NULL);
+
+	hr = DIKeyboard->SetDataFormat(&c_dfDIKeyboard);
+	hr = DIKeyboard->SetCooperativeLevel(hwnd, DISCL_FOREGROUND | DISCL_NONEXCLUSIVE);
+
+	hr = DIMouse->SetDataFormat(&c_dfDIMouse);
+	hr = DIMouse->SetCooperativeLevel(hwnd, DISCL_NONEXCLUSIVE | DISCL_BACKGROUND);
+
+	return hr;
+}
+
+void DetectInput(double time, HWND hwnd)
+{
+	DIMOUSESTATE mouseCurrState;
+
+	BYTE keyboardState[256];
+
+	DIKeyboard->Acquire();
+	DIMouse->Acquire();
+
+	DIMouse->GetDeviceState(sizeof(DIMOUSESTATE), &mouseCurrState);
+
+	DIKeyboard->GetDeviceState(sizeof(keyboardState), (LPVOID)&keyboardState);
+
+	//if (keyboardState[DIK_ESCAPE] & 0x80)
+	//	PostMessage(hwnd, WM_DESTROY, 0, 0);
+
+	float speed = 15.0f * time;
+
+	if (keyboardState[DIK_A] & 0x80)
+	{
+		moveLeftRight -= speed;
+	}
+	if (keyboardState[DIK_D] & 0x80)
+	{
+		moveLeftRight += speed;
+	}
+	if (keyboardState[DIK_W] & 0x80)
+	{
+		moveBackForward += speed;
+	}
+	if (keyboardState[DIK_S] & 0x80)
+	{
+		moveBackForward -= speed;
+	}
+	if ((mouseCurrState.lX != mouseLastState.lX)
+		|| (mouseCurrState.lY != mouseLastState.lY)) {
+
+		camYaw += mouseLastState.lX * 0.001f;
+		camPitch += mouseCurrState.lY * 0.001f;
+
+		mouseLastState = mouseCurrState;
+	}
+
+	UpdateCamera();
+
+	return;
+}
+
+void CleanupDXInput()
+{
+	DIKeyboard->Unacquire();
+	DIMouse->Unacquire();
+	DirectInput->Release();
+}
+
+void StartTimer()
+{
+	LARGE_INTEGER frequencyCount;
+	QueryPerformanceFrequency(&frequencyCount);
+
+	countsPerSecond = double(frequencyCount.QuadPart);
+
+	QueryPerformanceCounter(&frequencyCount);
+	CounterStart = frequencyCount.QuadPart;
+}
+
+double GetTime()
+{
+	LARGE_INTEGER currentTime;
+	QueryPerformanceCounter(&currentTime);
+	return double(currentTime.QuadPart - CounterStart) / countsPerSecond;
+}
+
+double GetFrameTime()
+{
+	LARGE_INTEGER currentTime;
+	__int64 tickCount;
+	QueryPerformanceCounter(&currentTime);
+
+	tickCount = currentTime.QuadPart - frameTimeOld;
+	frameTimeOld = currentTime.QuadPart;
+
+	if (tickCount < 0.0f)
+		tickCount = 0.0f;
+
+	return float(tickCount) / countsPerSecond;
+}
 
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine, int nCmdShow)
 {
@@ -633,6 +834,13 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 	if (FAILED(hr)) {
 		MessageBox(NULL, L"Cannot init geometry", L"Error", MB_ICONERROR | MB_OK);
 		return -1;
+	}
+
+	if (InitDirectInput(hInstance, hWnd) == S_FALSE)
+	{
+		MessageBox(0, L"Direct Input Initialization - Failed",
+			L"Error", MB_OK);
+		return 1;
 	}
 
 	dir_file_open("E:/games/Grand Theft Auto Vice City/models/gta3.dir");
@@ -713,7 +921,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 
 	camView = XMMatrixLookAtLH(camPosition, camTarget, camUp);
 
-	camProjection = XMMatrixPerspectiveFovLH(90.0f, (float)800 / 600, 1.0f, 1000.0f);
+	camProjection = XMMatrixPerspectiveFovLH(0.4f*3.14f, (float)WINDOW_WIDTH / WINDOW_HEIGHT, 1.0f, 1000.0f);
 
 	World = XMMatrixIdentity();
 
@@ -729,11 +937,28 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 			TranslateMessage(&msg);
 			DispatchMessage(&msg);
 		} else { // Если сообщений нет
-			Render(); // Рисуем
+			// run game code
+			frameCount++;
+			if (GetTime() > 1.0f)
+			{
+				fps = frameCount;
+				frameCount = 0;
+				StartTimer();
+			}
+
+			frameTime = GetFrameTime();
+
+			///////////////**************new**************////////////////////
+			DetectInput(frameTime, hWnd);
+			///////////////**************new**************////////////////////
+
+			Render(frameTime); // Рисуем
+
 		}
 	}
 
 	CleanupDevice();
+	CleanupDXInput();
 
 	return msg.wParam;
 }
