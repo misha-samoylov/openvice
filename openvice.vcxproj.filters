@@ -21,9 +21,6 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="img_loader.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -84,6 +81,9 @@
     <ClCompile Include="GameUtils.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="ImgLoader.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="args.h">
@@ -93,9 +93,6 @@
       <Filter>Source Files\renderware</Filter>
     </ClInclude>
     <ClInclude Include="GameInput.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="img_loader.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="GameCamera.h">
@@ -111,6 +108,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="GameUtils.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ImgLoader.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

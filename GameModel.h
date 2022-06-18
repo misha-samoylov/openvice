@@ -24,6 +24,11 @@ struct cbPerObject
 
 class GameModel
 {
+public:
+	HRESULT Init(GameRender *pRender);
+	void Cleanup();
+	void Render(GameRender *pRender, GameCamera *pCamera);
+
 private:
 	ID3D11VertexShader *m_pVertexShader;
 	ID3D11PixelShader *m_pPixelShader;
@@ -48,10 +53,5 @@ private:
 	HRESULT CreateBufferModel(GameRender *pRender);
 
 	HRESULT CompileShaderFromFile(LPCWSTR szFileName, LPCSTR szEntryPoint, LPCSTR szShaderModel, ID3DBlob** ppBlobOut);
-
-public:
-	HRESULT Init(GameRender *pRender);
-	void Cleanup();
-	void Render(GameRender *pRender, GameCamera *pCamera);
 };
 

@@ -140,7 +140,7 @@
     <ClCompile Include="GameRender.cpp" />
     <ClCompile Include="GameUtils.cpp" />
     <ClCompile Include="GameWindow.cpp" />
-    <ClCompile Include="img_loader.cpp" />
+    <ClCompile Include="ImgLoader.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="oglnative.cpp" />
     <ClCompile Include="ps2native.cpp" />
@@ -160,7 +160,7 @@
     <ClInclude Include="GameRender.h" />
     <ClInclude Include="GameUtils.h" />
     <ClInclude Include="GameWindow.h" />
-    <ClInclude Include="img_loader.hpp" />
+    <ClInclude Include="ImgLoader.hpp" />
     <ClInclude Include="renderware.h" />
   </ItemGroup>
   <ItemGroup>

@@ -20,16 +20,22 @@ HRESULT GameModel::CreateConstBuffer(GameRender *pRender)
 void GameModel::Cleanup()
 {
 	/* clear buffers */
-	if (m_pVertexBuffer) m_pVertexBuffer->Release();
-	if (m_pIndexBuffer) m_pIndexBuffer->Release();
-	if (m_pPerObjectBuffer) m_pPerObjectBuffer->Release();
+	if (m_pVertexBuffer)
+		m_pVertexBuffer->Release();
+	if (m_pIndexBuffer)
+		m_pIndexBuffer->Release();
+	if (m_pPerObjectBuffer)
+		m_pPerObjectBuffer->Release();
 
 	/* clear layout */
-	if (m_pVertexLayout) m_pVertexLayout->Release();
+	if (m_pVertexLayout)
+		m_pVertexLayout->Release();
 
 	/* clear shaders */
-	if (m_pVertexShader) m_pVertexShader->Release();
-	if (m_pPixelShader) m_pPixelShader->Release();
+	if (m_pVertexShader) 
+		m_pVertexShader->Release();
+	if (m_pPixelShader) 
+		m_pPixelShader->Release();
 }
 
 void GameModel::Render(GameRender * pRender, GameCamera *pCamera)

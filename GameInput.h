@@ -7,15 +7,6 @@
 
 class GameInput
 {
-private:
-	LPDIRECTINPUT8 m_pDirectInput;
-
-	IDirectInputDevice8 *m_pDIKeyboard;
-	IDirectInputDevice8 *m_pDIMouse;
-
-	BYTE mKeyboardState[256];
-	DIMOUSESTATE mMouseCurrState;
-
 public:
 	HRESULT Init(HINSTANCE hInstance, HWND hWnd);
 	void Cleanup();
@@ -24,5 +15,14 @@ public:
 	bool IsKey(BYTE key);
 	float GetMouseSpeedX();
 	float GetMouseSpeedY();
+
+private:
+	LPDIRECTINPUT8 m_pDirectInput;
+
+	IDirectInputDevice8 *m_pDIKeyboard;
+	IDirectInputDevice8 *m_pDIMouse;
+
+	BYTE mKeyboardState[256];
+	DIMOUSESTATE mMouseCurrState;
 };
 

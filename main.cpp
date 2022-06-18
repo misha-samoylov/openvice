@@ -5,9 +5,9 @@
 #include <windows.h>
 #include <DirectXMath.h>
 
-#include "img_loader.hpp"
 #include "renderware.h"
 
+#include "ImgLoader.hpp"
 #include "GameModel.h"
 #include "GameRender.h"
 #include "GameCamera.h"
@@ -23,16 +23,12 @@ using namespace DirectX; /* DirectXMath.h */
 
 int LoadGameFile()
 {
-	dir_file_open("E:/games/Grand Theft Auto Vice City/models/gta3.dir");
-	img_file_open("E:/games/Grand Theft Auto Vice City/models/gta3.img");
-
-	/* img_file_save_by_id(399); */
-
-	dir_file_dump();
-	/* char *file = img_file_get(399); */
-	img_file_save_by_id(152);
-	/* dff_load(file);
-	free(file); */
+	ImgLoader *imgLoader = new ImgLoader();
+	imgLoader->Open("E:/games/Grand Theft Auto Vice City/models/gta3.img",
+		"E:/games/Grand Theft Auto Vice City/models/gta3.dir");
+	imgLoader->FileSaveById(152);
+	imgLoader->Cleanup();
+	delete imgLoader;
 
 	std::ifstream in("C:/Files/projects/openvice/lawyer.dff", std::ios::binary);
 	if (!in.is_open()) {
@@ -77,9 +73,6 @@ int LoadGameFile()
 
 	clump->clear();
 	delete clump;
-
-	dir_file_close();
-	img_file_close();
 
 	return 0;
 }
