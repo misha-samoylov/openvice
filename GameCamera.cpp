@@ -1,4 +1,4 @@
-#include "GameCamera.h"
+#include "GameCamera.hpp"
 
 void GameCamera::Init(float width, float height)
 {

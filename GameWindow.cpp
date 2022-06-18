@@ -1,4 +1,4 @@
-#include "GameWindow.h"
+#include "GameWindow.hpp"
 
 HWND GameWindow::GetHandleWindow()
 {

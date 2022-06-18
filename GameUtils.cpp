@@ -1,4 +1,4 @@
-#include "GameUtils.h"
+#include "GameUtils.hpp"
 
 void GameUtils::StartTimer()
 {

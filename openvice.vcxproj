@@ -154,12 +154,12 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="args.h" />
-    <ClInclude Include="GameCamera.h" />
-    <ClInclude Include="GameInput.h" />
-    <ClInclude Include="GameModel.h" />
-    <ClInclude Include="GameRender.h" />
-    <ClInclude Include="GameUtils.h" />
-    <ClInclude Include="GameWindow.h" />
+    <ClInclude Include="GameCamera.hpp" />
+    <ClInclude Include="GameInput.hpp" />
+    <ClInclude Include="GameModel.hpp" />
+    <ClInclude Include="GameRender.hpp" />
+    <ClInclude Include="GameUtils.hpp" />
+    <ClInclude Include="GameWindow.hpp" />
     <ClInclude Include="ImgLoader.hpp" />
     <ClInclude Include="renderware.h" />
   </ItemGroup>

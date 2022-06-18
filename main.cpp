@@ -8,12 +8,12 @@
 #include "renderware.h"
 
 #include "ImgLoader.hpp"
-#include "GameModel.h"
-#include "GameRender.h"
-#include "GameCamera.h"
-#include "GameInput.h"
-#include "GameWindow.h"
-#include "GameUtils.h"
+#include "GameModel.hpp"
+#include "GameRender.hpp"
+#include "GameCamera.hpp"
+#include "GameInput.hpp"
+#include "GameWindow.hpp"
+#include "GameUtils.hpp"
 
 #define WINDOW_WIDTH 1400
 #define WINDOW_HEIGHT 1200

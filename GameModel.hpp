@@ -7,8 +7,8 @@
 #pragma comment(lib, "d3d11.lib")
 #pragma comment(lib, "d3dcompiler.lib")
 
-#include "GameCamera.h"
-#include "GameRender.h"
+#include "GameCamera.hpp"
+#include "GameRender.hpp"
 
 using namespace DirectX; /* DirectXMath */
 

@@ -1,4 +1,4 @@
-#include "GameRender.h"
+#include "GameRender.hpp"
 
 ID3D11Device *GameRender::getDevice()
 {

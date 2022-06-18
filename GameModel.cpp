@@ -1,4 +1,4 @@
-#include "GameModel.h"
+#include "GameModel.hpp"
 
 HRESULT GameModel::CreateConstBuffer(GameRender *pRender)
 {
