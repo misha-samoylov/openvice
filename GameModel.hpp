@@ -1,5 +1,7 @@
 #pragma once
 
+#include <stdio.h>
+
 #include <d3d11.h>
 #include <d3dcompiler.h>
 #include <DirectXMath.h>
@@ -50,7 +52,7 @@ private:
 	HRESULT CreatePixelShader(GameRender *pRender);
 	HRESULT CreateVertexShader(GameRender *pRender);
 	HRESULT CreateInputLayout(GameRender *pRender);
-	HRESULT CreateBufferModel(GameRender *pRender);
+	HRESULT CreateDataBuffer(GameRender *pRender);
 
 	HRESULT CompileShaderFromFile(LPCWSTR szFileName, LPCSTR szEntryPoint, LPCSTR szShaderModel, ID3DBlob** ppBlobOut);
 };

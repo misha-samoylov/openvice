@@ -38,14 +38,15 @@ HRESULT GameRender::CreateBackBuffer()
 	HRESULT hr = m_pSwapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), (LPVOID*)&pBackBuffer);
 
 	if (FAILED(hr)) {
-		MessageBox(NULL, L"Cannot create backbuffer", L"Error", MB_OK);
+		printf("Error: cannot create backbuffer\n");
 		return hr;
 	}
 
 	hr = m_pDevice->CreateRenderTargetView(pBackBuffer, NULL, &m_pRenderTargetView);
 	pBackBuffer->Release(); /* now that's object does not needed */
+
 	if (FAILED(hr)) {
-		MessageBox(NULL, L"Cannot create render target view", L"Error", MB_OK);
+		printf("Error: cannot create render target view\n");
 		return hr;
 	}
 
@@ -99,14 +100,14 @@ HRESULT GameRender::Init(HWND hWnd)
 	);
 
 	if (FAILED(hr)) {
-		MessageBox(NULL, L"Cannot create device", L"Error", MB_ICONERROR | MB_OK);
+		printf("Error: cannot create device and swapchain\n");
 		return hr;
 	}
 
 	hr = CreateBackBuffer();
 
 	if (FAILED(hr)) {
-		MessageBox(NULL, L"Cannot create back buffer", L"Error", MB_ICONERROR | MB_OK);
+		printf("Error: cannot create back buffer\n");
 		return hr;
 	}
 

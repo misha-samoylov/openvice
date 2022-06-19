@@ -84,7 +84,7 @@ HRESULT GameModel::CreatePixelShader(GameRender *pRender)
 	hr = D3DReadFileToBlob(L"pixel_shader.cso", &pPSBlob);
 
 	if (FAILED(hr)) {
-		MessageBox(NULL, L"Cannot read compiled pixel shader", L"Error", MB_OK);
+		printf("Error: cannot read compiled pixel shader\n");
 		return hr;
 	}
 
@@ -94,7 +94,7 @@ HRESULT GameModel::CreatePixelShader(GameRender *pRender)
 	pPSBlob->Release();
 
 	if (FAILED(hr)) {
-		MessageBox(NULL, L"Cannot create pixel shader", L"Error", MB_OK);
+		printf("Error: cannot create pixel shader\n");
 		return hr;
 	}
 
@@ -108,7 +108,7 @@ HRESULT GameModel::CreateVertexShader(GameRender *pRender)
 	hr = D3DReadFileToBlob(L"vertex_shader.cso", &m_pVSBlob);
 
 	if (FAILED(hr)) {
-		MessageBox(NULL, L"Cannot read compiled vertex shader", L"Error", MB_OK);
+		printf("Error: cannot read compiled vertex shader\n");
 		return hr;
 	}
 
@@ -116,8 +116,8 @@ HRESULT GameModel::CreateVertexShader(GameRender *pRender)
 		m_pVSBlob->GetBufferSize(), NULL, &m_pVertexShader);
 
 	if (FAILED(hr)) {
+		printf("Error: cannot create vertex shader\n");
 		m_pVSBlob->Release();
-		MessageBox(NULL, L"Cannot create vertex shader", L"Error", MB_OK);
 		return hr;
 	}
 
@@ -147,13 +147,13 @@ HRESULT GameModel::CreateInputLayout(GameRender *pRender)
 		m_pVSBlob->GetBufferSize(), &m_pVertexLayout);
 
 	if (FAILED(hr)) {
-		MessageBox(NULL, L"Cannot create input layout", L"Error", MB_OK);
+		printf("Error: cannot create input layout\n");
 	}
 
 	return hr;
 }
 
-HRESULT GameModel::CreateBufferModel(GameRender * pRender)
+HRESULT GameModel::CreateDataBuffer(GameRender * pRender)
 {
 	HRESULT hr;
 
@@ -180,18 +180,18 @@ HRESULT GameModel::CreateBufferModel(GameRender * pRender)
 		hr = pRender->getDevice()->CreateBuffer(&bd, &InitData, &m_pVertexBuffer);
 
 		if (FAILED(hr)) {
-			MessageBox(NULL, L"Cannot create buffer", L"Error", MB_OK);
+			printf("Error: cannot create vertex data buffer\n");
 			return hr;
 		}
 	}
 
-	// Create indices
+	/* create indices */
 	unsigned int indices[] = {
 		0, 1, 2,
 		0, 2, 3,
 	};
 
-	// Fill in a buffer description.
+	/* fill in a buffer description */
 	D3D11_BUFFER_DESC bufferDesc;
 	bufferDesc.Usage = D3D11_USAGE_DEFAULT;
 	bufferDesc.ByteWidth = sizeof(unsigned int) * 2 * 3;
@@ -199,14 +199,16 @@ HRESULT GameModel::CreateBufferModel(GameRender * pRender)
 	bufferDesc.CPUAccessFlags = 0;
 	bufferDesc.MiscFlags = 0;
 
-	// Define the resource data.
+	/* define the resource data */
 	D3D11_SUBRESOURCE_DATA InitData;
 	InitData.pSysMem = indices;
 	InitData.SysMemPitch = 0;
 	InitData.SysMemSlicePitch = 0;
 
-	// Create the buffer with the device.
 	hr = pRender->getDevice()->CreateBuffer(&bufferDesc, &InitData, &m_pIndexBuffer);
+	if (FAILED(hr)) {
+		printf("Error: cannot create index data buffer\n");
+	}
 
 	return hr;
 }
@@ -224,7 +226,7 @@ HRESULT GameModel::Init(GameRender *pRender)
 	CreatePixelShader(pRender);
 	CreateConstBuffer(pRender);
 	CreateInputLayout(pRender);
-	CreateBufferModel(pRender);
+	CreateDataBuffer(pRender);
 
 	m_pVSBlob->Release();
 
@@ -240,9 +242,8 @@ HRESULT GameModel::CompileShaderFromFile(LPCWSTR szFileName, LPCSTR szEntryPoint
 		dwShaderFlags, 0, ppBlobOut, NULL);
 
 	if (FAILED(hr)) {
-		MessageBox(NULL, L"Cannot compile shader", L"Error", MB_ICONERROR | MB_OK);
-		return hr;
+		printf("Error: cannot compile shader\n");
 	}
 
-	return S_OK;
+	return hr;
 }

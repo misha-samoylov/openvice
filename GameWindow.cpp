@@ -5,18 +5,27 @@ HWND GameWindow::GetHandleWindow()
 	return mHWnd;
 }
 
-void GameWindow::Init(HINSTANCE hInstance, int nCmdShow, 
+HRESULT GameWindow::Init(HINSTANCE hInstance, int nCmdShow, 
 	int width, int height, LPCWSTR windowTitle)
 {
-	CreateWindowApp(hInstance, nCmdShow, width, height, windowTitle);
+	HRESULT hr;
+
+	hr = CreateWindowApp(hInstance, nCmdShow, width, height, windowTitle);
+	if (FAILED(hr)) {
+		printf("Error: cannot create window\n");
+		return hr;
+	}
+
 	ShowConsole();
+
+	return hr;
 }
 
 void GameWindow::Cleanup()
 {
 }
 
-HWND GameWindow::CreateWindowApp(HINSTANCE hInstance, int nCmdShow, 
+HRESULT GameWindow::CreateWindowApp(HINSTANCE hInstance, int nCmdShow, 
 	int width, int height, LPCWSTR windowTitle)
 {
 	LPCWSTR CLASS_NAME = L"OpenViceWndClass";
@@ -28,8 +37,8 @@ HWND GameWindow::CreateWindowApp(HINSTANCE hInstance, int nCmdShow,
 	wc.style = CS_HREDRAW | CS_VREDRAW;
 
 	if (!RegisterClass(&wc)) {
-		MessageBox(NULL, L"Cannot register window", L"Error", MB_ICONERROR | MB_OK);
-		return NULL;
+		printf("Error: cannot register window\n");
+		return E_FAIL;
 	}
 
 	RECT rc = { 0, 0, width, height };
@@ -50,13 +59,15 @@ HWND GameWindow::CreateWindowApp(HINSTANCE hInstance, int nCmdShow,
 
 	if (mHWnd == NULL) {
 		MessageBox(NULL, L"Cannot create window", L"Error", MB_OK);
-		return NULL;
+		return E_FAIL;
 	}
 
 	ShowWindow(mHWnd, nCmdShow);
 	UpdateWindow(mHWnd);
 
 	ShowCursor(FALSE);
+
+	return S_OK;
 }
 
 void GameWindow::ShowConsole()
