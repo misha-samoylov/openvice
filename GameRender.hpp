@@ -31,5 +31,5 @@ private:
 	IDXGISwapChain *m_pSwapChain;
 	ID3D11RenderTargetView *m_pRenderTargetView;
 
-	ID3D11RasterizerState* m_pWireframe;
+	ID3D11RasterizerState *m_pWireframe;
 };

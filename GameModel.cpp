@@ -4,16 +4,17 @@ HRESULT GameModel::CreateConstBuffer(GameRender *pRender)
 {
 	HRESULT hr;
 
-	D3D11_BUFFER_DESC cbbd;
-	ZeroMemory(&cbbd, sizeof(D3D11_BUFFER_DESC));
+	D3D11_BUFFER_DESC bdcb;
+	ZeroMemory(&bdcb, sizeof(D3D11_BUFFER_DESC));
 
-	cbbd.Usage = D3D11_USAGE_DEFAULT;
-	cbbd.ByteWidth = sizeof(cbPerObject);
-	cbbd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
-	cbbd.CPUAccessFlags = 0;
-	cbbd.MiscFlags = 0;
+	bdcb.Usage = D3D11_USAGE_DEFAULT;
+	bdcb.ByteWidth = sizeof(cbPerObject);
+	bdcb.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+	bdcb.CPUAccessFlags = 0;
+	bdcb.MiscFlags = 0;
 
-	hr = pRender->getDevice()->CreateBuffer(&cbbd, NULL, &m_pPerObjectBuffer);
+	hr = pRender->getDevice()->CreateBuffer(&bdcb, NULL, &m_pPerObjectBuffer);
+
 	return hr;
 }
 
@@ -46,28 +47,31 @@ void GameModel::Render(GameRender * pRender, GameCamera *pCamera)
 	pRender->getDeviceContext()->IASetIndexBuffer(m_pIndexBuffer, DXGI_FORMAT_R32_UINT, 0);
 
 	/* set vertex buffer */
-	UINT stride = sizeof(float) * 3;
+	UINT stride = sizeof(float) * 3; /* x, y, z */
 	UINT offset = 0;
 	pRender->getDeviceContext()->IASetVertexBuffers(0, 1, &m_pVertexBuffer, &stride, &offset);
 
+	/* set topology */
 	pRender->getDeviceContext()->IASetPrimitiveTopology(this->m_primitiveTopology);
 
 	/* set shaders */
 	pRender->getDeviceContext()->VSSetShader(m_pVertexShader, NULL, 0);
 	pRender->getDeviceContext()->PSSetShader(m_pPixelShader, NULL, 0);
 
+	/* set position */
 	XMMATRIX modelPosition = XMMatrixIdentity();
 	XMMATRIX modelScale = XMMatrixScaling(1.0f, 1.0f, 1.0f);
 	XMMATRIX modelTranslation = XMMatrixTranslation(0.0f, 0.0f, 0.0f);
 
 	XMVECTOR vector = XMVectorSet(-1.0, 0.0, 0.0, 0.0);
 	XMMATRIX modelRotation = XMMatrixRotationAxis(vector, 90.0f);
-	mWorld = modelRotation * modelPosition * modelScale * modelTranslation;
 
-	mWVP = mWorld * pCamera->getView() * pCamera->getProjection();
-	mPerObj.WVP = XMMatrixTranspose(mWVP);
+	m_World = modelRotation * modelPosition * modelScale * modelTranslation;
 
-	pRender->getDeviceContext()->UpdateSubresource(m_pPerObjectBuffer, 0, NULL, &mPerObj, 0, 0);
+	m_WVP = m_World * pCamera->getView() * pCamera->getProjection();
+	m_perObj.WVP = XMMatrixTranspose(m_WVP);
+
+	pRender->getDeviceContext()->UpdateSubresource(m_pPerObjectBuffer, 0, NULL, &m_perObj, 0, 0);
 	pRender->getDeviceContext()->VSSetConstantBuffers(0, 1, &m_pPerObjectBuffer);
 
 	/* render indexed vertices */
@@ -77,7 +81,7 @@ void GameModel::Render(GameRender * pRender, GameCamera *pCamera)
 
 HRESULT GameModel::CreatePixelShader(GameRender *pRender)
 {
-	HRESULT hr = S_OK;
+	HRESULT hr;
 
 	/* compile shader from file */
 	/* ID3DBlob* pPSBlob = NULL;
@@ -131,7 +135,6 @@ HRESULT GameModel::CreateInputLayout(GameRender *pRender)
 {
 	HRESULT hr;
 
-	/* setup layout */
 	D3D11_INPUT_ELEMENT_DESC layout[] = {
 		{
 			"POSITION",  /* name */
@@ -161,68 +164,87 @@ HRESULT GameModel::CreateDataBuffer(GameRender * pRender, float *vertices, int v
 {
 	HRESULT hr;
 
-	D3D11_BUFFER_DESC bd;
-	ZeroMemory(&bd, sizeof(bd));
-	bd.Usage = D3D11_USAGE_DEFAULT;
-	bd.ByteWidth = sizeof(float) * verticesCount; /* size buffer */
-	bd.BindFlags = D3D11_BIND_VERTEX_BUFFER; /* type buffer = vertex buffer */
-	bd.CPUAccessFlags = 0;
+	/* vertices: fill in a buffer description */
+	D3D11_BUFFER_DESC bdv;
+	ZeroMemory(&bdv, sizeof(bdv));
+	bdv.Usage = D3D11_USAGE_DEFAULT;
+	bdv.ByteWidth = sizeof(float) * verticesCount; /* size buffer */
+	bdv.BindFlags = D3D11_BIND_VERTEX_BUFFER; /* type buffer = vertex buffer */
 
-	{
-		D3D11_SUBRESOURCE_DATA InitData; // buffer data
-		ZeroMemory(&InitData, sizeof(InitData));
-		InitData.pSysMem = vertices; // pointer to data
+	/* vertices: define the resource data */
+	D3D11_SUBRESOURCE_DATA datav; /* buffer data */
+	ZeroMemory(&datav, sizeof(datav));
+	datav.pSysMem = vertices; /* pointer to data */
 
-		hr = pRender->getDevice()->CreateBuffer(&bd, &InitData, &m_pVertexBuffer);
+	hr = pRender->getDevice()->CreateBuffer(&bdv, &datav, &m_pVertexBuffer);
 
-		if (FAILED(hr)) {
-			printf("Error: cannot create vertex data buffer\n");
-			return hr;
-		}
+	if (FAILED(hr)) {
+		printf("Error: cannot create vertex data buffer\n");
+		return hr;
 	}
+	
+	/* indices: fill in a buffer description */
+	D3D11_BUFFER_DESC bdi;
+	ZeroMemory(&bdi, sizeof(bdi));
+	bdi.Usage = D3D11_USAGE_DEFAULT;
+	bdi.ByteWidth = sizeof(unsigned int) * indicesCount;
+	bdi.BindFlags = D3D11_BIND_INDEX_BUFFER;
 
-	/* fill in a buffer description */
-	D3D11_BUFFER_DESC bufferDesc;
-	bufferDesc.Usage = D3D11_USAGE_DEFAULT;
-	bufferDesc.ByteWidth = sizeof(unsigned int) * indicesCount;
-	bufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
-	bufferDesc.CPUAccessFlags = 0;
-	bufferDesc.MiscFlags = 0;
+	/* indices: define the resource data */
+	D3D11_SUBRESOURCE_DATA datai;
+	ZeroMemory(&datai, sizeof(datai));
+	datai.pSysMem = indices;
 
-	/* define the resource data */
-	D3D11_SUBRESOURCE_DATA InitData;
-	InitData.pSysMem = indices;
-	InitData.SysMemPitch = 0;
-	InitData.SysMemSlicePitch = 0;
+	hr = pRender->getDevice()->CreateBuffer(&bdi, &datai, &m_pIndexBuffer);
 
-	hr = pRender->getDevice()->CreateBuffer(&bufferDesc, &InitData, &m_pIndexBuffer);
 	if (FAILED(hr)) {
 		printf("Error: cannot create index data buffer\n");
+		return hr;
 	}
 
 	return hr;
 }
 
 HRESULT GameModel::Init(GameRender *pRender, float *vertices, int verticesCount,
-	unsigned int *indices, int indicesCount)
+	unsigned int *indices, int indicesCount, D3D_PRIMITIVE_TOPOLOGY topology)
 {
-	HRESULT hr = S_OK;
+	HRESULT hr;
 
 	m_pVSBlob = NULL;
 
-	mWVP = XMMatrixIdentity();
-	mWorld = XMMatrixIdentity();
+	m_WVP = XMMatrixIdentity();
+	m_World = XMMatrixIdentity();
+	m_countIndices = indicesCount;
+	m_primitiveTopology = topology;
 
-	CreateVertexShader(pRender);
-	CreatePixelShader(pRender);
-	CreateConstBuffer(pRender);
-	CreateInputLayout(pRender);
-	CreateDataBuffer(pRender, vertices, verticesCount,
+	hr = CreateVertexShader(pRender);
+	if (FAILED(hr)) {
+		printf("Error: cannot create vertex shader\n");
+		return hr;
+	}
+	hr = CreatePixelShader(pRender);
+	if (FAILED(hr)) {
+		printf("Error: cannot create pixel shader\n");
+		return hr;
+	}
+	hr = CreateConstBuffer(pRender);
+	if (FAILED(hr)) {
+		printf("Error: cannot create const shader\n");
+		return hr;
+	}
+	hr = CreateInputLayout(pRender);
+	if (FAILED(hr)) {
+		printf("Error: cannot create input layout\n");
+		return hr;
+	}
+	hr = CreateDataBuffer(pRender, vertices, verticesCount,
 		indices, indicesCount);
+	if (FAILED(hr)) {
+		printf("Error: cannot create data buffer\n");
+		return hr;
+	}
 
 	m_pVSBlob->Release();
-
-	m_countIndices = indicesCount;
 
 	return hr;
 }
