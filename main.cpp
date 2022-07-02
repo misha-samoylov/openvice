@@ -93,7 +93,7 @@ int LoadGameFile(GameRender *render)
 		}
 
 		float *vertices = &gvertices[0];
-		int countVertices = gvertices.size();
+		int countVertices = clump->geometryList[index].vertices.size();
 
 		unsigned int *indices = &gindices[0];
 		int countIndices = gindices.size();

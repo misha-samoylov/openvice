@@ -59,7 +59,10 @@ void GameModel::Render(GameRender * pRender, GameCamera *pCamera)
 	XMMATRIX modelPosition = XMMatrixIdentity();
 	XMMATRIX modelScale = XMMatrixScaling(1.0f, 1.0f, 1.0f);
 	XMMATRIX modelTranslation = XMMatrixTranslation(0.0f, 0.0f, 0.0f);
-	mWorld = modelPosition * modelScale * modelTranslation;
+
+	XMVECTOR vector = XMVectorSet(-1.0, 0.0, 0.0, 0.0);
+	XMMATRIX modelRotation = XMMatrixRotationAxis(vector, 90.0f);
+	mWorld = modelRotation * modelPosition * modelScale * modelTranslation;
 
 	mWVP = mWorld * pCamera->getView() * pCamera->getProjection();
 	mPerObj.WVP = XMMatrixTranspose(mWVP);
