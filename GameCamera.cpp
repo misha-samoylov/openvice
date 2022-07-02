@@ -17,7 +17,6 @@ void GameCamera::Init(float width, float height)
 
 void GameCamera::Cleanup()
 {
-	/* none */
 }
 
 void GameCamera::Update(float camPitch, float camYaw, float moveLeftRight, float moveBackForward)

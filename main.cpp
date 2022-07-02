@@ -21,16 +21,18 @@
 
 using namespace DirectX; /* DirectXMath.h */
 
-int LoadGameFile()
+std::vector<GameModel*> gModels;
+
+int LoadGameFile(GameRender *render)
 {
-	ImgLoader *imgLoader = new ImgLoader();
+	/* ImgLoader *imgLoader = new ImgLoader();
 	imgLoader->Open("D:/games/Grand Theft Auto Vice City/models/gta3.img",
 		"D:/games/Grand Theft Auto Vice City/models/gta3.dir");
 	imgLoader->FileSaveById(152);
 	imgLoader->Cleanup();
-	delete imgLoader;
+	delete imgLoader; */
 
-	std::ifstream in("C:/Users/john/Documents/GitHub/openvice/lawyer.dff", std::ios::binary);
+	std::ifstream in("C:/Users/john/Downloads/basketballcourt04.dff", std::ios::binary);
 	if (!in.is_open()) {
 		MessageBox(NULL, L"Cannot open file", L"Error", MB_ICONERROR | MB_OK);
 		return -1;
@@ -40,36 +42,70 @@ int LoadGameFile()
 	clump->read(in);
 	clump->dump();
 
-	/* for (uint32_t index = 0; index < clump->geometryList.size(); index++) {
-		std::vector<rw::uint16> faces;
 
+
+	for (uint32_t index = 0; index < clump->geometryList.size(); index++) {
+
+		std::vector<rw::uint16> gfaces;
+		std::vector<float> gvertices;
+		std::vector<unsigned int> gindices;
+		
 		for (uint32_t i = 0; i < clump->geometryList[index].faces.size() / 4; i++) {
 			float f1 = clump->geometryList[index].faces[i * 4 + 0];
-			faces.push_back(f1);
+			gfaces.push_back(f1);
 
 			float f2 = clump->geometryList[index].faces[i * 4 + 1];
-			faces.push_back(f2);
+			gfaces.push_back(f2);
 
 			float f3 = clump->geometryList[index].faces[i * 4 + 2];
-			faces.push_back(f3);
+			gfaces.push_back(f3);
 
 			float f4 = clump->geometryList[index].faces[i * 4 + 3];
-			faces.push_back(f4);
+			gfaces.push_back(f4);
 		}
 
-		std::vector <rw::float32> vertices;
+		for (uint32_t i = 0; i < clump->geometryList[index].splits.size(); i++) {
+			//cout << endl << ind << "Split " << i << " {\n";
+			//ind += "  ";
+			//cout << ind << "matIndex: " << splits[i].matIndex << endl;
+			//cout << ind << "numIndices: " << splits[i].indices.size() << endl;
+			//cout << ind << "indices {\n";
+			//if (!detailed)
+			//	cout << ind + "  skipping\n";
+			//else
+			for (uint32_t j = 0; j < clump->geometryList[index].splits[i].indices.size(); j++)
+				gindices.push_back(clump->geometryList[index].splits[i].indices[j]);
+					//cout << ind + " " << splits[i].indices[j] << endl;
+			//cout << ind << "}\n";
+			//ind = ind.substr(0, ind.size() - 2);
+			//cout << ind << "}\n";
+		}
 
 		for (uint32_t i = 0; i < clump->geometryList[index].vertices.size() / 3; i++) {
 			float x = clump->geometryList[index].vertices[i * 3 + 0];
-			vertices.push_back(x);
+			gvertices.push_back(x);
 
 			float y = clump->geometryList[index].vertices[i * 3 + 1];
-			vertices.push_back(y);
+			gvertices.push_back(y);
 
 			float z = clump->geometryList[index].vertices[i * 3 + 2];
-			vertices.push_back(z);
+			gvertices.push_back(z);
 		}
-	} */
+
+		float *vertices = &gvertices[0];
+		int countVertices = gvertices.size();
+
+		unsigned int *indices = &gindices[0];
+		int countIndices = gindices.size();
+
+		GameModel *gameModel = new GameModel();
+		gameModel->Init(render, vertices, countVertices,
+			indices, countIndices);
+
+		gameModel->SetPrimitiveTopology(clump->geometryList[index].faceType == rw::FACETYPE_STRIP ? D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP : D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+		gModels.push_back(gameModel);
+	}
 
 	clump->clear();
 	delete clump;
@@ -77,14 +113,15 @@ int LoadGameFile()
 	return 0;
 }
 
-void Render(GameRender *render, GameCamera *camera, GameModel *model, float time)
+void Render(GameRender *render, GameCamera *camera, float time)
 {
 	render->RenderStart();
-	model->Render(render, camera);
 
-	/* for (int i = 0; i < gModels.size(); i++) {
-		gModels[i]->render();
-	} */
+	// model->Render(render, camera);
+
+	for (int i = 0; i < gModels.size(); i++) {
+		gModels[i]->Render(render, camera);
+	}
 
 	render->RenderEnd();
 }
@@ -105,26 +142,32 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 	gameRender->Init(gameWindow->GetHandleWindow());
 
 	/* create vertices */
-	float vertices[] = {
+	LoadGameFile(gameRender);
+
+	/*float vertices[] = {
 		-0.5f, -0.5f, 0.5f,
 		-0.5f, 0.5f, 0.5f,
 		0.5f, 0.5f, 0.5f,
 		0.5f, -0.5f, 0.5f
 	};
-	int countVertices = sizeof(vertices) / sizeof(vertices[0]);
+	int countVertices = sizeof(vertices) / sizeof(vertices[0]);*/
 
 	/* create indices */
-	unsigned int indices[] = {
+	/*unsigned int indices[] = {
 		0, 1, 2,
 		0, 2, 3,
 	};
-	int countIndices = sizeof(indices) / sizeof(indices[0]);
+	int countIndices = sizeof(indices) / sizeof(indices[0]);*/
+
+	/*float *vertices = &gvertices[0];
+	int countVertices = gvertices.size();
+
+	unsigned int *indices = &gindices[0];
+	int countIndices = gindices.size();
 
 	GameModel *gameModel = new GameModel();
 	gameModel->Init(gameRender, vertices, countVertices, 
-		indices, countIndices);
-
-	LoadGameFile();
+		indices, countIndices);*/
 
 	float moveLeftRight = 0.0f;
 	float moveBackForward = 0.0f;
@@ -202,7 +245,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 
 			gameCamera->Update(camPitch, camYaw, moveLeftRight, moveBackForward);
 
-			Render(gameRender, gameCamera, gameModel, frameTime);
+			Render(gameRender, gameCamera, frameTime);
 
 			moveLeftRight = 0.0f;
 			moveBackForward = 0.0f;
@@ -212,11 +255,11 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 	gameRender->Cleanup();
 	gameCamera->Cleanup();
 	gameInput->Cleanup();
-	gameModel->Cleanup();
+	//gameModel->Cleanup();
 
 	delete gameCamera;
 	delete gameInput;
-	delete gameModel;
+//	delete gameModel;
 	delete gameRender;
 
 	return msg.wParam;

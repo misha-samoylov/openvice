@@ -27,6 +27,8 @@ private:
 	IDXGISwapChain *m_pSwapChain;
 	ID3D11RenderTargetView *m_pRenderTargetView;
 
+	ID3D11RasterizerState* WireFrame;
+
 	void InitViewport(HWND hWnd);
 	HRESULT CreateBackBuffer();
 };

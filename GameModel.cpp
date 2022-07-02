@@ -50,7 +50,7 @@ void GameModel::Render(GameRender * pRender, GameCamera *pCamera)
 	UINT offset = 0;
 	pRender->getDeviceContext()->IASetVertexBuffers(0, 1, &m_pVertexBuffer, &stride, &offset);
 
-	pRender->getDeviceContext()->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	pRender->getDeviceContext()->IASetPrimitiveTopology(this->m_primitiveTopology);
 
 	/* set shaders */
 	pRender->getDeviceContext()->VSSetShader(m_pVertexShader, NULL, 0);
@@ -68,7 +68,7 @@ void GameModel::Render(GameRender * pRender, GameCamera *pCamera)
 	pRender->getDeviceContext()->VSSetConstantBuffers(0, 1, &m_pPerObjectBuffer);
 
 	/* render indexed vertices */
-	pRender->getDeviceContext()->DrawIndexed(6, 0, 0);
+	pRender->getDeviceContext()->DrawIndexed(m_countIndices, 0, 0);
 }
 
 
@@ -161,7 +161,7 @@ HRESULT GameModel::CreateDataBuffer(GameRender * pRender, float *vertices, int v
 	D3D11_BUFFER_DESC bd;
 	ZeroMemory(&bd, sizeof(bd));
 	bd.Usage = D3D11_USAGE_DEFAULT;
-	bd.ByteWidth = sizeof(float) * 12; /* size buffer */
+	bd.ByteWidth = sizeof(float) * verticesCount; /* size buffer */
 	bd.BindFlags = D3D11_BIND_VERTEX_BUFFER; /* type buffer = vertex buffer */
 	bd.CPUAccessFlags = 0;
 
@@ -181,7 +181,7 @@ HRESULT GameModel::CreateDataBuffer(GameRender * pRender, float *vertices, int v
 	/* fill in a buffer description */
 	D3D11_BUFFER_DESC bufferDesc;
 	bufferDesc.Usage = D3D11_USAGE_DEFAULT;
-	bufferDesc.ByteWidth = sizeof(unsigned int) * 6;
+	bufferDesc.ByteWidth = sizeof(unsigned int) * indicesCount;
 	bufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
 	bufferDesc.CPUAccessFlags = 0;
 	bufferDesc.MiscFlags = 0;
@@ -218,6 +218,8 @@ HRESULT GameModel::Init(GameRender *pRender, float *vertices, int verticesCount,
 		indices, indicesCount);
 
 	m_pVSBlob->Release();
+
+	m_countIndices = indicesCount;
 
 	return hr;
 }

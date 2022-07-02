@@ -113,6 +113,14 @@ HRESULT GameRender::Init(HWND hWnd)
 
 	InitViewport(hWnd);
 
+
+	D3D11_RASTERIZER_DESC wfdesc;
+	ZeroMemory(&wfdesc, sizeof(D3D11_RASTERIZER_DESC));
+	wfdesc.FillMode = D3D11_FILL_WIREFRAME;
+	wfdesc.CullMode = D3D11_CULL_NONE;
+	hr = m_pDevice->CreateRasterizerState(&wfdesc, &WireFrame);
+
+
 	return hr;
 }
 
@@ -130,6 +138,8 @@ void GameRender::Cleanup()
 		m_pDeviceContext->Release();
 	if (m_pDevice) 
 		m_pDevice->Release();
+
+	WireFrame->Release();
 }
 
 void GameRender::RenderStart()
@@ -137,6 +147,8 @@ void GameRender::RenderStart()
 	/* clear back buffer */
 	float clearColor[4] = { 0.0f, 0.0f, 1.0f, 1.0f };
 	m_pDeviceContext->ClearRenderTargetView(m_pRenderTargetView, clearColor);
+
+	m_pDeviceContext->RSSetState(WireFrame);
 }
 
 void GameRender::RenderEnd()

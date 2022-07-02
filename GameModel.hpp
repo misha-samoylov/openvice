@@ -31,6 +31,7 @@ public:
 		unsigned int *indices, int indicesCount);
 	void Cleanup();
 	void Render(GameRender *pRender, GameCamera *pCamera);
+	void SetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY topology) { m_primitiveTopology = topology; };
 
 private:
 	ID3D11VertexShader *m_pVertexShader;
@@ -57,5 +58,8 @@ private:
 		unsigned int *indices, int indicesCount);
 
 	HRESULT CompileShaderFromFile(LPCWSTR szFileName, LPCSTR szEntryPoint, LPCSTR szShaderModel, ID3DBlob** ppBlobOut);
+
+	unsigned int m_countIndices;
+	D3D_PRIMITIVE_TOPOLOGY m_primitiveTopology;
 };
 
