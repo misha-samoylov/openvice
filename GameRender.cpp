@@ -56,6 +56,20 @@ HRESULT GameRender::CreateBackBuffer()
 	return hr;
 }
 
+HRESULT GameRender::CreateWireframe()
+{
+	HRESULT hr;
+
+	D3D11_RASTERIZER_DESC wfdesc;
+	ZeroMemory(&wfdesc, sizeof(D3D11_RASTERIZER_DESC));
+	wfdesc.FillMode = D3D11_FILL_WIREFRAME;
+	wfdesc.CullMode = D3D11_CULL_NONE;
+
+	hr = m_pDevice->CreateRasterizerState(&wfdesc, &m_pWireframe);
+
+	return hr;
+}
+
 HRESULT GameRender::Init(HWND hWnd)
 {
 	RECT rc;
@@ -72,7 +86,7 @@ HRESULT GameRender::Init(HWND hWnd)
 	sd.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM; /* pixel format in buffer */
 	sd.BufferDesc.RefreshRate.Numerator = 60; /* screen refresh rate */
 	sd.BufferDesc.RefreshRate.Denominator = 1;
-	sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT; /* target - back buffer */
+	sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT; /* target is back buffer */
 	sd.OutputWindow = hWnd; /* attach to window */
 	sd.SampleDesc.Count = 1;
 	sd.SampleDesc.Quality = 0;
@@ -112,14 +126,7 @@ HRESULT GameRender::Init(HWND hWnd)
 	}
 
 	InitViewport(hWnd);
-
-
-	D3D11_RASTERIZER_DESC wfdesc;
-	ZeroMemory(&wfdesc, sizeof(D3D11_RASTERIZER_DESC));
-	wfdesc.FillMode = D3D11_FILL_WIREFRAME;
-	wfdesc.CullMode = D3D11_CULL_NONE;
-	hr = m_pDevice->CreateRasterizerState(&wfdesc, &WireFrame);
-
+	CreateWireframe();
 
 	return hr;
 }
@@ -134,12 +141,13 @@ void GameRender::Cleanup()
 	if (m_pSwapChain) 
 		m_pSwapChain->Release();
 
+	if (m_pWireframe)
+		m_pWireframe->Release();
+
 	if (m_pDeviceContext) 
 		m_pDeviceContext->Release();
 	if (m_pDevice) 
-		m_pDevice->Release();
-
-	WireFrame->Release();
+		m_pDevice->Release();	
 }
 
 void GameRender::RenderStart()
@@ -148,7 +156,8 @@ void GameRender::RenderStart()
 	float clearColor[4] = { 0.0f, 0.0f, 1.0f, 1.0f };
 	m_pDeviceContext->ClearRenderTargetView(m_pRenderTargetView, clearColor);
 
-	m_pDeviceContext->RSSetState(WireFrame);
+	/* enable wireframe */
+	m_pDeviceContext->RSSetState(m_pWireframe);
 }
 
 void GameRender::RenderEnd()
