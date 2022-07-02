@@ -77,6 +77,8 @@ char *ImgLoader::FileGetById(uint32_t id)
 	file_size = m_pFilesDir[id].size * IMG_BLOCK_SIZE;
 	file_offset = m_pFilesDir[id].offset * IMG_BLOCK_SIZE;
 
+	printf("Loading %s file\n", m_pFilesDir[id].name);
+
 	buff = (char*)malloc(file_size);
 	if (buff == NULL) {
 		printf("Error: cannot allocate memory variable buff\n");

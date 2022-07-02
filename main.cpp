@@ -42,8 +42,6 @@ int LoadGameFile(GameRender *render)
 	clump->read(in);
 	clump->dump();
 	
-	//for (atom = 0; atom < clump->atomicList.size(); atom++) {}
-
 	for (uint32_t index = 0; index < clump->geometryList.size(); index++) {
 
 		std::vector<float> gvertices;
@@ -68,11 +66,11 @@ int LoadGameFile(GameRender *render)
 				gindices.push_back(clump->geometryList[index].splits[i].indices[j]);
 			}
 
-			float *vertices = &gvertices[0];
+			float *vertices = &gvertices[0]; /* convert to array float */
 			int countVertices = gvertices.size();
 
-			unsigned int *indices = &gindices[0];
-			unsigned int countIndices = clump->geometryList[index].splits[i].indices.size();
+			unsigned int *indices = &gindices[0];  /* convert to array unsigned int */
+			int countIndices = clump->geometryList[index].splits[i].indices.size();
 
 			D3D_PRIMITIVE_TOPOLOGY topology =
 				clump->geometryList[index].faceType == rw::FACETYPE_STRIP
@@ -88,18 +86,15 @@ int LoadGameFile(GameRender *render)
 		}
 	}
 
-
 	clump->clear();
 	delete clump;
 
 	return 0;
 }
 
-void Render(GameRender *render, GameCamera *camera, float time)
+void Render(GameRender *render, GameCamera *camera)
 {
 	render->RenderStart();
-
-	// model->Render(render, camera);
 
 	for (int i = 0; i < gModels.size(); i++) {
 		gModels[i]->Render(render, camera);
@@ -123,33 +118,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 	GameRender *gameRender = new GameRender();
 	gameRender->Init(gameWindow->GetHandleWindow());
 
-	/* create vertices */
 	LoadGameFile(gameRender);
-
-	/*float vertices[] = {
-		-0.5f, -0.5f, 0.5f,
-		-0.5f, 0.5f, 0.5f,
-		0.5f, 0.5f, 0.5f,
-		0.5f, -0.5f, 0.5f
-	};
-	int countVertices = sizeof(vertices) / sizeof(vertices[0]);*/
-
-	/* create indices */
-	/*unsigned int indices[] = {
-		0, 1, 2,
-		0, 2, 3,
-	};
-	int countIndices = sizeof(indices) / sizeof(indices[0]);*/
-
-	/*float *vertices = &gvertices[0];
-	int countVertices = gvertices.size();
-
-	unsigned int *indices = &gindices[0];
-	int countIndices = gindices.size();
-
-	GameModel *gameModel = new GameModel();
-	gameModel->Init(gameRender, vertices, countVertices, 
-		indices, countIndices);*/
 
 	float moveLeftRight = 0.0f;
 	float moveBackForward = 0.0f;
@@ -178,7 +147,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 		if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
 			TranslateMessage(&msg);
 			DispatchMessage(&msg);
-		} else { // If have not messagess
+		} else { /* if have not messages */
 			frameCount++;
 
 			if (GameUtils::GetTime() > 1.0f) {
@@ -227,7 +196,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 
 			gameCamera->Update(camPitch, camYaw, moveLeftRight, moveBackForward);
 
-			Render(gameRender, gameCamera, frameTime);
+			Render(gameRender, gameCamera);
 
 			moveLeftRight = 0.0f;
 			moveBackForward = 0.0f;
@@ -237,11 +206,13 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 	gameRender->Cleanup();
 	gameCamera->Cleanup();
 	gameInput->Cleanup();
-	//gameModel->Cleanup();
+	for (int i = 0; i < gModels.size(); i++) {
+		gModels[i]->Cleanup();
+		delete gModels[i];
+	}
 
 	delete gameCamera;
 	delete gameInput;
-//	delete gameModel;
 	delete gameRender;
 
 	return msg.wParam;
