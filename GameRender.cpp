@@ -63,7 +63,7 @@ HRESULT GameRender::CreateWireframe()
 	D3D11_RASTERIZER_DESC wfdesc;
 	ZeroMemory(&wfdesc, sizeof(D3D11_RASTERIZER_DESC));
 	wfdesc.FillMode = D3D11_FILL_WIREFRAME;
-	wfdesc.CullMode = D3D11_CULL_NONE;
+	wfdesc.CullMode = D3D11_CULL_BACK; /* D3D11_CULL_NONE */
 
 	hr = m_pDevice->CreateRasterizerState(&wfdesc, &m_pWireframe);
 
