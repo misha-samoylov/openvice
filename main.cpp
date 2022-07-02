@@ -24,13 +24,13 @@ using namespace DirectX; /* DirectXMath.h */
 int LoadGameFile()
 {
 	ImgLoader *imgLoader = new ImgLoader();
-	imgLoader->Open("E:/games/Grand Theft Auto Vice City/models/gta3.img",
-		"E:/games/Grand Theft Auto Vice City/models/gta3.dir");
+	imgLoader->Open("D:/games/Grand Theft Auto Vice City/models/gta3.img",
+		"D:/games/Grand Theft Auto Vice City/models/gta3.dir");
 	imgLoader->FileSaveById(152);
 	imgLoader->Cleanup();
 	delete imgLoader;
 
-	std::ifstream in("C:/Files/projects/openvice/lawyer.dff", std::ios::binary);
+	std::ifstream in("C:/Users/john/Documents/GitHub/openvice/lawyer.dff", std::ios::binary);
 	if (!in.is_open()) {
 		MessageBox(NULL, L"Cannot open file", L"Error", MB_ICONERROR | MB_OK);
 		return -1;
@@ -104,8 +104,25 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 	GameRender *gameRender = new GameRender();
 	gameRender->Init(gameWindow->GetHandleWindow());
 
+	/* create vertices */
+	float vertices[] = {
+		-0.5f, -0.5f, 0.5f,
+		-0.5f, 0.5f, 0.5f,
+		0.5f, 0.5f, 0.5f,
+		0.5f, -0.5f, 0.5f
+	};
+	int countVertices = sizeof(vertices) / sizeof(vertices[0]);
+
+	/* create indices */
+	unsigned int indices[] = {
+		0, 1, 2,
+		0, 2, 3,
+	};
+	int countIndices = sizeof(indices) / sizeof(indices[0]);
+
 	GameModel *gameModel = new GameModel();
-	gameModel->Init(gameRender);
+	gameModel->Init(gameRender, vertices, countVertices, 
+		indices, countIndices);
 
 	LoadGameFile();
 

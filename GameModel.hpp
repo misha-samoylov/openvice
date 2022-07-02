@@ -27,7 +27,8 @@ struct cbPerObject
 class GameModel
 {
 public:
-	HRESULT Init(GameRender *pRender);
+	HRESULT Init(GameRender *pRender, float *vertices, int verticesCount, 
+		unsigned int *indices, int indicesCount);
 	void Cleanup();
 	void Render(GameRender *pRender, GameCamera *pCamera);
 
@@ -52,7 +53,8 @@ private:
 	HRESULT CreatePixelShader(GameRender *pRender);
 	HRESULT CreateVertexShader(GameRender *pRender);
 	HRESULT CreateInputLayout(GameRender *pRender);
-	HRESULT CreateDataBuffer(GameRender *pRender);
+	HRESULT CreateDataBuffer(GameRender *pRender, float *vertices, int verticesCount,
+		unsigned int *indices, int indicesCount);
 
 	HRESULT CompileShaderFromFile(LPCWSTR szFileName, LPCSTR szEntryPoint, LPCSTR szShaderModel, ID3DBlob** ppBlobOut);
 };

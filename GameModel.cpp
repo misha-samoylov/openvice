@@ -45,8 +45,8 @@ void GameModel::Render(GameRender * pRender, GameCamera *pCamera)
 	/* set index buffer */
 	pRender->getDeviceContext()->IASetIndexBuffer(m_pIndexBuffer, DXGI_FORMAT_R32_UINT, 0);
 
-	// set vertex buffer
-	UINT stride = sizeof(struct SimpleVertex);
+	/* set vertex buffer */
+	UINT stride = sizeof(float) * 3;
 	UINT offset = 0;
 	pRender->getDeviceContext()->IASetVertexBuffers(0, 1, &m_pVertexBuffer, &stride, &offset);
 
@@ -76,7 +76,7 @@ HRESULT GameModel::CreatePixelShader(GameRender *pRender)
 {
 	HRESULT hr = S_OK;
 
-	/* compile shaders from file */
+	/* compile shader from file */
 	/* ID3DBlob* pPSBlob = NULL;
 	hr = CompileShaderFromFile(L"pixel_shader.hlsl", "PS", "ps_4_0", &pPSBlob); */
 
@@ -153,30 +153,23 @@ HRESULT GameModel::CreateInputLayout(GameRender *pRender)
 	return hr;
 }
 
-HRESULT GameModel::CreateDataBuffer(GameRender * pRender)
+HRESULT GameModel::CreateDataBuffer(GameRender * pRender, float *vertices, int verticesCount,
+	unsigned int *indices, int indicesCount)
 {
 	HRESULT hr;
 
-	struct SimpleVertex vertices[4];
-
-	vertices[0].x = -0.5f;  vertices[0].y = -0.5f;  vertices[0].z = 0.5f;
-	vertices[1].x = -0.5f;  vertices[1].y = 0.5f;  vertices[1].z = 0.5f;
-	vertices[2].x = 0.5f;  vertices[2].y = 0.5f;  vertices[2].z = 0.5f;
-	vertices[3].x = 0.5f;  vertices[3].y = -0.5f;  vertices[3].z = 0.5f;
-
-	D3D11_BUFFER_DESC bd;  // Структура, описывающая создаваемый буфер
-	ZeroMemory(&bd, sizeof(bd));                    // очищаем ее
+	D3D11_BUFFER_DESC bd;
+	ZeroMemory(&bd, sizeof(bd));
 	bd.Usage = D3D11_USAGE_DEFAULT;
-	bd.ByteWidth = sizeof(struct SimpleVertex) * 4; // размер буфера = размер одной вершины * 3
-	bd.BindFlags = D3D11_BIND_VERTEX_BUFFER;          // тип буфера - буфер вершин
+	bd.ByteWidth = sizeof(float) * 12; /* size buffer */
+	bd.BindFlags = D3D11_BIND_VERTEX_BUFFER; /* type buffer = vertex buffer */
 	bd.CPUAccessFlags = 0;
 
 	{
-		D3D11_SUBRESOURCE_DATA InitData; // Структура, содержащая данные буфера
-		ZeroMemory(&InitData, sizeof(InitData)); // очищаем ее
-		InitData.pSysMem = vertices;               // указатель на наши 3 вершины
+		D3D11_SUBRESOURCE_DATA InitData; // buffer data
+		ZeroMemory(&InitData, sizeof(InitData));
+		InitData.pSysMem = vertices; // pointer to data
 
-		// Вызов метода g_pd3dDevice создаст объект буфера вершин ID3D11Buffer
 		hr = pRender->getDevice()->CreateBuffer(&bd, &InitData, &m_pVertexBuffer);
 
 		if (FAILED(hr)) {
@@ -185,16 +178,10 @@ HRESULT GameModel::CreateDataBuffer(GameRender * pRender)
 		}
 	}
 
-	/* create indices */
-	unsigned int indices[] = {
-		0, 1, 2,
-		0, 2, 3,
-	};
-
 	/* fill in a buffer description */
 	D3D11_BUFFER_DESC bufferDesc;
 	bufferDesc.Usage = D3D11_USAGE_DEFAULT;
-	bufferDesc.ByteWidth = sizeof(unsigned int) * 2 * 3;
+	bufferDesc.ByteWidth = sizeof(unsigned int) * 6;
 	bufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
 	bufferDesc.CPUAccessFlags = 0;
 	bufferDesc.MiscFlags = 0;
@@ -213,7 +200,8 @@ HRESULT GameModel::CreateDataBuffer(GameRender * pRender)
 	return hr;
 }
 
-HRESULT GameModel::Init(GameRender *pRender)
+HRESULT GameModel::Init(GameRender *pRender, float *vertices, int verticesCount,
+	unsigned int *indices, int indicesCount)
 {
 	HRESULT hr = S_OK;
 
@@ -226,7 +214,8 @@ HRESULT GameModel::Init(GameRender *pRender)
 	CreatePixelShader(pRender);
 	CreateConstBuffer(pRender);
 	CreateInputLayout(pRender);
-	CreateDataBuffer(pRender);
+	CreateDataBuffer(pRender, vertices, verticesCount,
+		indices, indicesCount);
 
 	m_pVSBlob->Release();
 
