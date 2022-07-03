@@ -5,6 +5,7 @@
   #include <windows.h>
 #endif
 
+#include <stdint.h>
 #include <iostream>
 #include <vector>
 #include <string>
@@ -22,14 +23,6 @@
 
 namespace rw {
 
-typedef char int8;
-typedef short int16;
-typedef int int32;
-typedef long long int64;
-typedef unsigned char uint8;
-typedef unsigned short uint16;
-typedef unsigned int uint32;
-typedef unsigned long long uint64;
 typedef float float32;
 
 enum PLATFORM_ID {
@@ -133,22 +126,22 @@ enum RASTER_TYPE {
 };
 
 struct HeaderInfo {
-	uint32 type;
-	uint32 length;
-	uint32 build;
-	uint32 version;
+	uint32_t type;
+	uint32_t length;
+	uint32_t build;
+	uint32_t version;
 	bool read(std::istream &rw);
 	bool peek(std::istream &rw);
-	bool findChunk(std::istream &rw, uint32 type);
+	bool findChunk(std::istream &rw, uint32_t type);
 };
 
-void ChunkNotFound(CHUNK_TYPE chunk, uint32 address);
-int8 readInt8(std::istream &rw);
-uint8 readUInt8(std::istream &rw);
-int16 readInt16(std::istream &rw);
-uint16 readUInt16(std::istream &rw);
-int32 readInt32(std::istream &rw);
-uint32 readUInt32(std::istream &rw);
+void ChunkNotFound(CHUNK_TYPE chunk, uint32_t address);
+int8_t readInt8(std::istream &rw);
+uint8_t readUInt8(std::istream &rw);
+int16_t readInt16(std::istream &rw);
+uint16_t readUInt16(std::istream &rw);
+int32_t readInt32(std::istream &rw);
+uint32_t readUInt32(std::istream &rw);
 float32 readFloat32(std::istream &rw);
 
 /*
@@ -199,7 +192,7 @@ enum GTA_VERSION {
 struct Frame {
 	float32 rotationMatrix[9];
 	float32 position[3];
-	int32 parent;
+	int32_t parent;
 
 	/* Extensions */
 
@@ -208,57 +201,57 @@ struct Frame {
 
 	/* hanim */
 	bool hasHAnim;
-	uint32 hAnimUnknown1;
-	int32 hAnimBoneId;
-	uint32 hAnimBoneCount;
-	uint32 hAnimUnknown2;
-	uint32 hAnimUnknown3;
-	std::vector<int32> hAnimBoneIds;
-	std::vector<uint32> hAnimBoneNumbers;
-	std::vector<uint32> hAnimBoneTypes;
+	uint32_t hAnimUnknown1;
+	int32_t hAnimBoneId;
+	uint32_t hAnimBoneCount;
+	uint32_t hAnimUnknown2;
+	uint32_t hAnimUnknown3;
+	std::vector<int32_t> hAnimBoneIds;
+	std::vector<uint32_t> hAnimBoneNumbers;
+	std::vector<uint32_t> hAnimBoneTypes;
 
 	/* functions */
 	void readStruct(std::istream &dff);
 	void readExtension(std::istream &dff);
 
-	void dump(uint32 index, std::string ind = "");
+	void dump(uint32_t index, std::string ind = "");
 
 	Frame(void);
 };
 
 struct Atomic {
-	int32 frameIndex;
-	int32 geometryIndex;
+	int32_t frameIndex;
+	int32_t geometryIndex;
 
 	/* Extensions */
 
 	/* right to render */
 	bool hasRightToRender;
-	uint32 rightToRenderVal1;
-	uint32 rightToRenderVal2;
+	uint32_t rightToRenderVal1;
+	uint32_t rightToRenderVal2;
 
 	/* particles */
 	bool hasParticles;
-	uint32 particlesVal;
+	uint32_t particlesVal;
 
 	/* pipelineset */
 	bool hasPipelineSet;
-	uint32 pipelineSetVal;
+	uint32_t pipelineSetVal;
 
 	/* material fx */
 	bool hasMaterialFx;
-	uint32 materialFxVal;
+	uint32_t materialFxVal;
 
 	/* functions */
 	void read(std::istream &dff);
 	void readExtension(std::istream &dff);
-	void dump(uint32 index, std::string ind = "");
+	void dump(uint32_t index, std::string ind = "");
 
 	Atomic(void);
 };
 
 struct Texture {
-	uint32 filterFlags;
+	uint32_t filterFlags;
 	std::string name;
 	std::string maskName;
 
@@ -276,7 +269,7 @@ struct Texture {
 };
 
 struct MatFx {
-	uint32 type;
+	uint32_t type;
 
 	float32 bumpCoefficient;
 	float32 envCoefficient;
@@ -296,9 +289,9 @@ struct MatFx {
 };
 
 struct Material {
-	uint32 flags;
-	uint8 color[4];
-	uint32 unknown;
+	uint32_t flags;
+	uint8_t color[4];
+	uint32_t unknown;
 	bool hasTex;
 	float32 surfaceProps[3]; /* ambient, specular, diffuse */
 
@@ -308,8 +301,8 @@ struct Material {
 
 	/* right to render */
 	bool hasRightToRender;
-	uint32 rightToRenderVal1;
-	uint32 rightToRenderVal2;
+	uint32_t rightToRenderVal1;
+	uint32_t rightToRenderVal2;
 
 	/* matfx */
 	bool hasMatFx;
@@ -327,14 +320,14 @@ struct Material {
 
 	/* uv anim */
 	bool hasUVAnim;
-	uint32 uvVal;
+	uint32_t uvVal;
 	std::string uvName;
 
 	/* functions */
 	void read(std::istream &dff);
 	void readExtension(std::istream &dff);
 
-	void dump(uint32 index, std::string ind = "");
+	void dump(uint32_t index, std::string ind = "");
 
 	Material(void);
 	Material(const Material &orig);
@@ -343,13 +336,13 @@ struct Material {
 };
 
 struct MeshExtension {
-	uint32 unknown;
+	uint32_t unknown;
 
 	std::vector<float32> vertices;
 	std::vector<float32> texCoords;
-	std::vector<uint8> vertexColors;
-	std::vector<uint16> faces;
-	std::vector<uint16> assignment;
+	std::vector<uint8_t> vertexColors;
+	std::vector<uint16_t> faces;
+	std::vector<uint16_t> assignment;
 
 	std::vector<std::string> textureName;
 	std::vector<std::string> maskName;
@@ -357,24 +350,24 @@ struct MeshExtension {
 };
 
 struct Split {
-	uint32 matIndex;
-	std::vector<uint32> indices;	
+	uint32_t matIndex;
+	std::vector<uint32_t> indices;
 };
 
 struct Geometry {
-	uint32 flags;
-	uint32 numUVs;
+	uint32_t flags;
+	uint32_t numUVs;
 	bool hasNativeGeometry;
 
-	uint32 vertexCount;
-	std::vector<uint16> faces;
-	std::vector<uint8> vertexColors;
+	uint32_t vertexCount;
+	std::vector<uint16_t> faces;
+	std::vector<uint8_t> vertexColors;
 	std::vector<float32> texCoords[8];
 
 	/* morph target (only one) */
 	float32 boundingSphere[4];
-	uint32 hasPositions;
-	uint32 hasNormals;
+	uint32_t hasPositions;
+	uint32_t hasNormals;
 	std::vector<float32> vertices;
 	std::vector<float32> normals;
 
@@ -383,18 +376,18 @@ struct Geometry {
 	/* Extensions */
 
 	/* bin mesh */
-	uint32 faceType;
-	uint32 numIndices;
+	uint32_t faceType;
+	uint32_t numIndices;
 	std::vector<Split> splits;
 
 	/* skin */
 	bool hasSkin;
-	uint32 boneCount;
-	uint32 specialIndexCount;
-	uint32 unknown1;
-	uint32 unknown2;
-	std::vector<uint8> specialIndices;
-	std::vector<uint32> vertexBoneIndices;
+	uint32_t boneCount;
+	uint32_t specialIndexCount;
+	uint32_t unknown1;
+	uint32_t unknown2;
+	std::vector<uint8_t> specialIndices;
+	std::vector<uint32_t> vertexBoneIndices;
 	std::vector<float32> vertexBoneWeights;
 	std::vector<float32> inverseMatrices;
 
@@ -404,12 +397,12 @@ struct Geometry {
 
 	/* night vertex colors */
 	bool hasNightColors;
-	uint32 nightColorsUnknown;
-	std::vector<uint8> nightColors;
+	uint32_t nightColorsUnknown;
+	std::vector<uint8_t> nightColors;
 
 	/* 2dfx */
 	bool has2dfx;
-	std::vector<uint8> twodfxData;
+	std::vector<uint8_t> twodfxData;
 
 	/* morph (only flag) */
 	bool hasMorph;
@@ -421,7 +414,7 @@ struct Geometry {
 
 	void cleanUp(void);
 
-	void dump(uint32 index, std::string ind = "", bool detailed = false);
+	void dump(uint32_t index, std::string ind = "", bool detailed = false);
 
 	Geometry(void);
 	Geometry(const Geometry &orig);
@@ -429,19 +422,19 @@ struct Geometry {
 	~Geometry(void);
 private:
 	void readNativeSkinMatrices(std::istream &dff);
-	bool isDegenerateFace(uint32 i, uint32 j, uint32 k);
+	bool isDegenerateFace(uint32_t i, uint32_t j, uint32_t k);
 	void generateFaces(void);
 
-	uint32 addTempVertexIfNew(uint32 index);
+	uint32_t addTempVertexIfNew(uint32_t index);
 };
 
 struct Light {
-	int32 frameIndex;
+	int32_t frameIndex;
 	float32 radius;
 	float32 color[3];
 	float32 minusCosAngle;
-	uint32 type;
-	uint32 flags;
+	uint32_t type;
+	uint32_t flags;
 
 	void read(std::istream &dff);
 };
@@ -455,7 +448,7 @@ struct Clump {
 	/* Extensions */
 	/* collision file */
 	bool hasCollision;
-	std::vector<uint8> colData;
+	std::vector<uint8_t> colData;
 
 	/* functions */
 	void read(std::istream &dff);
@@ -469,33 +462,33 @@ struct Clump {
  */
 
 struct NativeTexture {
-	uint32 platform;
+	uint32_t platform;
 	std::string name;
 	std::string maskName;
-	uint32 filterFlags;
-	uint32 rasterFormat;
-	std::vector<uint32> width;	// store width & height
-	std::vector<uint32> height;	// for each mipmap
-	uint32 depth;
-	std::vector<uint32> dataSizes;
-	std::vector<uint8*> texels;	// holds either indices or color values
+	uint32_t filterFlags;
+	uint32_t rasterFormat;
+	std::vector<uint32_t> width;	// store width & height
+	std::vector<uint32_t> height;	// for each mipmap
+	uint32_t depth;
+	std::vector<uint32_t> dataSizes;
+	std::vector<uint8_t*> texels;	// holds either indices or color values
 					// (also per mipmap)
-	uint8 *palette;
-	uint32 paletteSize;
+	uint8_t *palette;
+	uint32_t paletteSize;
 
 	bool hasAlpha;
-	uint32 mipmapCount;
+	uint32_t mipmapCount;
 
 	// PS2
-	std::vector<uint32> swizzleWidth;
-	std::vector<uint32> swizzleHeight;
+	std::vector<uint32_t> swizzleWidth;
+	std::vector<uint32_t> swizzleHeight;
 	// bit 0: alpha values above (or equal to) the threshold
 	// bit 1: alpha values below the threshold
 	// both 0: no info
-	uint32 alphaDistribution;
+	uint32_t alphaDistribution;
 
 	// PC
-	uint32 dxtCompression;
+	uint32_t dxtCompression;
 
 	/* functions */
 	void readD3d(std::istream &txd);
@@ -522,7 +515,7 @@ struct TextureDictionary {
 };
 
 struct UVAnimation {
-	std::vector<uint8> data;
+	std::vector<uint8_t> data;
 
 	void read(std::istream &dff);
 };

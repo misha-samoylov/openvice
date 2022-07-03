@@ -8,7 +8,7 @@ namespace rw {
 
 bool HeaderInfo::read(istream &rw)
 {
-	uint32 buf[3];
+	uint32_t buf[3];
 	rw.read((char*)buf, 12);
 	if(rw.eof())
 		return false;
@@ -32,7 +32,7 @@ bool HeaderInfo::peek(istream &rw)
 	return true;
 }
 
-bool HeaderInfo::findChunk(istream &rw, uint32 type)
+bool HeaderInfo::findChunk(istream &rw, uint32_t type)
 {
 	while(read(rw)){
 		if(this->type == CHUNK_NAOBJECT)
@@ -44,52 +44,52 @@ bool HeaderInfo::findChunk(istream &rw, uint32 type)
 	return false;
 }
 
-void ChunkNotFound(CHUNK_TYPE chunk, uint32 address)
+void ChunkNotFound(CHUNK_TYPE chunk, uint32_t address)
 {
 	cerr << "chunk " << hex << chunk << " not found at 0x";
 	cerr << hex << address << endl;
 	exit(1);
 }
 
-int8 readInt8(istream &rw)
+int8_t readInt8(istream &rw)
 {
-	int8 tmp;
-	rw.read(reinterpret_cast <char *> (&tmp), sizeof(int8));
+	int8_t tmp;
+	rw.read(reinterpret_cast <char *> (&tmp), sizeof(int8_t));
 	return tmp;
 }
 
-uint8 readUInt8(istream &rw)
+uint8_t readUInt8(istream &rw)
 {
-	uint8 tmp;
-	rw.read(reinterpret_cast <char *> (&tmp), sizeof(uint8));
+	uint8_t tmp;
+	rw.read(reinterpret_cast <char *> (&tmp), sizeof(uint8_t));
 	return tmp;
 }
 
-int16 readInt16(istream &rw)
+int16_t readInt16(istream &rw)
 {
-	int16 tmp;
-	rw.read(reinterpret_cast <char *> (&tmp), sizeof(int16));
+	int16_t tmp;
+	rw.read(reinterpret_cast <char *> (&tmp), sizeof(int16_t));
 	return tmp;
 }
 
-uint16 readUInt16(istream &rw)
+uint16_t readUInt16(istream &rw)
 {
-	uint16 tmp;
-	rw.read(reinterpret_cast <char *> (&tmp), sizeof(uint16));
+	uint16_t tmp;
+	rw.read(reinterpret_cast <char *> (&tmp), sizeof(uint16_t));
 	return tmp;
 }
 
-int32 readInt32(istream &rw)
+int32_t readInt32(istream &rw)
 {
-	int32 tmp;
-	rw.read(reinterpret_cast <char *> (&tmp), sizeof(int32));
+	int32_t tmp;
+	rw.read(reinterpret_cast <char *> (&tmp), sizeof(int32_t));
 	return tmp;
 }
 
-uint32 readUInt32(istream &rw)
+uint32_t readUInt32(istream &rw)
 {
-	uint32 tmp;
-	rw.read(reinterpret_cast <char *> (&tmp), sizeof(uint32));
+	uint32_t tmp;
+	rw.read(reinterpret_cast <char *> (&tmp), sizeof(uint32_t));
 	return tmp;
 }
 

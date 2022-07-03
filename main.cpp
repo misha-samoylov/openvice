@@ -83,7 +83,7 @@ int LoadGameFile(GameRender *render)
 
 		for (uint32_t i = 0; i < clump->geometryList[index].splits.size(); i++) {
 
-			std::vector<rw::uint32> gindices;
+			std::vector<uint32_t> gindices;
 
 			for (uint32_t j = 0; j < clump->geometryList[index].splits[i].indices.size(); j++) {
 				gindices.push_back(clump->geometryList[index].splits[i].indices[j]);

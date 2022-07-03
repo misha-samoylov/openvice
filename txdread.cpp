@@ -8,9 +8,9 @@ using namespace std;
 
 namespace rw {
 
-static void unclut(uint8 *texels, uint32 width, uint32 height);
-static void unswizzle8(uint8 *texels, uint8 *rawIndices,
-                       uint32 width, uint32 height);
+static void unclut(uint8_t *texels, uint32_t width, uint32_t height);
+static void unswizzle8(uint8_t *texels, uint8_t *rawIndices,
+                       uint32_t width, uint32_t height);
 
 /*
  * Texture Dictionary
@@ -25,11 +25,11 @@ void TextureDictionary::read(istream &rw)
 		return;
 
 	READ_HEADER(CHUNK_STRUCT);
-	uint32 textureCount = readUInt16(rw);
+	uint32_t textureCount = readUInt16(rw);
 	rw.seekg(2, ios::cur);
 	texList.resize(textureCount);
 
-	for (uint32 i = 0; i < textureCount; i++) {
+	for (uint32_t i = 0; i < textureCount; i++) {
 		READ_HEADER(CHUNK_TEXTURENATIVE);
 		rw.seekg(0x0c, ios::cur);
 		texList[i].platform = readUInt32(rw);
@@ -43,7 +43,7 @@ void TextureDictionary::read(istream &rw)
 		}
 
 		READ_HEADER(CHUNK_EXTENSION);
-		uint32 end = header.length;
+		uint32_t end = header.length;
 		end += rw.tellg();
 		while (rw.tellg() < end) {
 			header.read(rw);
@@ -78,10 +78,10 @@ void NativeTexture::readD3d(istream &rw)
 	HeaderInfo header;
 
 	READ_HEADER(CHUNK_STRUCT);
-	uint32 end = rw.tellg();
+	uint32_t end = rw.tellg();
 	end += header.length;
 
-	uint32 platform = readUInt32(rw);
+	uint32_t platform = readUInt32(rw);
 	// improve error handling
 	if (platform != PLATFORM_D3D8 && platform != PLATFORM_D3D9)
 		return;
@@ -112,7 +112,7 @@ void NativeTexture::readD3d(istream &rw)
 	depth = readUInt8(rw);
 	mipmapCount = readUInt8(rw);
 //cout << dec << mipmapCount << " ";
-	rw.seekg(sizeof(int8), ios::cur); // raster type (always 4)
+	rw.seekg(sizeof(int8_t), ios::cur); // raster type (always 4)
 	dxtCompression = readUInt8(rw);
 //cout << dxtCompression << " ";
 
@@ -129,12 +129,12 @@ void NativeTexture::readD3d(istream &rw)
 
 	if (rasterFormat & RASTER_PAL8 || rasterFormat & RASTER_PAL4) {
 		paletteSize = (rasterFormat & RASTER_PAL8) ? 0x100 : 0x10;
-		palette = new uint8[paletteSize*4*sizeof(uint8)];
+		palette = new uint8_t[paletteSize*4*sizeof(uint8_t)];
 		rw.read(reinterpret_cast <char *> (palette),
-			paletteSize*4*sizeof(uint8));
+			paletteSize*4*sizeof(uint8_t));
 	}
 
-	for (uint32 i = 0; i < mipmapCount; i++) {
+	for (uint32_t i = 0; i < mipmapCount; i++) {
 		if (i > 0) {
 			width.push_back(width[i-1]/2);
 			height.push_back(height[i-1]/2);
@@ -148,16 +148,16 @@ void NativeTexture::readD3d(istream &rw)
 			}
 		}
 
-		uint32 dataSize = readUInt32(rw);
+		uint32_t dataSize = readUInt32(rw);
 
 		// There is no way to predict, when the size is going to be zero
 		if (dataSize == 0)
 			width[i] = height[i] = 0;
 
 		dataSizes.push_back(dataSize);
-		texels.push_back(new uint8[dataSize]);
+		texels.push_back(new uint8_t[dataSize]);
 		rw.read(reinterpret_cast <char *> (&texels[i][0]),
-		        dataSize*sizeof(uint8));
+		        dataSize*sizeof(uint8_t));
 	}
 //cout << endl;
 }
@@ -166,10 +166,10 @@ void NativeTexture::convertTo32Bit(void)
 {
 	// depth is always 8 (even if the palette is 4 bit)
 	if (rasterFormat & RASTER_PAL8 || rasterFormat & RASTER_PAL4) {
-		for (uint32 j = 0; j < mipmapCount; j++) {
-			uint32 dataSize = width[j]*height[j]*4;
-			uint8 *newtexels = new uint8[dataSize];
-			for (uint32 i = 0; i < width[j]*height[j]; i++) {
+		for (uint32_t j = 0; j < mipmapCount; j++) {
+			uint32_t dataSize = width[j]*height[j]*4;
+			uint8_t *newtexels = new uint8_t[dataSize];
+			for (uint32_t i = 0; i < width[j]*height[j]; i++) {
 				// swap r and b
 				newtexels[i*4+2] = palette[texels[j][i]*4+0];
 				newtexels[i*4+1] = palette[texels[j][i]*4+1];
@@ -185,11 +185,11 @@ void NativeTexture::convertTo32Bit(void)
 		rasterFormat &= ~(RASTER_PAL4 | RASTER_PAL8);
 		depth = 0x20;
 	} else if ((rasterFormat & RASTER_MASK) ==  RASTER_1555) {
-		for (uint32 j = 0; j < mipmapCount; j++) {
-			uint32 dataSize = width[j]*height[j]*4;
-			uint8 *newtexels = new uint8[dataSize];
-			for (uint32 i = 0; i < width[j]*height[j]; i++) {
-				uint32 col = *((uint16 *) &texels[j][i*2]);
+		for (uint32_t j = 0; j < mipmapCount; j++) {
+			uint32_t dataSize = width[j]*height[j]*4;
+			uint8_t *newtexels = new uint8_t[dataSize];
+			for (uint32_t i = 0; i < width[j]*height[j]; i++) {
+				uint32_t col = *((uint16_t *) &texels[j][i*2]);
 				newtexels[i*4+0] =((col&0x001F)>>0x0)*0xFF/0x1F;
 				newtexels[i*4+1] =((col&0x03E0)>>0x5)*0xFF/0x1F;
 				newtexels[i*4+2] =((col&0x7C00)>>0xa)*0xFF/0x1F;
@@ -202,11 +202,11 @@ void NativeTexture::convertTo32Bit(void)
 		rasterFormat = RASTER_8888;
 		depth = 0x20;
 	} else if ((rasterFormat & RASTER_MASK) ==  RASTER_565) {
-		for (uint32 j = 0; j < mipmapCount; j++) {
-			uint32 dataSize = width[j]*height[j]*4;
-			uint8 *newtexels = new uint8[dataSize];
-			for (uint32 i = 0; i < width[j]*height[j]; i++) {
-				uint32 col = *((uint16 *) &texels[j][i*2]);
+		for (uint32_t j = 0; j < mipmapCount; j++) {
+			uint32_t dataSize = width[j]*height[j]*4;
+			uint8_t *newtexels = new uint8_t[dataSize];
+			for (uint32_t i = 0; i < width[j]*height[j]; i++) {
+				uint32_t col = *((uint16_t *) &texels[j][i*2]);
 				newtexels[i*4+0] =((col&0x001F)>>0x0)*0xFF/0x1F;
 				newtexels[i*4+1] =((col&0x07E0)>>0x5)*0xFF/0x3F;
 				newtexels[i*4+2] =((col&0xF800)>>0xb)*0xFF/0x1F;
@@ -219,11 +219,11 @@ void NativeTexture::convertTo32Bit(void)
 		rasterFormat = RASTER_888;
 		depth = 0x20;
 	} else if ((rasterFormat & RASTER_MASK) ==  RASTER_4444) {
-		for (uint32 j = 0; j < mipmapCount; j++) {
-			uint32 dataSize = width[j]*height[j]*4;
-			uint8 *newtexels = new uint8[dataSize];
-			for (uint32 i = 0; i < width[j]*height[j]; i++) {
-				uint32 col = *((uint16 *) &texels[j][i*2]);
+		for (uint32_t j = 0; j < mipmapCount; j++) {
+			uint32_t dataSize = width[j]*height[j]*4;
+			uint8_t *newtexels = new uint8_t[dataSize];
+			for (uint32_t i = 0; i < width[j]*height[j]; i++) {
+				uint32_t col = *((uint16_t *) &texels[j][i*2]);
 				// swap r and b
 				newtexels[i*4+0] =((col&0x000F)>>0x0)*0xFF/0xF;
 				newtexels[i*4+1] =((col&0x00F0)>>0x4)*0xFF/0xF;
@@ -242,17 +242,17 @@ void NativeTexture::convertTo32Bit(void)
 
 void NativeTexture::decompressDxt4(void)
 {
-	for (uint32 i = 0; i < mipmapCount; i++) {
+	for (uint32_t i = 0; i < mipmapCount; i++) {
 		/* j loops through old texels
 		 * x and y loop through new texels */
-		uint32 x = 0, y = 0;
-		uint32 dataSize = width[i]*height[i]*4;
-		uint8 *newtexels = new uint8[dataSize];
-		for (uint32 j = 0; j < width[i]*height[i]; j += 16) {
+		uint32_t x = 0, y = 0;
+		uint32_t dataSize = width[i]*height[i]*4;
+		uint8_t *newtexels = new uint8_t[dataSize];
+		for (uint32_t j = 0; j < width[i]*height[i]; j += 16) {
 			/* calculate colors */
-			uint32 col0 = *((uint16 *) &texels[i][j+8]);
-			uint32 col1 = *((uint16 *) &texels[i][j+10]);
-			uint32 c[4][4];
+			uint32_t col0 = *((uint16_t *) &texels[i][j+8]);
+			uint32_t col1 = *((uint16_t *) &texels[i][j+10]);
+			uint32_t c[4][4];
 			// swap r and b
 			c[0][0] = (col0 & 0x1F)*0xFF/0x1F;
 			c[0][1] = ((col0 & 0x7E0) >> 5)*0xFF/0x3F;
@@ -270,7 +270,7 @@ void NativeTexture::decompressDxt4(void)
 			c[3][1] = (1*c[0][1] + 2*c[1][1])/3;
 			c[3][2] = (1*c[0][2] + 2*c[1][2])/3;
 
-			uint32 a[8];
+			uint32_t a[8];
 			a[0] = texels[i][j+0];
 			a[1] = texels[i][j+1];
 			if (a[0] > a[1]) {
@@ -290,23 +290,23 @@ void NativeTexture::decompressDxt4(void)
 			}
 
 			/* make index list */
-			uint32 indicesint = *((uint32 *) &texels[i][j+12]);
-			uint8 indices[16];
-			for (int32 k = 0; k < 16; k++) {
+			uint32_t indicesint = *((uint32_t *) &texels[i][j+12]);
+			uint8_t indices[16];
+			for (int32_t k = 0; k < 16; k++) {
 				indices[k] = indicesint & 0x3;
 				indicesint >>= 2;
 			}
 			// actually 6 bytes
-			uint64 alphasint = *((uint64 *) &texels[i][j+2]);
-			uint8 alphas[16];
-			for (int32 k = 0; k < 16; k++) {
+			uint64_t alphasint = *((uint64_t *) &texels[i][j+2]);
+			uint8_t alphas[16];
+			for (int32_t k = 0; k < 16; k++) {
 				alphas[k] = alphasint & 0x7;
 				alphasint >>= 3;
 			}
 
 			/* write bytes */
-			for (uint32 k = 0; k < 4; k++)
-				for (uint32 l = 0; l < 4; l++) {
+			for (uint32_t k = 0; k < 4; k++)
+				for (uint32_t l = 0; l < 4; l++) {
 	// wtf?
 	newtexels[(y+l)*width[i]*4 + (x+k)*4 + 0] = c[indices[l*4+k]][0];
 	newtexels[(y+l)*width[i]*4 + (x+k)*4 + 1] = c[indices[l*4+k]][1];
@@ -330,17 +330,17 @@ void NativeTexture::decompressDxt4(void)
 
 void NativeTexture::decompressDxt3(void)
 {
-	for (uint32 i = 0; i < mipmapCount; i++) {
+	for (uint32_t i = 0; i < mipmapCount; i++) {
 		/* j loops through old texels
 		 * x and y loop through new texels */
-		uint32 x = 0, y = 0;
-		uint32 dataSize = width[i]*height[i]*4;
-		uint8 *newtexels = new uint8[dataSize];
-		for (uint32 j = 0; j < width[i]*height[i]; j += 16) {
+		uint32_t x = 0, y = 0;
+		uint32_t dataSize = width[i]*height[i]*4;
+		uint8_t *newtexels = new uint8_t[dataSize];
+		for (uint32_t j = 0; j < width[i]*height[i]; j += 16) {
 			/* calculate colors */
-			uint32 col0 = *((uint16 *) &texels[i][j+8]);
-			uint32 col1 = *((uint16 *) &texels[i][j+10]);
-			uint32 c[4][4];
+			uint32_t col0 = *((uint16_t *) &texels[i][j+8]);
+			uint32_t col1 = *((uint16_t *) &texels[i][j+10]);
+			uint32_t c[4][4];
 			// swap r and b
 			c[0][0] = (col0 & 0x1F)*0xFF/0x1F;
 			c[0][1] = ((col0 & 0x7E0) >> 5)*0xFF/0x3F;
@@ -359,22 +359,22 @@ void NativeTexture::decompressDxt3(void)
 			c[3][2] = (1*c[0][2] + 2*c[1][2])/3;
 
 			/* make index list */
-			uint32 indicesint = *((uint32 *) &texels[i][j+12]);
-			uint8 indices[16];
-			for (int32 k = 0; k < 16; k++) {
+			uint32_t indicesint = *((uint32_t *) &texels[i][j+12]);
+			uint8_t indices[16];
+			for (int32_t k = 0; k < 16; k++) {
 				indices[k] = indicesint & 0x3;
 				indicesint >>= 2;
 			}
-			uint64 alphasint = *((uint64 *) &texels[i][j+0]);
-			uint8 alphas[16];
-			for (int32 k = 0; k < 16; k++) {
+			uint64_t alphasint = *((uint64_t *) &texels[i][j+0]);
+			uint8_t alphas[16];
+			for (int32_t k = 0; k < 16; k++) {
 				alphas[k] = (alphasint & 0xF)*17;
 				alphasint >>= 4;
 			}
 
 			/* write bytes */
-			for (uint32 k = 0; k < 4; k++)
-				for (uint32 l = 0; l < 4; l++) {
+			for (uint32_t k = 0; k < 4; k++)
+				for (uint32_t l = 0; l < 4; l++) {
 	// wtf?
 	newtexels[(y+l)*width[i]*4 + (x+k)*4 + 0] = c[indices[l*4+k]][0];
 	newtexels[(y+l)*width[i]*4 + (x+k)*4 + 1] = c[indices[l*4+k]][1];
@@ -398,17 +398,17 @@ void NativeTexture::decompressDxt3(void)
 
 void NativeTexture::decompressDxt1(void)
 {
-	for (uint32 i = 0; i < mipmapCount; i++) {
+	for (uint32_t i = 0; i < mipmapCount; i++) {
 		/* j loops through old texels
 		 * x and y loop through new texels */
-		uint32 x = 0, y = 0;
-		uint32 dataSize = width[i]*height[i]*4;
-		uint8 *newtexels = new uint8[dataSize];
-		for (uint32 j = 0; j < width[i]*height[i]/2; j += 8) {
+		uint32_t x = 0, y = 0;
+		uint32_t dataSize = width[i]*height[i]*4;
+		uint8_t *newtexels = new uint8_t[dataSize];
+		for (uint32_t j = 0; j < width[i]*height[i]/2; j += 8) {
 			/* calculate colors */
-			uint32 col0 = *((uint16 *) &texels[i][j+0]);
-			uint32 col1 = *((uint16 *) &texels[i][j+2]);
-			uint32 c[4][4];
+			uint32_t col0 = *((uint16_t *) &texels[i][j+0]);
+			uint32_t col1 = *((uint16_t *) &texels[i][j+2]);
+			uint32_t c[4][4];
 			// swap r and b
 			c[0][0] = (col0 & 0x1F)*0xFF/0x1F;
 			c[0][1] = ((col0 & 0x7E0) >> 5)*0xFF/0x3F;
@@ -445,16 +445,16 @@ void NativeTexture::decompressDxt1(void)
 			}
 
 			/* make index list */
-			uint32 indicesint = *((uint32 *) &texels[i][j+4]);
-			uint8 indices[16];
-			for (int32 k = 0; k < 16; k++) {
+			uint32_t indicesint = *((uint32_t *) &texels[i][j+4]);
+			uint8_t indices[16];
+			for (int32_t k = 0; k < 16; k++) {
 				indices[k] = indicesint & 0x3;
 				indicesint >>= 2;
 			}
 
 			/* write bytes */
-			for (uint32 k = 0; k < 4; k++)
-				for (uint32 l = 0; l < 4; l++) {
+			for (uint32_t k = 0; k < 4; k++)
+				for (uint32_t l = 0; l < 4; l++) {
 	// wtf?
 	newtexels[(y+l)*width[i]*4 + (x+k)*4 + 0] = c[indices[l*4+k]][0];
 	newtexels[(y+l)*width[i]*4 + (x+k)*4 + 1] = c[indices[l*4+k]][1];
@@ -517,15 +517,15 @@ NativeTexture::NativeTexture(const NativeTexture &orig)
   dxtCompression(orig.dxtCompression)
 {
 	if (orig.palette) {
-		palette = new uint8[paletteSize*4*sizeof(uint8)];
-		memcpy(palette, orig.palette, paletteSize*4*sizeof(uint8));
+		palette = new uint8_t[paletteSize*4*sizeof(uint8_t)];
+		memcpy(palette, orig.palette, paletteSize*4*sizeof(uint8_t));
 	} else {
 		palette = 0;
 	}
 
-	for (uint32 i = 0; i < orig.texels.size(); i++) {
-		uint32 dataSize = dataSizes[i];
-		uint8 *newtexels = new uint8[dataSize];
+	for (uint32_t i = 0; i < orig.texels.size(); i++) {
+		uint32_t dataSize = dataSizes[i];
+		uint8_t *newtexels = new uint8_t[dataSize];
 		memcpy(newtexels, &orig.texels[i][0], dataSize);
 		texels.push_back(newtexels);
 	}
@@ -555,18 +555,18 @@ NativeTexture &NativeTexture::operator=(const NativeTexture &that)
 		delete[] palette;
 		palette = 0;
 		if (that.palette) {
-			palette = new uint8[that.paletteSize*4];
+			palette = new uint8_t[that.paletteSize*4];
 			memcpy(&palette[0], &that.palette[0],
-			       that.paletteSize*4*sizeof(uint8));
+			       that.paletteSize*4*sizeof(uint8_t));
 		}
 
-		for (uint32 i = 0; i < texels.size(); i++) {
+		for (uint32_t i = 0; i < texels.size(); i++) {
 			delete[] texels[i];
 			texels[i] = 0;
 			if (that.texels[i]) {
-				texels[i] = new uint8[that.dataSizes[i]];
+				texels[i] = new uint8_t[that.dataSizes[i]];
 				memcpy(&texels[i][0], &that.texels[i][0],
-				       that.dataSizes[i]*sizeof(uint8));
+				       that.dataSizes[i]*sizeof(uint8_t));
 			}
 		}
 	}
@@ -577,32 +577,32 @@ NativeTexture::~NativeTexture(void)
 {
 	delete[] palette;
 	palette = 0;
-	for (uint32 i = 0; i < texels.size(); i++) {
+	for (uint32_t i = 0; i < texels.size(); i++) {
 		delete[] texels[i];
 		texels[i] = 0;
 	}
 }
 
 /* convert from CLUT format used by the ps2 */
-static void unclut(uint8 *texels, uint32 width, uint32 height)
+static void unclut(uint8_t *texels, uint32_t width, uint32_t height)
 {
-	uint8 map[4] = { 0, 16, 8, 24 };
-	for (uint32 i = 0; i < width*height; i++)
+	uint8_t map[4] = { 0, 16, 8, 24 };
+	for (uint32_t i = 0; i < width*height; i++)
 		texels[i] = (texels[i] & ~0x18) | map[(texels[i] & 0x18) >> 3];
 }
 
 /* taken from the ps2 linux website */
-static void unswizzle8(uint8 *texels, uint8 *rawIndices,
-                       uint32 width, uint32 height)
+static void unswizzle8(uint8_t *texels, uint8_t *rawIndices,
+                       uint32_t width, uint32_t height)
 {
-	for (uint32 y = 0; y < height; y++)
-		for (uint32 x = 0; x < width; x++) {
-			int32 block_loc = (y&(~0x0F))*width + (x&(~0x0F))*2;
-			uint32 swap_sel = (((y+2)>>2)&0x01)*4;
-			int32 ypos = (((y&(~3))>>1) + (y&1))&0x07;
-			int32 column_loc = ypos*width*2 + ((x+swap_sel)&0x07)*4;
-			int32 byte_sum = ((y>>1)&1) + ((x>>2)&2);
-			uint32 swizzled = block_loc + column_loc + byte_sum;
+	for (uint32_t y = 0; y < height; y++)
+		for (uint32_t x = 0; x < width; x++) {
+			int32_t block_loc = (y&(~0x0F))*width + (x&(~0x0F))*2;
+			uint32_t swap_sel = (((y+2)>>2)&0x01)*4;
+			int32_t ypos = (((y&(~3))>>1) + (y&1))&0x07;
+			int32_t column_loc = ypos*width*2 + ((x+swap_sel)&0x07)*4;
+			int32_t byte_sum = ((y>>1)&1) + ((x>>2)&2);
+			uint32_t swizzled = block_loc + column_loc + byte_sum;
 //			cout << swizzled << endl;
 			texels[y*width+x] = rawIndices[swizzled];
 		}
