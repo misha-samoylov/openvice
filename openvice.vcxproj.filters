@@ -60,9 +60,6 @@
     <ClCompile Include="uvanim.cpp">
       <Filter>Source Files\renderware</Filter>
     </ClCompile>
-    <ClCompile Include="xboxnative.cpp">
-      <Filter>Source Files\renderware</Filter>
-    </ClCompile>
     <ClCompile Include="GameInput.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>

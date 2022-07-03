@@ -150,7 +150,6 @@
     <ClCompile Include="txdread.cpp" />
     <ClCompile Include="txdwrite.cpp" />
     <ClCompile Include="uvanim.cpp" />
-    <ClCompile Include="xboxnative.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="args.h" />

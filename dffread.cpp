@@ -456,8 +456,8 @@ Geometry::readExtension(istream &rw)
 				rw.seekg(beg, ios::beg);
 				if(platform == PLATFORM_PS2)
 					readPs2NativeData(rw);
-				else if(platform == PLATFORM_XBOX)
-					readXboxNativeData(rw);
+				//else if(platform == PLATFORM_XBOX)
+				//	readXboxNativeData(rw);
 				else
 					cout << "unknown platform " <<
 					        platform << endl;
@@ -505,9 +505,9 @@ Geometry::readExtension(istream &rw)
 				   platform == PLATFORM_PS2){
 					hasSkin = true;
 					readNativeSkinMatrices(rw);
-				}else if(platform == PLATFORM_XBOX){
-					hasSkin = true;
-					readXboxNativeSkin(rw);
+				//}else if(platform == PLATFORM_XBOX){
+				//	hasSkin = true;
+				//	readXboxNativeSkin(rw);
 				}else{
 					cout << "skin: unknown platform "
 					     << platform << endl;

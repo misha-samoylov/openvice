@@ -1,5 +1,6 @@
 #ifndef _RENDERWARE_H_
 #define _RENDERWARE_H_
+
 #ifdef _WIN32
   #include <windows.h>
 #endif
@@ -8,17 +9,17 @@
 #include <vector>
 #include <string>
 
-//#ifdef DEBUG
+#ifdef _DEBUG
 	#define READ_HEADER(x)\
 	header.read(rw);\
 	if (header.type != (x)) {\
 		cerr << filename << " ";\
 		ChunkNotFound((x), rw.tellg());\
 	}
-//#else
-	//#define READ_HEADER(x)\
-	//header.read(rw);
-//#endif
+#else
+	#define READ_HEADER(x)\
+		header.read(rw);
+#endif
 
 namespace rw {
 
@@ -36,8 +37,7 @@ typedef float float32;
 extern char *filename;
 extern uint32 version;
 
-enum PLATFORM_ID
-{
+enum PLATFORM_ID {
 	PLATFORM_OGL = 2,
 	PLATFORM_PS2    = 4,
 	PLATFORM_XBOX   = 5,
@@ -48,51 +48,51 @@ enum PLATFORM_ID
 typedef enum PLATFORM_ID PLATFORM_ID;
 
 enum CHUNK_TYPE {
-        CHUNK_NAOBJECT        = 0x0,
-        CHUNK_STRUCT          = 0x1,
-        CHUNK_STRING          = 0x2,
-        CHUNK_EXTENSION       = 0x3,
-        CHUNK_CAMERA          = 0x5,
-        CHUNK_TEXTURE         = 0x6,
-        CHUNK_MATERIAL        = 0x7,
-        CHUNK_MATLIST         = 0x8,
-        CHUNK_ATOMICSECT      = 0x9,
-        CHUNK_PLANESECT       = 0xA,
-        CHUNK_WORLD           = 0xB,
-        CHUNK_SPLINE          = 0xC,
-        CHUNK_MATRIX          = 0xD,
-        CHUNK_FRAMELIST       = 0xE,
-        CHUNK_GEOMETRY        = 0xF,
-        CHUNK_CLUMP           = 0x10,
-        CHUNK_LIGHT           = 0x12,
-        CHUNK_UNICODESTRING   = 0x13,
-        CHUNK_ATOMIC          = 0x14,
-        CHUNK_TEXTURENATIVE   = 0x15,
-        CHUNK_TEXDICTIONARY   = 0x16,
-        CHUNK_ANIMDATABASE    = 0x17,
-        CHUNK_IMAGE           = 0x18,
-        CHUNK_SKINANIMATION   = 0x19,
-        CHUNK_GEOMETRYLIST    = 0x1A,
-        CHUNK_ANIMANIMATION   = 0x1B,
-        CHUNK_HANIMANIMATION  = 0x1B,
-        CHUNK_TEAM            = 0x1C,
-        CHUNK_CROWD           = 0x1D,
-        CHUNK_RIGHTTORENDER   = 0x1F,
-        CHUNK_MTEFFECTNATIVE  = 0x20,
-        CHUNK_MTEFFECTDICT    = 0x21,
-        CHUNK_TEAMDICTIONARY  = 0x22,
-        CHUNK_PITEXDICTIONARY = 0x23,
-        CHUNK_TOC             = 0x24,
-        CHUNK_PRTSTDGLOBALDATA = 0x25,
-        CHUNK_ALTPIPE         = 0x26,
-        CHUNK_PIPEDS          = 0x27,
-        CHUNK_PATCHMESH       = 0x28,
-        CHUNK_CHUNKGROUPSTART = 0x29,
-        CHUNK_CHUNKGROUPEND   = 0x2A,
-        CHUNK_UVANIMDICT      = 0x2B,
-        CHUNK_COLLTREE        = 0x2C,
-        CHUNK_ENVIRONMENT     = 0x2D,
-        CHUNK_COREPLUGINIDMAX = 0x2E,
+    CHUNK_NAOBJECT        = 0x0,
+    CHUNK_STRUCT          = 0x1,
+    CHUNK_STRING          = 0x2,
+    CHUNK_EXTENSION       = 0x3,
+    CHUNK_CAMERA          = 0x5,
+    CHUNK_TEXTURE         = 0x6,
+    CHUNK_MATERIAL        = 0x7,
+    CHUNK_MATLIST         = 0x8,
+    CHUNK_ATOMICSECT      = 0x9,
+    CHUNK_PLANESECT       = 0xA,
+    CHUNK_WORLD           = 0xB,
+    CHUNK_SPLINE          = 0xC,
+    CHUNK_MATRIX          = 0xD,
+    CHUNK_FRAMELIST       = 0xE,
+    CHUNK_GEOMETRY        = 0xF,
+    CHUNK_CLUMP           = 0x10,
+    CHUNK_LIGHT           = 0x12,
+    CHUNK_UNICODESTRING   = 0x13,
+    CHUNK_ATOMIC          = 0x14,
+    CHUNK_TEXTURENATIVE   = 0x15,
+    CHUNK_TEXDICTIONARY   = 0x16,
+    CHUNK_ANIMDATABASE    = 0x17,
+    CHUNK_IMAGE           = 0x18,
+    CHUNK_SKINANIMATION   = 0x19,
+    CHUNK_GEOMETRYLIST    = 0x1A,
+    CHUNK_ANIMANIMATION   = 0x1B,
+    CHUNK_HANIMANIMATION  = 0x1B,
+    CHUNK_TEAM            = 0x1C,
+    CHUNK_CROWD           = 0x1D,
+    CHUNK_RIGHTTORENDER   = 0x1F,
+    CHUNK_MTEFFECTNATIVE  = 0x20,
+    CHUNK_MTEFFECTDICT    = 0x21,
+    CHUNK_TEAMDICTIONARY  = 0x22,
+    CHUNK_PITEXDICTIONARY = 0x23,
+    CHUNK_TOC             = 0x24,
+    CHUNK_PRTSTDGLOBALDATA = 0x25,
+    CHUNK_ALTPIPE         = 0x26,
+    CHUNK_PIPEDS          = 0x27,
+    CHUNK_PATCHMESH       = 0x28,
+    CHUNK_CHUNKGROUPSTART = 0x29,
+    CHUNK_CHUNKGROUPEND   = 0x2A,
+    CHUNK_UVANIMDICT      = 0x2B,
+    CHUNK_COLLTREE        = 0x2C,
+    CHUNK_ENVIRONMENT     = 0x2D,
+    CHUNK_COREPLUGINIDMAX = 0x2E,
 
 	CHUNK_MORPH           = 0x105,
 	CHUNK_SKYMIPMAP       = 0x110,
@@ -139,8 +139,7 @@ enum {
 	RASTER_MASK = 0x0F00
 };
 
-struct HeaderInfo
-{
+struct HeaderInfo {
 	uint32 type;
 	uint32 length;
 	uint32 build;
@@ -173,15 +172,15 @@ std::string getChunkName(uint32 i);
  * DFFs
  */
 
-enum { 
-        FLAGS_TRISTRIP   = 0x01, 
-        FLAGS_POSITIONS  = 0x02, 
-        FLAGS_TEXTURED   = 0x04, 
-        FLAGS_PRELIT     = 0x08, 
-        FLAGS_NORMALS    = 0x10, 
-        FLAGS_LIGHT      = 0x20, 
+enum {
+    FLAGS_TRISTRIP   = 0x01, 
+    FLAGS_POSITIONS  = 0x02, 
+    FLAGS_TEXTURED   = 0x04, 
+    FLAGS_PRELIT     = 0x08, 
+    FLAGS_NORMALS    = 0x10, 
+    FLAGS_LIGHT      = 0x20, 
 	FLAGS_MODULATEMATERIALCOLOR  = 0x40, 
-        FLAGS_TEXTURED2  = 0x80
+    FLAGS_TEXTURED2  = 0x80
 };
 
 enum {
@@ -205,17 +204,16 @@ enum {
  * gtasa: 1803ffff */
 
 enum {
-        GTA3_1 = 0x00000302,
-        GTA3_2 = 0x00000304,
-        GTA3_3 = 0x00000310,
-        GTA3_4 = 0x0800FFFF,
-        VCPS2  = 0x0C02FFFF,
-        VCPC   = 0x1003FFFF,
-        SA     = 0x1803FFFF
+    GTA3_1 = 0x00000302,
+    GTA3_2 = 0x00000304,
+    GTA3_3 = 0x00000310,
+    GTA3_4 = 0x0800FFFF,
+    VCPS2  = 0x0C02FFFF,
+    VCPC   = 0x1003FFFF,
+    SA     = 0x1803FFFF
 };
 
-struct Frame
-{
+struct Frame {
 	float32 rotationMatrix[9];
 	float32 position[3];
 	int32 parent;
@@ -247,9 +245,7 @@ struct Frame
 	Frame(void);
 };
 
-
-struct Atomic
-{
+struct Atomic {
 	int32 frameIndex;
 	int32 geometryIndex;
 
@@ -281,8 +277,7 @@ struct Atomic
 	Atomic(void);
 };
 
-struct Texture
-{
+struct Texture {
 	uint32 filterFlags;
 	std::string name;
 	std::string maskName;
@@ -301,8 +296,7 @@ struct Texture
 	Texture(void);
 };
 
-struct MatFx
-{
+struct MatFx {
 	uint32 type;
 
 	float32 bumpCoefficient;
@@ -322,8 +316,7 @@ struct MatFx
 	MatFx(void);
 };
 
-struct Material
-{
+struct Material {
 	uint32 flags;
 	uint8 color[4];
 	uint32 unknown;
@@ -371,8 +364,7 @@ struct Material
 	~Material(void);
 };
 
-struct MeshExtension
-{
+struct MeshExtension {
 	uint32 unknown;
 
 	std::vector<float32> vertices;
@@ -386,14 +378,12 @@ struct MeshExtension
 	std::vector<float32> unknowns;
 };
 
-struct Split
-{
+struct Split {
 	uint32 matIndex;
 	std::vector<uint32> indices;	
 };
 
-struct Geometry
-{
+struct Geometry {
 	uint32 flags;
 	uint32 numUVs;
 	bool hasNativeGeometry;
@@ -463,8 +453,6 @@ struct Geometry
 	~Geometry(void);
 private:
 	void readPs2NativeData(std::istream &dff);
-	void readXboxNativeData(std::istream &dff);
-	void readXboxNativeSkin(std::istream &dff);
 	void readOglNativeData(std::istream &dff, int size);
 	void readNativeSkinMatrices(std::istream &dff);
 	bool isDegenerateFace(uint32 i, uint32 j, uint32 k);
@@ -476,8 +464,7 @@ private:
 	uint32 addTempVertexIfNew(uint32 index);
 };
 
-struct Light
-{
+struct Light {
 	int32 frameIndex;
 	float32 radius;
 	float32 color[3];
@@ -489,8 +476,7 @@ struct Light
 	uint32 write(std::ostream &dff);
 };
 
-struct Clump
-{
+struct Clump {
 	std::vector<Atomic> atomicList;
 	std::vector<Frame> frameList;
 	std::vector<Geometry> geometryList;
@@ -513,8 +499,7 @@ struct Clump
  * TXDs
  */
 
-struct NativeTexture
-{
+struct NativeTexture {
 	uint32 platform;
 	std::string name;
 	std::string maskName;
@@ -565,8 +550,7 @@ struct NativeTexture
 	~NativeTexture(void);
 };
 
-struct TextureDictionary
-{
+struct TextureDictionary {
 	std::vector<NativeTexture> texList;
 
 	/* functions */
@@ -576,16 +560,14 @@ struct TextureDictionary
 	~TextureDictionary(void);
 };
 
-struct UVAnimation
-{
+struct UVAnimation {
 	std::vector<uint8> data;
 
 	void read(std::istream &dff);
 	uint32 write(std::ostream &dff);
 };
 
-struct UVAnimDict
-{
+struct UVAnimDict {
 	std::vector<UVAnimation> animList;
 
 	void read(std::istream &dff);
