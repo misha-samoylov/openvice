@@ -23,8 +23,6 @@
 
 namespace rw {
 
-typedef float float32;
-
 enum PLATFORM_ID {
 	PLATFORM_OGL = 2,
 	PLATFORM_PS2    = 4,
@@ -125,29 +123,6 @@ enum RASTER_TYPE {
 	RASTER_MASK = 0x0F00
 };
 
-struct HeaderInfo {
-	uint32_t type;
-	uint32_t length;
-	uint32_t build;
-	uint32_t version;
-	bool read(std::istream &rw);
-	bool peek(std::istream &rw);
-	bool findChunk(std::istream &rw, uint32_t type);
-};
-
-void ChunkNotFound(CHUNK_TYPE chunk, uint32_t address);
-int8_t readInt8(std::istream &rw);
-uint8_t readUInt8(std::istream &rw);
-int16_t readInt16(std::istream &rw);
-uint16_t readUInt16(std::istream &rw);
-int32_t readInt32(std::istream &rw);
-uint32_t readUInt32(std::istream &rw);
-float32 readFloat32(std::istream &rw);
-
-/*
- * DFFs
- */
-
 enum FLAGS_TYPE {
     FLAGS_TRISTRIP   = 0x01, 
     FLAGS_POSITIONS  = 0x02, 
@@ -189,9 +164,29 @@ enum GTA_VERSION {
     SA     = 0x1803FFFF
 };
 
+struct HeaderInfo {
+	uint32_t type;
+	uint32_t length;
+	uint32_t build;
+	uint32_t version;
+	bool read(std::istream &rw);
+	bool peek(std::istream &rw);
+	bool findChunk(std::istream &rw, uint32_t type);
+};
+
+void ChunkNotFound(CHUNK_TYPE chunk, uint32_t address);
+int8_t readInt8(std::istream &rw);
+uint8_t readUInt8(std::istream &rw);
+int16_t readInt16(std::istream &rw);
+uint16_t readUInt16(std::istream &rw);
+int32_t readInt32(std::istream &rw);
+uint32_t readUInt32(std::istream &rw);
+float readFloat32(std::istream &rw);
+
+
 struct Frame {
-	float32 rotationMatrix[9];
-	float32 position[3];
+	float rotationMatrix[9];
+	float position[3];
 	int32_t parent;
 
 	/* Extensions */
@@ -271,10 +266,10 @@ struct Texture {
 struct MatFx {
 	uint32_t type;
 
-	float32 bumpCoefficient;
-	float32 envCoefficient;
-	float32 srcBlend;
-	float32 destBlend;
+	float bumpCoefficient;
+	float envCoefficient;
+	float srcBlend;
+	float destBlend;
 
 	bool hasTex1;
 	Texture tex1;
@@ -293,7 +288,7 @@ struct Material {
 	uint8_t color[4];
 	uint32_t unknown;
 	bool hasTex;
-	float32 surfaceProps[3]; /* ambient, specular, diffuse */
+	float surfaceProps[3]; /* ambient, specular, diffuse */
 
 	Texture texture;
 
@@ -310,12 +305,12 @@ struct Material {
 
 	/* reflection mat */
 	bool hasReflectionMat;
-	float32 reflectionChannelAmount[4];
-	float32 reflectionIntensity;
+	float reflectionChannelAmount[4];
+	float reflectionIntensity;
 
 	/* specular mat */
 	bool hasSpecularMat;
-	float32 specularLevel;
+	float specularLevel;
 	std::string specularName;
 
 	/* uv anim */
@@ -338,15 +333,15 @@ struct Material {
 struct MeshExtension {
 	uint32_t unknown;
 
-	std::vector<float32> vertices;
-	std::vector<float32> texCoords;
+	std::vector<float> vertices;
+	std::vector<float> texCoords;
 	std::vector<uint8_t> vertexColors;
 	std::vector<uint16_t> faces;
 	std::vector<uint16_t> assignment;
 
 	std::vector<std::string> textureName;
 	std::vector<std::string> maskName;
-	std::vector<float32> unknowns;
+	std::vector<float> unknowns;
 };
 
 struct Split {
@@ -362,14 +357,14 @@ struct Geometry {
 	uint32_t vertexCount;
 	std::vector<uint16_t> faces;
 	std::vector<uint8_t> vertexColors;
-	std::vector<float32> texCoords[8];
+	std::vector<float> texCoords[8];
 
 	/* morph target (only one) */
-	float32 boundingSphere[4];
+	float boundingSphere[4];
 	uint32_t hasPositions;
 	uint32_t hasNormals;
-	std::vector<float32> vertices;
-	std::vector<float32> normals;
+	std::vector<float> vertices;
+	std::vector<float> normals;
 
 	std::vector<Material> materialList;
 
@@ -388,8 +383,8 @@ struct Geometry {
 	uint32_t unknown2;
 	std::vector<uint8_t> specialIndices;
 	std::vector<uint32_t> vertexBoneIndices;
-	std::vector<float32> vertexBoneWeights;
-	std::vector<float32> inverseMatrices;
+	std::vector<float> vertexBoneWeights;
+	std::vector<float> inverseMatrices;
 
 	/* mesh extension */
 	bool hasMeshExtension;
@@ -430,9 +425,9 @@ private:
 
 struct Light {
 	int32_t frameIndex;
-	float32 radius;
-	float32 color[3];
-	float32 minusCosAngle;
+	float radius;
+	float color[3];
+	float minusCosAngle;
 	uint32_t type;
 	uint32_t flags;
 

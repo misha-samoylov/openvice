@@ -239,8 +239,8 @@ Atomic::Atomic(void)
 // only reads part of the frame struct
 void Frame::readStruct(istream &rw)
 {
-	rw.read((char *) rotationMatrix, 9*sizeof(float32));
-	rw.read((char *) position, 3*sizeof(float32));
+	rw.read((char *) rotationMatrix, 9*sizeof(float));
+	rw.read((char *) position, 3*sizeof(float));
 	parent = readInt32(rw);
 	rw.seekg(4, ios::cur);	// matrix creation flag, unused
 }
@@ -362,13 +362,13 @@ void Geometry::read(istream &rw)
 		if (flags & FLAGS_TEXTURED) {
 			texCoords[0].resize(2*vertexCount);
 			rw.read((char *) (&texCoords[0][0]),
-			         2*vertexCount*sizeof(float32));
+			         2*vertexCount*sizeof(float));
 		}
 		if (flags & FLAGS_TEXTURED2) {
 			for (uint32_t i = 0; i < numUVs; i++) {
 				texCoords[i].resize(2*vertexCount);
 				rw.read((char *) (&texCoords[i][0]),
-					 2*vertexCount*sizeof(float32));
+					 2*vertexCount*sizeof(float));
 			}
 		}
 		faces.resize(4*triangleCount);
@@ -376,7 +376,7 @@ void Geometry::read(istream &rw)
 	}
 
 	/* morph targets, only 1 in gta */
-	rw.read((char *)(boundingSphere), 4*sizeof(float32));
+	rw.read((char *)(boundingSphere), 4*sizeof(float));
 	//hasPositions = (flags & FLAGS_POSITIONS) ? 1 : 0;
 	hasPositions = readUInt32(rw);
 	hasNormals = readUInt32(rw);
@@ -386,11 +386,11 @@ void Geometry::read(istream &rw)
 
 	if (!hasNativeGeometry) {
 		vertices.resize(3*vertexCount);
-		rw.read((char *) (&vertices[0]), 3*vertexCount*sizeof(float32));
+		rw.read((char *) (&vertices[0]), 3*vertexCount*sizeof(float));
 		if (flags & FLAGS_NORMALS) {
 			normals.resize(3*vertexCount);
 			rw.read((char *) (&normals[0]),
-				 3*vertexCount*sizeof(float32));
+				 3*vertexCount*sizeof(float));
 		}
 	}
 
@@ -528,7 +528,7 @@ void Geometry::readExtension(istream &rw)
 
 				vertexBoneWeights.resize(vertexCount*4);
 				rw.read((char *) (&vertexBoneWeights[0]),
-					 vertexCount*4*sizeof(float32));
+					 vertexCount*4*sizeof(float));
 
 				inverseMatrices.resize(boneCount*16);
 				for(uint32_t i = 0; i < boneCount; i++){
@@ -537,7 +537,7 @@ void Geometry::readExtension(istream &rw)
 						rw.seekg(4, ios::cur);
 					rw.read((char *)
 						 (&inverseMatrices[i*0x10]),
-						 0x10*sizeof(float32));
+						 0x10*sizeof(float));
 				}
 				// skip some zeroes
 				if(specialIndexCount != 0)
@@ -585,7 +585,7 @@ void Geometry::readNativeSkinMatrices(istream &rw)
 	inverseMatrices.resize(boneCount*0x10);
 	for (uint32_t i = 0; i < boneCount; i++)
 		rw.read((char *) (&inverseMatrices[i*0x10]),
-		        0x10*sizeof(float32));
+		        0x10*sizeof(float));
 
 	// skip unknowns
 	if (specialIndexCount != 0)
@@ -607,11 +607,11 @@ void Geometry::readMeshExtension(istream &rw)
 	/* vertices */
 	meshExtension->vertices.resize(3*vertexCount);
 	rw.read((char *) (&meshExtension->vertices[0]),
-		 3*vertexCount*sizeof(float32));
+		 3*vertexCount*sizeof(float));
 	/* tex coords */
 	meshExtension->texCoords.resize(2*vertexCount);
 	rw.read((char *) (&meshExtension->texCoords[0]),
-		 2*vertexCount*sizeof(float32));
+		 2*vertexCount*sizeof(float));
 	/* vertex colors */
 	meshExtension->vertexColors.resize(4*vertexCount);
 	rw.read((char *) (&meshExtension->vertexColors[0]),
@@ -692,13 +692,13 @@ void Geometry::generateFaces(void)
 }
 
 // these hold the (temporary) cleaned up data
-vector<float32> vertices_new;
-vector<float32> normals_new;
-vector<float32> texCoords_new[8];
+vector<float> vertices_new;
+vector<float> normals_new;
+vector<float> texCoords_new[8];
 vector<uint8_t> vertexColors_new;
 vector<uint8_t> nightColors_new;
 vector<uint32_t> vertexBoneIndices_new;
-vector<float32> vertexBoneWeights_new;
+vector<float> vertexBoneWeights_new;
 
 // used only by Geometry::cleanUp()
 // adds new temporary vertex if it isn't already in the list
@@ -1088,7 +1088,7 @@ void Material::read(istream &rw)
 	rw.read((char *) (color), 4*sizeof(uint8_t));
 	unknown = readUInt32(rw);;
 	hasTex = readInt32(rw);
-	rw.read((char *) (surfaceProps), 3*sizeof(float32));
+	rw.read((char *) (surfaceProps), 3*sizeof(float));
 
 	if (hasTex)
 		texture.read(rw);
@@ -1203,7 +1203,7 @@ void Material::readExtension(istream &rw)
 		case CHUNK_SPECULARMAT: {
 			hasSpecularMat = true;
 			specularLevel = readFloat32(rw);
-			uint32_t len = header.length - sizeof(float32) - 4;
+			uint32_t len = header.length - sizeof(float) - 4;
 			char *name = new char[len];
 			rw.read(name, len);
 			specularName = name;
