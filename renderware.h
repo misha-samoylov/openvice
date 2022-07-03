@@ -151,8 +151,6 @@ int32 readInt32(std::istream &rw);
 uint32 readUInt32(std::istream &rw);
 float32 readFloat32(std::istream &rw);
 
-std::string getChunkName(uint32 i);
-
 /*
  * DFFs
  */
