@@ -1,6 +1,7 @@
 #include <cstring>
 #include <cstdlib>
 #include <fstream>
+
 #include "renderware.h"
 
 using namespace std;
@@ -34,14 +35,11 @@ void TextureDictionary::read(istream &rw)
 		texList[i].platform = readUInt32(rw);
 		rw.seekg(-0x10, ios::cur);
 
-		if (texList[i].platform == PLATFORM_XBOX) {
-			//texList[i].readXbox(rw);
-		} else if (texList[i].platform == PLATFORM_D3D8 ||
+		if (texList[i].platform == PLATFORM_D3D8 ||
 		           texList[i].platform == PLATFORM_D3D9) {
 			texList[i].readD3d(rw);
-		} else if (texList[i].platform == PLATFORM_PS2FOURCC) {
-			texList[i].platform = PLATFORM_PS2;
-			//texList[i].readPs2(rw);
+		} else {
+			printf("Cannot identify platform\n");
 		}
 
 		READ_HEADER(CHUNK_EXTENSION);
