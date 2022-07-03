@@ -22,7 +22,6 @@
 
 namespace rw {
 
-//typedef unsigned int uint;
 typedef char int8;
 typedef short int16;
 typedef int int32;
@@ -33,8 +32,6 @@ typedef unsigned int uint32;
 typedef unsigned long long uint64;
 typedef float float32;
 
-extern uint32 version;
-
 enum PLATFORM_ID {
 	PLATFORM_OGL = 2,
 	PLATFORM_PS2    = 4,
@@ -43,7 +40,6 @@ enum PLATFORM_ID {
 	PLATFORM_D3D9   = 9,
 	PLATFORM_PS2FOURCC = 0x00325350 /* "PS2\0" */
 };
-typedef enum PLATFORM_ID PLATFORM_ID;
 
 enum CHUNK_TYPE {
     CHUNK_NAOBJECT        = 0x0,
@@ -114,9 +110,8 @@ enum CHUNK_TYPE {
 	CHUNK_MESHEXTENSION    = 0x253F2FD,
 	CHUNK_FRAME            = 0x253F2FE
 };
-typedef enum CHUNK_TYPE CHUNK_TYPE;
 
-enum {
+enum RASTER_TYPE {
 	RASTER_DEFAULT = 0x0000,
 	RASTER_1555 = 0x0100,
 	RASTER_565 = 0x0200,
@@ -162,7 +157,7 @@ std::string getChunkName(uint32 i);
  * DFFs
  */
 
-enum {
+enum FLAGS_TYPE {
     FLAGS_TRISTRIP   = 0x01, 
     FLAGS_POSITIONS  = 0x02, 
     FLAGS_TEXTURED   = 0x04, 
@@ -173,18 +168,18 @@ enum {
     FLAGS_TEXTURED2  = 0x80
 };
 
-enum {
+enum MAT_FX {
 	MATFX_BUMPMAP = 0x1,
 	MATFX_ENVMAP = 0x2,
 	MATFX_BUMPENVMAP = 0x3,
 	MATFX_DUAL = 0x4,
 	MATFX_UVTRANSFORM = 0x5,
-	MATFX_DUALUVTRANSFORM = 0x6,
+	MATFX_DUALUVTRANSFORM = 0x6
 };
 
-enum {
-	FACETYPE_STRIP = 0x1,
-	FACETYPE_LIST = 0x0
+enum FACE_TYPE {
+	FACETYPE_LIST = 0x0,
+	FACETYPE_STRIP = 0x1
 };
 
 /* gta3 ps2: 302, 304, 310 
@@ -193,7 +188,7 @@ enum {
  * gtavc pc: c02ffff, 800ffff, 1003ffff
  * gtasa: 1803ffff */
 
-enum {
+enum GTA_VERSION {
     GTA3_1 = 0x00000302,
     GTA3_2 = 0x00000304,
     GTA3_3 = 0x00000310,
@@ -506,12 +501,7 @@ struct NativeTexture {
 
 	/* functions */
 	void readD3d(std::istream &txd);
-	void readPs2(std::istream &txd);
-	void readXbox(std::istream &txd);
 
-	void convertFromPS2(uint32 aref);
-	void processPs2Swizzle(uint32 mip);
-	void convertFromXbox(void);
 	void decompressDxt(void);
 	void decompressDxt1(void);
 	void decompressDxt3(void);

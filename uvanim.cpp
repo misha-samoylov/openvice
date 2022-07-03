@@ -4,13 +4,6 @@ using namespace std;
 
 namespace rw {
 
-/* you can write ONE header per C BLOCk using these macros */
-
-#define SKIP_HEADER()\
-	uint32 bytesWritten = 0;\
-	uint32 headerPos = rw.tellp();\
-	rw.seekp(0x0C, ios::cur);
-
 void UVAnimation::read(istream &rw)
 {
 	HeaderInfo header;
