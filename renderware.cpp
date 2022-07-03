@@ -93,10 +93,10 @@ uint32_t readUInt32(istream &rw)
 	return tmp;
 }
 
-float32 readFloat32(istream &rw)
+float readFloat32(istream &rw)
 {
-	float32 tmp;
-	rw.read(reinterpret_cast <char *> (&tmp), sizeof(float32));
+	float tmp;
+	rw.read(reinterpret_cast <char *> (&tmp), sizeof(float));
 	return tmp;
 }
 

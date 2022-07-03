@@ -8,14 +8,6 @@ using namespace std;
 
 namespace rw {
 
-static void unclut(uint8_t *texels, uint32_t width, uint32_t height);
-static void unswizzle8(uint8_t *texels, uint8_t *rawIndices,
-                       uint32_t width, uint32_t height);
-
-/*
- * Texture Dictionary
- */
-
 void TextureDictionary::read(istream &rw)
 {
 	HeaderInfo header;
@@ -581,31 +573,6 @@ NativeTexture::~NativeTexture(void)
 		delete[] texels[i];
 		texels[i] = 0;
 	}
-}
-
-/* convert from CLUT format used by the ps2 */
-static void unclut(uint8_t *texels, uint32_t width, uint32_t height)
-{
-	uint8_t map[4] = { 0, 16, 8, 24 };
-	for (uint32_t i = 0; i < width*height; i++)
-		texels[i] = (texels[i] & ~0x18) | map[(texels[i] & 0x18) >> 3];
-}
-
-/* taken from the ps2 linux website */
-static void unswizzle8(uint8_t *texels, uint8_t *rawIndices,
-                       uint32_t width, uint32_t height)
-{
-	for (uint32_t y = 0; y < height; y++)
-		for (uint32_t x = 0; x < width; x++) {
-			int32_t block_loc = (y&(~0x0F))*width + (x&(~0x0F))*2;
-			uint32_t swap_sel = (((y+2)>>2)&0x01)*4;
-			int32_t ypos = (((y&(~3))>>1) + (y&1))&0x07;
-			int32_t column_loc = ypos*width*2 + ((x+swap_sel)&0x07)*4;
-			int32_t byte_sum = ((y>>1)&1) + ((x>>2)&2);
-			uint32_t swizzled = block_loc + column_loc + byte_sum;
-//			cout << swizzled << endl;
-			texels[y*width+x] = rawIndices[swizzled];
-		}
 }
 
 }
