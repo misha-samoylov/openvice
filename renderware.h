@@ -183,7 +183,6 @@ int32_t readInt32(std::istream &rw);
 uint32_t readUInt32(std::istream &rw);
 float readFloat32(std::istream &rw);
 
-
 struct Frame {
 	float rotationMatrix[9];
 	float position[3];
