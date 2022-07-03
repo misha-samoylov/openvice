@@ -24,43 +24,16 @@
     <ClCompile Include="main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="dffconv.cpp">
-      <Filter>Source Files\renderware</Filter>
-    </ClCompile>
     <ClCompile Include="dffread.cpp">
-      <Filter>Source Files\renderware</Filter>
-    </ClCompile>
-    <ClCompile Include="dffwrite.cpp">
-      <Filter>Source Files\renderware</Filter>
-    </ClCompile>
-    <ClCompile Include="dumprwtree.cpp">
-      <Filter>Source Files\renderware</Filter>
-    </ClCompile>
-    <ClCompile Include="oglnative.cpp">
-      <Filter>Source Files\renderware</Filter>
-    </ClCompile>
-    <ClCompile Include="ps2native.cpp">
       <Filter>Source Files\renderware</Filter>
     </ClCompile>
     <ClCompile Include="renderware.cpp">
       <Filter>Source Files\renderware</Filter>
     </ClCompile>
-    <ClCompile Include="txdconv.cpp">
-      <Filter>Source Files\renderware</Filter>
-    </ClCompile>
-    <ClCompile Include="txdex.cpp">
-      <Filter>Source Files\renderware</Filter>
-    </ClCompile>
     <ClCompile Include="txdread.cpp">
       <Filter>Source Files\renderware</Filter>
     </ClCompile>
-    <ClCompile Include="txdwrite.cpp">
-      <Filter>Source Files\renderware</Filter>
-    </ClCompile>
     <ClCompile Include="uvanim.cpp">
-      <Filter>Source Files\renderware</Filter>
-    </ClCompile>
-    <ClCompile Include="xboxnative.cpp">
       <Filter>Source Files\renderware</Filter>
     </ClCompile>
     <ClCompile Include="GameInput.cpp">
@@ -86,31 +59,28 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="args.h">
-      <Filter>Source Files\renderware</Filter>
-    </ClInclude>
     <ClInclude Include="renderware.h">
       <Filter>Source Files\renderware</Filter>
     </ClInclude>
-    <ClInclude Include="GameInput.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="GameCamera.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="GameRender.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="GameModel.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="GameWindow.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="GameUtils.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="ImgLoader.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="GameUtils.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="GameRender.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="GameModel.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="GameInput.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="GameCamera.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="GameWindow.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

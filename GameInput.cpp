@@ -1,4 +1,4 @@
-#include "GameInput.h"
+#include "GameInput.hpp"
 
 
 HRESULT GameInput::Init(HINSTANCE hInstance, HWND hwnd)

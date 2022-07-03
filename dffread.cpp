@@ -1,11 +1,10 @@
 #include <cmath>
 
 #include "renderware.h"
+
 using namespace std;
 
 namespace rw {
-
-char *filename;
 
 /*
  * Clump
@@ -14,12 +13,11 @@ char *filename;
 void Clump::read(istream& rw)
 {
 	HeaderInfo header;
-
 	header.read(rw);
 
 	READ_HEADER(CHUNK_STRUCT);
-	uint32 numAtomics = readUInt32(rw);
-	uint32 numLights = 0;
+	uint32_t numAtomics = readUInt32(rw);
+	uint32_t numLights = 0;
 	if (header.length == 0xC) {
 		numLights = readUInt32(rw);
 		rw.seekg(4, ios::cur); /* camera count, unused in gta */
@@ -29,28 +27,28 @@ void Clump::read(istream& rw)
 	READ_HEADER(CHUNK_FRAMELIST);
 
 	READ_HEADER(CHUNK_STRUCT);
-	uint32 numFrames = readUInt32(rw);
+	uint32_t numFrames = readUInt32(rw);
 	frameList.resize(numFrames);
-	for (uint32 i = 0; i < numFrames; i++)
+	for (uint32_t i = 0; i < numFrames; i++)
 		frameList[i].readStruct(rw);
-	for (uint32 i = 0; i < numFrames; i++)
+	for (uint32_t i = 0; i < numFrames; i++)
 		frameList[i].readExtension(rw);
 
 	READ_HEADER(CHUNK_GEOMETRYLIST);
 
 	READ_HEADER(CHUNK_STRUCT);
-	uint32 numGeometries = readUInt32(rw);
+	uint32_t numGeometries = readUInt32(rw);
 	geometryList.resize(numGeometries);
-	for (uint32 i = 0; i < numGeometries; i++)
+	for (uint32_t i = 0; i < numGeometries; i++)
 		geometryList[i].read(rw);
 
 	/* read atomics */
-	for (uint32 i = 0; i < numAtomics; i++)
+	for (uint32_t i = 0; i < numAtomics; i++)
 		atomicList[i].read(rw);
 
 	/* read lights */
 	lightList.resize(numLights);
-	for (uint32 i = 0; i < numLights; i++) {
+	for (uint32_t i = 0; i < numLights; i++) {
 		READ_HEADER(CHUNK_STRUCT);
 		lightList[i].frameIndex = readInt32(rw);
 		lightList[i].read(rw);
@@ -94,7 +92,7 @@ void Clump::dump(bool detailed)
 	cout << endl << ind << "FrameList {\n";
 	ind += "  ";
 	cout << ind << "numFrames: " << frameList.size() << endl;
-	for (uint32 i = 0; i < frameList.size(); i++)
+	for (uint32_t i = 0; i < frameList.size(); i++)
 		frameList[i].dump(i, ind);
 	ind = ind.substr(0, ind.size()-2);
 	cout << ind << "}\n";
@@ -102,13 +100,13 @@ void Clump::dump(bool detailed)
 	cout << endl << ind << "GeometryList {\n";
 	ind += "  ";
 	cout << ind << "numGeometries: " << geometryList.size() << endl;
-	for (uint32 i = 0; i < geometryList.size(); i++)
+	for (uint32_t i = 0; i < geometryList.size(); i++)
 		geometryList[i].dump(i, ind, detailed);
 
 	ind = ind.substr(0, ind.size()-2);
 	cout << ind << "}\n\n";
 
-	for (uint32 i = 0; i < atomicList.size(); i++)
+	for (uint32_t i = 0; i < atomicList.size(); i++)
 		atomicList[i].dump(i, ind);
 
 	ind = ind.substr(0, ind.size()-2);
@@ -124,8 +122,7 @@ void Clump::clear(void)
 	colData.clear();
 }
 
-void
-Light::read(std::istream &rw)
+void Light::read(std::istream &rw)
 {
 	HeaderInfo header;
 
@@ -197,7 +194,7 @@ void Atomic::readExtension(istream &rw)
 	}
 }
 
-void Atomic::dump(uint32 index, string ind)
+void Atomic::dump(uint32_t index, string ind)
 {
 	cout << ind << "Atomic " << index << " {\n";
 	ind += "  ";
@@ -278,10 +275,10 @@ void Frame::readExtension(istream &rw)
 				hAnimUnknown2 = readUInt32(rw);;
 				hAnimUnknown3 = readUInt32(rw);;
 			}
-			for (uint32 i = 0; i < hAnimBoneCount; i++) {
+			for (uint32_t i = 0; i < hAnimBoneCount; i++) {
 				hAnimBoneIds.push_back(readInt32(rw));
 				hAnimBoneNumbers.push_back(readUInt32(rw));
-				uint32 flag = readUInt32(rw);
+				uint32_t flag = readUInt32(rw);
 				if((flag&~0x3) != 0)
 					cout << flag << endl;
 				hAnimBoneTypes.push_back(flag);
@@ -296,18 +293,18 @@ void Frame::readExtension(istream &rw)
 //		cout << hAnimBoneId << " " << name << endl;
 }
 
-void Frame::dump(uint32 index, string ind)
+void Frame::dump(uint32_t index, string ind)
 {
 	cout << ind << "Frame " << index << " {\n";
 	ind += "  ";
 
 	cout << ind << "rotationMatrix: ";
-	for (uint32 i = 0; i < 9; i++)
+	for (uint32_t i = 0; i < 9; i++)
 		cout << rotationMatrix[i] << " ";
 	cout << endl;
 
 	cout << ind << "position: ";
-	for (uint32 i = 0; i < 3; i++)
+	for (uint32_t i = 0; i < 3; i++)
 		cout << position[i] << " ";
 	cout << endl;
 	cout << ind << "parent: " << parent << endl;
@@ -347,7 +344,7 @@ void Geometry::read(istream &rw)
 	if (flags & FLAGS_TEXTURED)
 		numUVs = 1;
 	hasNativeGeometry = readUInt8(rw);
-	uint32 triangleCount = readUInt32(rw);
+	uint32_t triangleCount = readUInt32(rw);
 	vertexCount = readUInt32(rw);
 
 	rw.seekg(4, ios::cur); /* number of morph targets, uninteresting */
@@ -360,7 +357,7 @@ void Geometry::read(istream &rw)
 		if (flags & FLAGS_PRELIT) {
 			vertexColors.resize(4*vertexCount);
 			rw.read((char *) (&vertexColors[0]),
-			         4*vertexCount*sizeof(uint8));
+			         4*vertexCount*sizeof(uint8_t));
 		}
 		if (flags & FLAGS_TEXTURED) {
 			texCoords[0].resize(2*vertexCount);
@@ -368,14 +365,14 @@ void Geometry::read(istream &rw)
 			         2*vertexCount*sizeof(float32));
 		}
 		if (flags & FLAGS_TEXTURED2) {
-			for (uint32 i = 0; i < numUVs; i++) {
+			for (uint32_t i = 0; i < numUVs; i++) {
 				texCoords[i].resize(2*vertexCount);
 				rw.read((char *) (&texCoords[i][0]),
 					 2*vertexCount*sizeof(float32));
 			}
 		}
 		faces.resize(4*triangleCount);
-		rw.read((char *) (&faces[0]), 4*triangleCount*sizeof(uint16));
+		rw.read((char *) (&faces[0]), 4*triangleCount*sizeof(uint16_t));
 	}
 
 	/* morph targets, only 1 in gta */
@@ -400,18 +397,17 @@ void Geometry::read(istream &rw)
 	READ_HEADER(CHUNK_MATLIST);
 
 	READ_HEADER(CHUNK_STRUCT);
-	uint32 numMaterials = readUInt32(rw);
+	uint32_t numMaterials = readUInt32(rw);
 	rw.seekg(numMaterials*4, ios::cur);	// constant
 
 	materialList.resize(numMaterials);
-	for (uint32 i = 0; i < numMaterials; i++)
+	for (uint32_t i = 0; i < numMaterials; i++)
 		materialList[i].read(rw);
 
 	readExtension(rw);
 }
 
-void
-Geometry::readExtension(istream &rw)
+void Geometry::readExtension(istream &rw)
 {
 	HeaderInfo header;
 
@@ -425,22 +421,22 @@ Geometry::readExtension(istream &rw)
 		switch(header.type){
 		case CHUNK_BINMESH: {
 			faceType = readUInt32(rw);
-			uint32 numSplits = readUInt32(rw);
+			uint32_t numSplits = readUInt32(rw);
 			numIndices = readUInt32(rw);
 			splits.resize(numSplits);
 			bool hasData = header.length > 12+numSplits*8;
-			for(uint32 i = 0; i < numSplits; i++){
-				uint32 numIndices = readUInt32(rw);
+			for(uint32_t i = 0; i < numSplits; i++){
+				uint32_t numIndices = readUInt32(rw);
 				splits[i].matIndex = readUInt32(rw);
 				splits[i].indices.resize(numIndices);
 				if(hasData){
 					/* OpenGL Data */
 					if(hasNativeGeometry)
-					for(uint32 j = 0; j < numIndices; j++)
+					for(uint32_t j = 0; j < numIndices; j++)
 						splits[i].indices[j] = 
 						  readUInt16(rw);
 					else
-					for(uint32 j = 0; j < numIndices; j++)
+					for(uint32_t j = 0; j < numIndices; j++)
 						splits[i].indices[j] = 
 						  readUInt32(rw);
 				}
@@ -448,22 +444,22 @@ Geometry::readExtension(istream &rw)
 			break;
 		} case CHUNK_NATIVEDATA: {
 			streampos beg = rw.tellg();
-			uint32 size = header.length;
-			uint32 build = header.build;
+			uint32_t size = header.length;
+			uint32_t build = header.build;
 			header.read(rw);
 			if(header.build==build && header.type==CHUNK_STRUCT){
-				uint32 platform = readUInt32(rw);
+				uint32_t platform = readUInt32(rw);
 				rw.seekg(beg, ios::beg);
-				if(platform == PLATFORM_PS2)
-					readPs2NativeData(rw);
-				else if(platform == PLATFORM_XBOX)
-					readXboxNativeData(rw);
-				else
+				//if(platform == PLATFORM_PS2)
+				//	readPs2NativeData(rw);
+				//else if(platform == PLATFORM_XBOX)
+				//	readXboxNativeData(rw);
+				//else
 					cout << "unknown platform " <<
 					        platform << endl;
 			}else{
 				rw.seekg(beg, ios::beg);
-				readOglNativeData(rw, size);
+				//readOglNativeData(rw, size);
 			}
 			break;
 		}
@@ -478,7 +474,7 @@ Geometry::readExtension(istream &rw)
 			nightColorsUnknown = readUInt32(rw);
 			if(nightColors.size() != 0){
 				// native data also has them, so skip
-				rw.seekg(header.length - sizeof(uint32),
+				rw.seekg(header.length - sizeof(uint32_t),
 				          ios::cur);
 			}else{
 				if(nightColorsUnknown != 0){
@@ -498,16 +494,16 @@ Geometry::readExtension(istream &rw)
 			if(hasNativeGeometry){
 				streampos beg = rw.tellg();
 				rw.seekg(0x0c, ios::cur);
-				uint32 platform = readUInt32(rw);
+				uint32_t platform = readUInt32(rw);
 				rw.seekg(beg, ios::beg);
 //				streampos end = beg+header.length;
 				if(platform == PLATFORM_OGL ||
 				   platform == PLATFORM_PS2){
 					hasSkin = true;
 					readNativeSkinMatrices(rw);
-				}else if(platform == PLATFORM_XBOX){
-					hasSkin = true;
-					readXboxNativeSkin(rw);
+				//}else if(platform == PLATFORM_XBOX){
+				//	hasSkin = true;
+				//	readXboxNativeSkin(rw);
 				}else{
 					cout << "skin: unknown platform "
 					     << platform << endl;
@@ -523,19 +519,19 @@ Geometry::readExtension(istream &rw)
 				if (specialIndexCount) {
 					specialIndices.resize(specialIndexCount);
 					rw.read((char *)(&specialIndices[0]),
-						specialIndexCount * sizeof(uint8));
+						specialIndexCount * sizeof(uint8_t));
 				}
 
 				vertexBoneIndices.resize(vertexCount);
 				rw.read((char *) (&vertexBoneIndices[0]),
-					 vertexCount*sizeof(uint32));
+					 vertexCount*sizeof(uint32_t));
 
 				vertexBoneWeights.resize(vertexCount*4);
 				rw.read((char *) (&vertexBoneWeights[0]),
 					 vertexCount*4*sizeof(float32));
 
 				inverseMatrices.resize(boneCount*16);
-				for(uint32 i = 0; i < boneCount; i++){
+				for(uint32_t i = 0; i < boneCount; i++){
 					// skip 0xdeaddead
 					if (specialIndexCount == 0)
 						rw.seekg(4, ios::cur);
@@ -571,7 +567,7 @@ void Geometry::readNativeSkinMatrices(istream &rw)
 
 	READ_HEADER(CHUNK_STRUCT);
 
-	uint32 platform = readUInt32(rw);
+	uint32_t platform = readUInt32(rw);
 	if (platform != PLATFORM_PS2 && platform != PLATFORM_OGL) {
 		cerr << "error: native skin not in ps2 or ogl format\n";
 		return;
@@ -584,10 +580,10 @@ void Geometry::readNativeSkinMatrices(istream &rw)
 
 	specialIndices.resize(specialIndexCount);
 	rw.read((char *) (&specialIndices[0]),
-			specialIndexCount*sizeof(uint8));
+			specialIndexCount*sizeof(uint8_t));
 
 	inverseMatrices.resize(boneCount*0x10);
-	for (uint32 i = 0; i < boneCount; i++)
+	for (uint32_t i = 0; i < boneCount; i++)
 		rw.read((char *) (&inverseMatrices[i*0x10]),
 		        0x10*sizeof(float32));
 
@@ -601,11 +597,11 @@ void Geometry::readMeshExtension(istream &rw)
 	if (meshExtension->unknown == 0)
 		return;
 	rw.seekg(0x4, ios::cur);
-	uint32 vertexCount = readUInt32(rw);
+	uint32_t vertexCount = readUInt32(rw);
 	rw.seekg(0xC, ios::cur);
-	uint32 faceCount = readUInt32(rw);
+	uint32_t faceCount = readUInt32(rw);
 	rw.seekg(0x8, ios::cur);
-	uint32 materialCount = readUInt32(rw);
+	uint32_t materialCount = readUInt32(rw);
 	rw.seekg(0x10, ios::cur);
 
 	/* vertices */
@@ -619,35 +615,35 @@ void Geometry::readMeshExtension(istream &rw)
 	/* vertex colors */
 	meshExtension->vertexColors.resize(4*vertexCount);
 	rw.read((char *) (&meshExtension->vertexColors[0]),
-		 4*vertexCount*sizeof(uint8));
+		 4*vertexCount*sizeof(uint8_t));
 	/* faces */
 	meshExtension->faces.resize(3*faceCount);
 	rw.read((char *) (&meshExtension->faces[0]),
-		 3*faceCount*sizeof(uint16));
+		 3*faceCount*sizeof(uint16_t));
 	/* material assignments */
 	meshExtension->assignment.resize(faceCount);
 	rw.read((char *) (&meshExtension->assignment[0]),
-		 faceCount*sizeof(uint16));
+		 faceCount*sizeof(uint16_t));
 
 	meshExtension->textureName.resize(materialCount);
 	meshExtension->maskName.resize(materialCount);
 	char buffer[0x20];
-	for (uint32 i = 0; i < materialCount; i++) {
+	for (uint32_t i = 0; i < materialCount; i++) {
 		rw.read(buffer, 0x20);
 		meshExtension->textureName[i] = buffer;
 	}
-	for (uint32 i = 0; i < materialCount; i++) {
+	for (uint32_t i = 0; i < materialCount; i++) {
 		rw.read(buffer, 0x20);
 		meshExtension->maskName[i] = buffer;
 	}
-	for (uint32 i = 0; i < materialCount; i++) {
+	for (uint32_t i = 0; i < materialCount; i++) {
 		meshExtension->unknowns.push_back(readFloat32(rw));
 		meshExtension->unknowns.push_back(readFloat32(rw));
 		meshExtension->unknowns.push_back(readFloat32(rw));
 	}
 }
 
-bool Geometry::isDegenerateFace(uint32 i, uint32 j, uint32 k)
+bool Geometry::isDegenerateFace(uint32_t i, uint32_t j, uint32_t k)
 {
 	if (vertices[i*3+0] == vertices[j*3+0] &&
 	    vertices[i*3+1] == vertices[j*3+1] &&
@@ -669,10 +665,10 @@ void Geometry::generateFaces(void)
 {
 	faces.clear();
 
-	for (uint32 i = 0; i < splits.size(); i++) {
+	for (uint32_t i = 0; i < splits.size(); i++) {
 		Split &s = splits[i];
 		if (faceType == FACETYPE_STRIP)
-			for (uint32 j = 0; j < s.indices.size()-2; j++) {
+			for (uint32_t j = 0; j < s.indices.size()-2; j++) {
 //				if (isDegenerateFace(s.indices[j+0],
 //				    s.indices[j+1], s.indices[j+2]))
 //					continue;
@@ -686,7 +682,7 @@ void Geometry::generateFaces(void)
 				faces.push_back(s.indices[j+2 - (j%2)]);
 			}
 		else
-			for (uint32 j = 0; j < s.indices.size()-2; j+=3) {
+			for (uint32_t j = 0; j < s.indices.size()-2; j+=3) {
 				faces.push_back(s.indices[j+1]);
 				faces.push_back(s.indices[j+0]);
 				faces.push_back(s.matIndex);
@@ -699,18 +695,18 @@ void Geometry::generateFaces(void)
 vector<float32> vertices_new;
 vector<float32> normals_new;
 vector<float32> texCoords_new[8];
-vector<uint8> vertexColors_new;
-vector<uint8> nightColors_new;
-vector<uint32> vertexBoneIndices_new;
+vector<uint8_t> vertexColors_new;
+vector<uint8_t> nightColors_new;
+vector<uint32_t> vertexBoneIndices_new;
 vector<float32> vertexBoneWeights_new;
 
 // used only by Geometry::cleanUp()
 // adds new temporary vertex if it isn't already in the list
 // and returns the new index of that vertex
-uint32 Geometry::addTempVertexIfNew(uint32 index)
+uint32_t Geometry::addTempVertexIfNew(uint32_t index)
 {
 	// return if we already have the vertex
-	for (uint32 i = 0; i < vertices_new.size()/3; i++) {
+	for (uint32_t i = 0; i < vertices_new.size()/3; i++) {
 		if (vertices_new[i*3+0] != vertices[index*3+0] ||
 		    vertices_new[i*3+1] != vertices[index*3+1] ||
 		    vertices_new[i*3+2] != vertices[index*3+2])
@@ -722,7 +718,7 @@ uint32 Geometry::addTempVertexIfNew(uint32 index)
 				continue;
 		}
 		if (flags & FLAGS_TEXTURED || flags & FLAGS_TEXTURED2) {
-			for (uint32 j = 0; j < numUVs; j++)
+			for (uint32_t j = 0; j < numUVs; j++)
 				if (texCoords_new[j][i*2+0] !=
 				                    texCoords[j][index*2+0] ||
 				    texCoords_new[j][i*2+1] !=
@@ -773,7 +769,7 @@ uint32 Geometry::addTempVertexIfNew(uint32 index)
 		normals_new.push_back(normals[index*3+2]);
 	}
 	if (flags & FLAGS_TEXTURED || flags & FLAGS_TEXTURED2) {
-		for (uint32 j = 0; j < numUVs; j++) {
+		for (uint32_t j = 0; j < numUVs; j++) {
 			texCoords_new[j].push_back(texCoords[j][index*2+0]);
 			texCoords_new[j].push_back(texCoords[j][index*2+1]);
 		}
@@ -808,22 +804,22 @@ void Geometry::cleanUp(void)
 	normals_new.clear();
 	vertexColors_new.clear();
 	nightColors_new.clear();
-	for (uint32 i = 0; i < 8; i++)
+	for (uint32_t i = 0; i < 8; i++)
 		texCoords_new[i].clear();
 	vertexBoneIndices_new.clear();
 	vertexBoneWeights_new.clear();
 
-	vector<uint32> newIndices;
+	vector<uint32_t> newIndices;
 
 	// create new vertex list
-	for (uint32 i = 0; i < vertices.size()/3; i++)
+	for (uint32_t i = 0; i < vertices.size()/3; i++)
 		newIndices.push_back(addTempVertexIfNew(i));
 
 	vertices = vertices_new;
 	if (flags & FLAGS_NORMALS)
 		normals = normals_new;
 	if (flags & FLAGS_TEXTURED || flags & FLAGS_TEXTURED2)
-		for (uint32 j = 0; j < numUVs; j++)
+		for (uint32_t j = 0; j < numUVs; j++)
 			texCoords[j] = texCoords_new[j];
 	if (flags & FLAGS_PRELIT)
 		vertexColors = vertexColors_new;
@@ -835,18 +831,18 @@ void Geometry::cleanUp(void)
 	}
 
 	// correct indices
-	for (uint32 i = 0; i < splits.size(); i++)
-		for (uint32 j = 0; j < splits[i].indices.size(); j++)
+	for (uint32_t i = 0; i < splits.size(); i++)
+		for (uint32_t j = 0; j < splits[i].indices.size(); j++)
 			splits[i].indices[j] = newIndices[splits[i].indices[j]];
 
-	for (uint32 i = 0; i < faces.size()/4; i++) {
+	for (uint32_t i = 0; i < faces.size()/4; i++) {
 		faces[i*4+0] = newIndices[faces[i*4+0]];
 		faces[i*4+1] = newIndices[faces[i*4+1]];
 		faces[i*4+3] = newIndices[faces[i*4+3]];
 	}
 }
 
-void Geometry::dump(uint32 index, string ind, bool detailed)
+void Geometry::dump(uint32_t index, string ind, bool detailed)
 {
 	cout << ind << "Geometry " << index << " {\n";
 	ind += "  ";
@@ -863,7 +859,7 @@ void Geometry::dump(uint32 index, string ind, bool detailed)
 		if (!detailed)
 			cout << ind << "skipping\n";
 		else
-			for (uint32 i = 0; i < vertexColors.size()/4; i++)
+			for (uint32_t i = 0; i < vertexColors.size()/4; i++)
 				cout << ind << int(vertexColors[i*4+0])<< ", "
 					<< int(vertexColors[i*4+1]) << ", "
 					<< int(vertexColors[i*4+2]) << ", "
@@ -878,20 +874,20 @@ void Geometry::dump(uint32 index, string ind, bool detailed)
 		if (!detailed)
 			cout << ind << "skipping\n";
 		else
-			for (uint32 i = 0; i < texCoords[0].size()/2; i++)
+			for (uint32_t i = 0; i < texCoords[0].size()/2; i++)
 				cout << ind << texCoords[0][i*2+0]<< ", "
 					<< texCoords[0][i*2+1] << endl;
 		ind = ind.substr(0, ind.size()-2);
 		cout << ind << "}\n\n";
 	}
 	if (flags & FLAGS_TEXTURED2) {
-		for (uint32 j = 0; j < numUVs; j++) {
+		for (uint32_t j = 0; j < numUVs; j++) {
 		cout << ind << "texCoords " << j << " {\n";
 		ind += "  ";
 		if (!detailed)
 			cout << ind << "skipping\n";
 		else
-			for (uint32 i = 0; i < texCoords[j].size()/2; i++)
+			for (uint32_t i = 0; i < texCoords[j].size()/2; i++)
 				cout << ind << texCoords[j][i*2+0]<< ", "
 					<< texCoords[j][i*2+1] << endl;
 		ind = ind.substr(0, ind.size()-2);
@@ -904,7 +900,7 @@ void Geometry::dump(uint32 index, string ind, bool detailed)
 	if (!detailed)
 		cout << ind << "skipping\n";
 	else
-		for (uint32 i = 0; i < faces.size()/4; i++)
+		for (uint32_t i = 0; i < faces.size()/4; i++)
 			cout << ind << faces[i*4+0] << ", "
 			            << faces[i*4+1] << ", "
 			            << faces[i*4+2] << ", "
@@ -913,7 +909,7 @@ void Geometry::dump(uint32 index, string ind, bool detailed)
 	cout << ind << "}\n\n";
 
 	cout << ind << "boundingSphere: ";
-	for (uint32 i = 0; i < 4; i++)
+	for (uint32_t i = 0; i < 4; i++)
 		cout << boundingSphere[i] << " ";
 	cout << endl << endl;
 	cout << ind << "hasPositions: " << hasPositions << endl;
@@ -924,7 +920,7 @@ void Geometry::dump(uint32 index, string ind, bool detailed)
 	if (!detailed)
 		cout << ind << "skipping\n";
 	else
-		for (uint32 i = 0; i < vertices.size()/3; i++)
+		for (uint32_t i = 0; i < vertices.size()/3; i++)
 			cout << ind << vertices[i*3+0] << ", "
 			            << vertices[i*3+1] << ", "
 			            << vertices[i*3+2] << endl;
@@ -937,7 +933,7 @@ void Geometry::dump(uint32 index, string ind, bool detailed)
 		if (!detailed)
 			cout << ind << "skipping\n";
 		else
-			for (uint32 i = 0; i < normals.size()/3; i++)
+			for (uint32_t i = 0; i < normals.size()/3; i++)
 				cout << ind << normals[i*3+0] << ", "
 					    << normals[i*3+1] << ", "
 					    << normals[i*3+2] << endl;
@@ -949,7 +945,7 @@ void Geometry::dump(uint32 index, string ind, bool detailed)
 	ind += "  ";
 	cout << ind << "faceType: " << faceType << endl;
 	cout << ind << "numIndices: " << numIndices << endl;
-	for (uint32 i = 0; i < splits.size(); i++) {
+	for (uint32_t i = 0; i < splits.size(); i++) {
 		cout << endl << ind << "Split " << i << " {\n";
 		ind += "  ";
 		cout << ind << "matIndex: " << splits[i].matIndex << endl;
@@ -958,7 +954,7 @@ void Geometry::dump(uint32 index, string ind, bool detailed)
 		if(!detailed)
 			cout << ind+"  skipping\n";
 		else
-			for(uint32 j = 0; j < splits[i].indices.size(); j++)
+			for(uint32_t j = 0; j < splits[i].indices.size(); j++)
 				cout << ind+" " << splits[i].indices[j] << endl;
 		cout << ind << "}\n";
 		ind = ind.substr(0, ind.size()-2);
@@ -971,7 +967,7 @@ void Geometry::dump(uint32 index, string ind, bool detailed)
 	cout << endl << ind << "MaterialList {\n";
 	ind += "  ";
 	cout << ind << "numMaterials: " << materialList.size() << endl;
-	for (uint32 i = 0; i < materialList.size(); i++)
+	for (uint32_t i = 0; i < materialList.size(); i++)
 		materialList[i].dump(i, ind);
 	ind = ind.substr(0, ind.size()-2);
 	cout << ind << "}\n";
@@ -1012,9 +1008,9 @@ Geometry::Geometry(const Geometry &orig)
 	else
 		meshExtension = 0;
 
-	for (uint32 i = 0; i < 8; i++)
+	for (uint32_t i = 0; i < 8; i++)
 		texCoords[i] = orig.texCoords[i];
-	for (uint32 i = 0; i < 4; i++)
+	for (uint32_t i = 0; i < 4; i++)
 		boundingSphere[i] = orig.boundingSphere[i];
 }
 
@@ -1028,10 +1024,10 @@ Geometry &Geometry::operator=(const Geometry &that)
 		vertexCount = that.vertexCount;
 		faces = that.faces;
 		vertexColors = that.vertexColors;
-		for (uint32 i = 0; i < 8; i++)
+		for (uint32_t i = 0; i < 8; i++)
 			texCoords[i] = that.texCoords[i];
 
-		for (uint32 i = 0; i < 4; i++)
+		for (uint32_t i = 0; i < 4; i++)
 			boundingSphere[i] = that.boundingSphere[i];
 
 		hasPositions = that.hasPositions;
@@ -1089,7 +1085,7 @@ void Material::read(istream &rw)
 
 	READ_HEADER(CHUNK_STRUCT);
 	flags = readUInt32(rw);
-	rw.read((char *) (color), 4*sizeof(uint8));
+	rw.read((char *) (color), 4*sizeof(uint8_t));
 	unknown = readUInt32(rw);;
 	hasTex = readInt32(rw);
 	rw.read((char *) (surfaceProps), 3*sizeof(float32));
@@ -1207,7 +1203,7 @@ void Material::readExtension(istream &rw)
 		case CHUNK_SPECULARMAT: {
 			hasSpecularMat = true;
 			specularLevel = readFloat32(rw);
-			uint32 len = header.length - sizeof(float32) - 4;
+			uint32_t len = header.length - sizeof(float32) - 4;
 			char *name = new char[len];
 			rw.read(name, len);
 			specularName = name;
@@ -1229,7 +1225,7 @@ void Material::readExtension(istream &rw)
 	}
 }
 
-void Material::dump(uint32 index, string ind)
+void Material::dump(uint32_t index, string ind)
 {
 	cout << ind << "Material " << index << " {\n";
 	ind += "  ";
@@ -1313,11 +1309,11 @@ Material::Material(const Material& orig)
 	else
 		matFx = 0;
 
-	for (uint32 i = 0; i < 4; i++)
+	for (uint32_t i = 0; i < 4; i++)
 		color[i] = orig.color[i];
-	for (uint32 i = 0; i < 3; i++)
+	for (uint32_t i = 0; i < 3; i++)
 		surfaceProps[i] = orig.surfaceProps[i];
-	for (uint32 i = 0; i < 4; i++)
+	for (uint32_t i = 0; i < 4; i++)
 		reflectionChannelAmount[i] = orig.reflectionChannelAmount[i];
 }
 
@@ -1325,11 +1321,11 @@ Material &Material::operator=(const Material &that)
 {
 	if (this != &that) {
 		flags = that.flags;
-		for (uint32 i = 0; i < 4; i++)
+		for (uint32_t i = 0; i < 4; i++)
 			color[i] = that.color[i];
 		unknown = that.unknown;
 		hasTex = that.hasTex;
-		for (uint32 i = 0; i < 3; i++)
+		for (uint32_t i = 0; i < 3; i++)
 			surfaceProps[i] = that.surfaceProps[i];
 
 		texture = that.texture;
@@ -1345,7 +1341,7 @@ Material &Material::operator=(const Material &that)
 			matFx = new MatFx(*that.matFx);
 
 		hasReflectionMat = that.hasReflectionMat;
-		for (uint32 i = 0; i < 4; i++)
+		for (uint32_t i = 0; i < 4; i++)
 			reflectionChannelAmount[i] =
 					that.reflectionChannelAmount[i];
 		reflectionIntensity = that.reflectionIntensity;
@@ -1364,8 +1360,7 @@ Material::~Material(void)
 	delete matFx;
 }
 
-void
-MatFx::dump(string ind)
+void MatFx::dump(string ind)
 {
 	static const char *names[] = {
 		"INVALID",
@@ -1403,7 +1398,6 @@ MatFx::MatFx(void)
 : hasTex1(false), hasTex2(false), hasDualPassMap(false)
 {
 }
-
 
 /*
  * Texture

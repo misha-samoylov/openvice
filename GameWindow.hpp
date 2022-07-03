@@ -6,7 +6,7 @@
 class GameWindow
 {
 public:
-	void Init(HINSTANCE hInstance, int nCmdShow, int width, int height, LPCWSTR windowTitle);
+	HRESULT Init(HINSTANCE hInstance, int nCmdShow, int width, int height, LPCWSTR windowTitle);
 	void Cleanup();
 
 	HWND GetHandleWindow();
@@ -14,7 +14,7 @@ public:
 private:
 	HWND mHWnd;
 
-	HWND CreateWindowApp(HINSTANCE hInstance, int nCmdShow, int width, int height, LPCWSTR windowTitle);
+	HRESULT CreateWindowApp(HINSTANCE hInstance, int nCmdShow, int width, int height, LPCWSTR windowTitle);
 	void ShowConsole();
 	static LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wp, LPARAM lp);
 };

@@ -1,4 +1,4 @@
-#include "GameCamera.h"
+#include "GameCamera.hpp"
 
 void GameCamera::Init(float width, float height)
 {
@@ -17,7 +17,6 @@ void GameCamera::Init(float width, float height)
 
 void GameCamera::Cleanup()
 {
-	// none
 }
 
 void GameCamera::Update(float camPitch, float camYaw, float moveLeftRight, float moveBackForward)

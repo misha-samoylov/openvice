@@ -76,8 +76,8 @@
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>..\glfw-3.3.7\include;..\glew-2.2.0\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <LanguageStandard>stdcpp14</LanguageStandard>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -130,10 +130,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="dffconv.cpp" />
     <ClCompile Include="dffread.cpp" />
-    <ClCompile Include="dffwrite.cpp" />
-    <ClCompile Include="dumprwtree.cpp" />
     <ClCompile Include="GameCamera.cpp" />
     <ClCompile Include="GameInput.cpp" />
     <ClCompile Include="GameModel.cpp" />
@@ -142,24 +139,17 @@
     <ClCompile Include="GameWindow.cpp" />
     <ClCompile Include="ImgLoader.cpp" />
     <ClCompile Include="main.cpp" />
-    <ClCompile Include="oglnative.cpp" />
-    <ClCompile Include="ps2native.cpp" />
     <ClCompile Include="renderware.cpp" />
-    <ClCompile Include="txdconv.cpp" />
-    <ClCompile Include="txdex.cpp" />
     <ClCompile Include="txdread.cpp" />
-    <ClCompile Include="txdwrite.cpp" />
     <ClCompile Include="uvanim.cpp" />
-    <ClCompile Include="xboxnative.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="args.h" />
-    <ClInclude Include="GameCamera.h" />
-    <ClInclude Include="GameInput.h" />
-    <ClInclude Include="GameModel.h" />
-    <ClInclude Include="GameRender.h" />
-    <ClInclude Include="GameUtils.h" />
-    <ClInclude Include="GameWindow.h" />
+    <ClInclude Include="GameCamera.hpp" />
+    <ClInclude Include="GameInput.hpp" />
+    <ClInclude Include="GameModel.hpp" />
+    <ClInclude Include="GameRender.hpp" />
+    <ClInclude Include="GameUtils.hpp" />
+    <ClInclude Include="GameWindow.hpp" />
     <ClInclude Include="ImgLoader.hpp" />
     <ClInclude Include="renderware.h" />
   </ItemGroup>

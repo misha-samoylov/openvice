@@ -8,12 +8,12 @@
 #include "renderware.h"
 
 #include "ImgLoader.hpp"
-#include "GameModel.h"
-#include "GameRender.h"
-#include "GameCamera.h"
-#include "GameInput.h"
-#include "GameWindow.h"
-#include "GameUtils.h"
+#include "GameModel.hpp"
+#include "GameRender.hpp"
+#include "GameCamera.hpp"
+#include "GameInput.hpp"
+#include "GameWindow.hpp"
+#include "GameUtils.hpp"
 
 #define WINDOW_WIDTH 1400
 #define WINDOW_HEIGHT 1200
@@ -21,16 +21,41 @@
 
 using namespace DirectX; /* DirectXMath.h */
 
-int LoadGameFile()
+std::vector<GameModel*> gModels;
+
+/* void LoadTxdFile()
 {
-	ImgLoader *imgLoader = new ImgLoader();
-	imgLoader->Open("E:/games/Grand Theft Auto Vice City/models/gta3.img",
-		"E:/games/Grand Theft Auto Vice City/models/gta3.dir");
+	filename = argv[1];
+	ifstream rw(argv[1], ios::binary);
+	TextureDictionary txd;
+	txd.read(rw);
+	rw.close();
+	for (uint32 i = 0; i < txd.texList.size(); i++) {
+		NativeTexture &t = txd.texList[i];
+		cout << i << " " << t.name << " " << t.maskName << " "
+			<< " " << t.width[0] << " " << t.height[0] << " "
+			<< " " << t.depth << " " << hex << t.rasterFormat << endl;
+		if (txd.texList[i].platform == PLATFORM_PS2)
+			txd.texList[i].convertFromPS2(0x40);
+		if (txd.texList[i].platform == PLATFORM_XBOX)
+			txd.texList[i].convertFromXbox();
+		if (txd.texList[i].dxtCompression)
+			txd.texList[i].decompressDxt();
+		txd.texList[i].convertTo32Bit();
+		txd.texList[i].writeTGA();
+	}
+} */
+
+int LoadGameFile(GameRender *render)
+{
+	/* ImgLoader *imgLoader = new ImgLoader();
+	imgLoader->Open("D:/games/Grand Theft Auto Vice City/models/gta3.img",
+		"D:/games/Grand Theft Auto Vice City/models/gta3.dir");
 	imgLoader->FileSaveById(152);
 	imgLoader->Cleanup();
-	delete imgLoader;
+	delete imgLoader; */
 
-	std::ifstream in("C:/Files/projects/openvice/lawyer.dff", std::ios::binary);
+	std::ifstream in("C:/Users/john/Downloads/basketballcourt04.dff", std::ios::binary);
 	if (!in.is_open()) {
 		MessageBox(NULL, L"Cannot open file", L"Error", MB_ICONERROR | MB_OK);
 		return -1;
@@ -39,37 +64,50 @@ int LoadGameFile()
 	rw::Clump *clump = new rw::Clump();
 	clump->read(in);
 	clump->dump();
+	
+	for (uint32_t index = 0; index < clump->geometryList.size(); index++) {
 
-	/* for (uint32_t index = 0; index < clump->geometryList.size(); index++) {
-		std::vector<rw::uint16> faces;
-
-		for (uint32_t i = 0; i < clump->geometryList[index].faces.size() / 4; i++) {
-			float f1 = clump->geometryList[index].faces[i * 4 + 0];
-			faces.push_back(f1);
-
-			float f2 = clump->geometryList[index].faces[i * 4 + 1];
-			faces.push_back(f2);
-
-			float f3 = clump->geometryList[index].faces[i * 4 + 2];
-			faces.push_back(f3);
-
-			float f4 = clump->geometryList[index].faces[i * 4 + 3];
-			faces.push_back(f4);
-		}
-
-		std::vector <rw::float32> vertices;
+		std::vector<float> gvertices;
 
 		for (uint32_t i = 0; i < clump->geometryList[index].vertices.size() / 3; i++) {
+
 			float x = clump->geometryList[index].vertices[i * 3 + 0];
-			vertices.push_back(x);
+			gvertices.push_back(x);
 
 			float y = clump->geometryList[index].vertices[i * 3 + 1];
-			vertices.push_back(y);
+			gvertices.push_back(y);
 
 			float z = clump->geometryList[index].vertices[i * 3 + 2];
-			vertices.push_back(z);
+			gvertices.push_back(z);
 		}
-	} */
+
+		for (uint32_t i = 0; i < clump->geometryList[index].splits.size(); i++) {
+
+			std::vector<uint32_t> gindices;
+
+			for (uint32_t j = 0; j < clump->geometryList[index].splits[i].indices.size(); j++) {
+				gindices.push_back(clump->geometryList[index].splits[i].indices[j]);
+			}
+
+			float *vertices = &gvertices[0]; /* convert to array float */
+			int countVertices = gvertices.size();
+
+			unsigned int *indices = &gindices[0];  /* convert to array unsigned int */
+			int countIndices = clump->geometryList[index].splits[i].indices.size();
+
+			D3D_PRIMITIVE_TOPOLOGY topology =
+				clump->geometryList[index].faceType == rw::FACETYPE_STRIP
+				? D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP
+				: D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+
+			GameModel *gameModel = new GameModel();
+			gameModel->Init(render, vertices, countVertices,
+				indices, countIndices,
+				topology);
+
+			gModels.push_back(gameModel);
+		}
+	}
 
 	clump->clear();
 	delete clump;
@@ -77,14 +115,13 @@ int LoadGameFile()
 	return 0;
 }
 
-void Render(GameRender *render, GameCamera *camera, GameModel *model, float time)
+void Render(GameRender *render, GameCamera *camera)
 {
 	render->RenderStart();
-	model->Render(render, camera);
 
-	/* for (int i = 0; i < gModels.size(); i++) {
-		gModels[i]->render();
-	} */
+	for (int i = 0; i < gModels.size(); i++) {
+		gModels[i]->Render(render, camera);
+	}
 
 	render->RenderEnd();
 }
@@ -104,10 +141,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 	GameRender *gameRender = new GameRender();
 	gameRender->Init(gameWindow->GetHandleWindow());
 
-	GameModel *gameModel = new GameModel();
-	gameModel->Init(gameRender);
-
-	LoadGameFile();
+	LoadGameFile(gameRender);
 
 	float moveLeftRight = 0.0f;
 	float moveBackForward = 0.0f;
@@ -136,7 +170,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 		if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
 			TranslateMessage(&msg);
 			DispatchMessage(&msg);
-		} else { // If have not messagess
+		} else { /* if have not messages */
 			frameCount++;
 
 			if (GameUtils::GetTime() > 1.0f) {
@@ -185,7 +219,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 
 			gameCamera->Update(camPitch, camYaw, moveLeftRight, moveBackForward);
 
-			Render(gameRender, gameCamera, gameModel, frameTime);
+			Render(gameRender, gameCamera);
 
 			moveLeftRight = 0.0f;
 			moveBackForward = 0.0f;
@@ -195,11 +229,13 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 	gameRender->Cleanup();
 	gameCamera->Cleanup();
 	gameInput->Cleanup();
-	gameModel->Cleanup();
+	for (int i = 0; i < gModels.size(); i++) {
+		gModels[i]->Cleanup();
+		delete gModels[i];
+	}
 
 	delete gameCamera;
 	delete gameInput;
-	delete gameModel;
 	delete gameRender;
 
 	return msg.wParam;

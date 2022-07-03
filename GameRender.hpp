@@ -1,5 +1,7 @@
 #pragma once
 
+#include <stdio.h>
+
 #include <d3d11.h>
 #include <d3dcompiler.h>
 
@@ -19,12 +21,15 @@ public:
 	ID3D11DeviceContext *getDeviceContext();
 
 private:
+	void InitViewport(HWND hWnd);
+	HRESULT CreateBackBuffer();
+	HRESULT CreateWireframe();
+
 	ID3D11Device *m_pDevice;
 	ID3D11DeviceContext *m_pDeviceContext;
 
 	IDXGISwapChain *m_pSwapChain;
 	ID3D11RenderTargetView *m_pRenderTargetView;
 
-	void InitViewport(HWND hWnd);
-	HRESULT CreateBackBuffer();
+	ID3D11RasterizerState *m_pWireframe;
 };
