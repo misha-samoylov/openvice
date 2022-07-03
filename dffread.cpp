@@ -1,11 +1,10 @@
 #include <cmath>
 
 #include "renderware.h"
+
 using namespace std;
 
 namespace rw {
-
-char *filename;
 
 /*
  * Clump
@@ -14,7 +13,6 @@ char *filename;
 void Clump::read(istream& rw)
 {
 	HeaderInfo header;
-
 	header.read(rw);
 
 	READ_HEADER(CHUNK_STRUCT);
@@ -124,8 +122,7 @@ void Clump::clear(void)
 	colData.clear();
 }
 
-void
-Light::read(std::istream &rw)
+void Light::read(std::istream &rw)
 {
 	HeaderInfo header;
 
@@ -410,8 +407,7 @@ void Geometry::read(istream &rw)
 	readExtension(rw);
 }
 
-void
-Geometry::readExtension(istream &rw)
+void Geometry::readExtension(istream &rw)
 {
 	HeaderInfo header;
 
@@ -1364,8 +1360,7 @@ Material::~Material(void)
 	delete matFx;
 }
 
-void
-MatFx::dump(string ind)
+void MatFx::dump(string ind)
 {
 	static const char *names[] = {
 		"INVALID",
@@ -1403,7 +1398,6 @@ MatFx::MatFx(void)
 : hasTex1(false), hasTex2(false), hasDualPassMap(false)
 {
 }
-
 
 /*
  * Texture

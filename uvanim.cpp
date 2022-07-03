@@ -4,14 +4,14 @@ using namespace std;
 
 namespace rw {
 
-/* You can write ONE header per C BLOCk using these macros */
+/* you can write ONE header per C BLOCk using these macros */
+
 #define SKIP_HEADER()\
 	uint32 bytesWritten = 0;\
 	uint32 headerPos = rw.tellp();\
 	rw.seekp(0x0C, ios::cur);
 
-void
-UVAnimation::read(istream &rw)
+void UVAnimation::read(istream &rw)
 {
 	HeaderInfo header;
 	READ_HEADER(CHUNK_ANIMANIMATION);
@@ -19,8 +19,7 @@ UVAnimation::read(istream &rw)
 	rw.read((char*)&data[0], header.length);
 }
 
-void
-UVAnimDict::read(istream &rw)
+void UVAnimDict::read(istream &rw)
 {
 	HeaderInfo header;
 	uint32 end;
@@ -35,8 +34,7 @@ UVAnimDict::read(istream &rw)
 		animList[i].read(rw);
 }
 
-void
-UVAnimDict::clear(void)
+void UVAnimDict::clear(void)
 {
 	animList.clear();
 }

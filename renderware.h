@@ -13,7 +13,6 @@
 	#define READ_HEADER(x)\
 	header.read(rw);\
 	if (header.type != (x)) {\
-		cerr << filename << " ";\
 		ChunkNotFound((x), rw.tellg());\
 	}
 #else
@@ -34,7 +33,6 @@ typedef unsigned int uint32;
 typedef unsigned long long uint64;
 typedef float float32;
 
-extern char *filename;
 extern uint32 version;
 
 enum PLATFORM_ID {
