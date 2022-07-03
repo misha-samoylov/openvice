@@ -23,6 +23,29 @@ using namespace DirectX; /* DirectXMath.h */
 
 std::vector<GameModel*> gModels;
 
+/* void LoadTxdFile()
+{
+	filename = argv[1];
+	ifstream rw(argv[1], ios::binary);
+	TextureDictionary txd;
+	txd.read(rw);
+	rw.close();
+	for (uint32 i = 0; i < txd.texList.size(); i++) {
+		NativeTexture &t = txd.texList[i];
+		cout << i << " " << t.name << " " << t.maskName << " "
+			<< " " << t.width[0] << " " << t.height[0] << " "
+			<< " " << t.depth << " " << hex << t.rasterFormat << endl;
+		if (txd.texList[i].platform == PLATFORM_PS2)
+			txd.texList[i].convertFromPS2(0x40);
+		if (txd.texList[i].platform == PLATFORM_XBOX)
+			txd.texList[i].convertFromXbox();
+		if (txd.texList[i].dxtCompression)
+			txd.texList[i].decompressDxt();
+		txd.texList[i].convertTo32Bit();
+		txd.texList[i].writeTGA();
+	}
+} */
+
 int LoadGameFile(GameRender *render)
 {
 	/* ImgLoader *imgLoader = new ImgLoader();

@@ -844,41 +844,6 @@ void NativeTexture::decompressDxt(void)
 		cout << "dxt" << dxtCompression << " not supported\n";
 }
 
-void NativeTexture::writeTGA(void)
-{
-	if (depth != 32) {
-		cout << "not writing file: " << filename << endl;
-		return;
-	}
-	char filename[36];
-	strcpy(filename, name.c_str());
-	strcat(filename, ".tga");
-	ofstream tga(filename, ios::binary);
-	if (tga.fail()) {
-		cout << "not writing file: " << filename << endl;
-		return;
-	}
-	writeUInt8(0, tga);
-	writeUInt8(0, tga);
-	writeUInt8(2, tga);
-	writeUInt16(0, tga);
-	writeUInt16(0, tga);
-	writeUInt8(0, tga);
-	writeUInt16(0, tga);
-	writeUInt16(0, tga);
-	writeUInt16(width[0], tga);
-	writeUInt16(height[0], tga);
-	writeUInt8(0x20, tga);
-	writeUInt8(0x28, tga);
-	for (uint32 j = 0; j < width[0]*height[0]; j++){
-		writeUInt8(texels[0][j*4+0], tga);
-		writeUInt8(texels[0][j*4+1], tga);
-		writeUInt8(texels[0][j*4+2], tga);
-		writeUInt8(texels[0][j*4+3], tga);
-	}
-	tga.close();
-}
-
 NativeTexture::NativeTexture(void)
 : platform(0), name(""), maskName(""), filterFlags(0), rasterFormat(0),
   depth(0), palette(0), paletteSize(0), hasAlpha(false), mipmapCount(0),

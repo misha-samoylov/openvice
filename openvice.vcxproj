@@ -130,10 +130,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="dffconv.cpp" />
     <ClCompile Include="dffread.cpp" />
-    <ClCompile Include="dffwrite.cpp" />
-    <ClCompile Include="dumprwtree.cpp" />
     <ClCompile Include="GameCamera.cpp" />
     <ClCompile Include="GameInput.cpp" />
     <ClCompile Include="GameModel.cpp" />
@@ -142,17 +139,11 @@
     <ClCompile Include="GameWindow.cpp" />
     <ClCompile Include="ImgLoader.cpp" />
     <ClCompile Include="main.cpp" />
-    <ClCompile Include="oglnative.cpp" />
-    <ClCompile Include="ps2native.cpp" />
     <ClCompile Include="renderware.cpp" />
-    <ClCompile Include="txdconv.cpp" />
-    <ClCompile Include="txdex.cpp" />
     <ClCompile Include="txdread.cpp" />
-    <ClCompile Include="txdwrite.cpp" />
     <ClCompile Include="uvanim.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="args.h" />
     <ClInclude Include="GameCamera.hpp" />
     <ClInclude Include="GameInput.hpp" />
     <ClInclude Include="GameModel.hpp" />

@@ -454,16 +454,16 @@ Geometry::readExtension(istream &rw)
 			if(header.build==build && header.type==CHUNK_STRUCT){
 				uint32 platform = readUInt32(rw);
 				rw.seekg(beg, ios::beg);
-				if(platform == PLATFORM_PS2)
-					readPs2NativeData(rw);
+				//if(platform == PLATFORM_PS2)
+				//	readPs2NativeData(rw);
 				//else if(platform == PLATFORM_XBOX)
 				//	readXboxNativeData(rw);
-				else
+				//else
 					cout << "unknown platform " <<
 					        platform << endl;
 			}else{
 				rw.seekg(beg, ios::beg);
-				readOglNativeData(rw, size);
+				//readOglNativeData(rw, size);
 			}
 			break;
 		}

@@ -146,18 +146,10 @@ struct HeaderInfo {
 	uint32 version;
 	bool read(std::istream &rw);
 	bool peek(std::istream &rw);
-	uint32 write(std::ostream &rw);
 	bool findChunk(std::istream &rw, uint32 type);
 };
 
 void ChunkNotFound(CHUNK_TYPE chunk, uint32 address);
-uint32 writeInt8(int8 tmp, std::ostream &rw);
-uint32 writeUInt8(uint8 tmp, std::ostream &rw);
-uint32 writeInt16(int16 tmp, std::ostream &rw);
-uint32 writeUInt16(uint16 tmp, std::ostream &rw);
-uint32 writeInt32(int32 tmp, std::ostream &rw);
-uint32 writeUInt32(uint32 tmp, std::ostream &rw);
-uint32 writeFloat32(float32 tmp, std::ostream &rw);
 int8 readInt8(std::istream &rw);
 uint8 readUInt8(std::istream &rw);
 int16 readInt16(std::istream &rw);
@@ -237,8 +229,6 @@ struct Frame {
 	/* functions */
 	void readStruct(std::istream &dff);
 	void readExtension(std::istream &dff);
-	uint32 writeStruct(std::ostream &dff);
-	uint32 writeExtension(std::ostream &dff);
 
 	void dump(uint32 index, std::string ind = "");
 
@@ -271,7 +261,6 @@ struct Atomic {
 	/* functions */
 	void read(std::istream &dff);
 	void readExtension(std::istream &dff);
-	uint32 write(std::ostream &dff);
 	void dump(uint32 index, std::string ind = "");
 
 	Atomic(void);
@@ -289,7 +278,6 @@ struct Texture {
 
 	/* functions */
 	void read(std::istream &dff);
-	uint32 write(std::ostream &dff);
 	void readExtension(std::istream &dff);
 	void dump(std::string ind = "");
 
@@ -354,7 +342,6 @@ struct Material {
 	/* functions */
 	void read(std::istream &dff);
 	void readExtension(std::istream &dff);
-	uint32 write(std::ostream &dff);
 
 	void dump(uint32 index, std::string ind = "");
 
@@ -440,8 +427,6 @@ struct Geometry {
 	void read(std::istream &dff);
 	void readExtension(std::istream &dff);
 	void readMeshExtension(std::istream &dff);
-	uint32 write(std::ostream &dff);
-	uint32 writeMeshExtension(std::ostream &dff);
 
 	void cleanUp(void);
 
@@ -452,14 +437,9 @@ struct Geometry {
 	Geometry &operator= (const Geometry &other);
 	~Geometry(void);
 private:
-	void readPs2NativeData(std::istream &dff);
-	void readOglNativeData(std::istream &dff, int size);
 	void readNativeSkinMatrices(std::istream &dff);
 	bool isDegenerateFace(uint32 i, uint32 j, uint32 k);
 	void generateFaces(void);
-	void deleteOverlapping(std::vector<uint32> &typesRead, uint32 split);
-	void readData(uint32 vertexCount, uint32 type, // native data block
-                      uint32 split, std::istream &dff);
 
 	uint32 addTempVertexIfNew(uint32 index);
 };
@@ -473,7 +453,6 @@ struct Light {
 	uint32 flags;
 
 	void read(std::istream &dff);
-	uint32 write(std::ostream &dff);
 };
 
 struct Clump {
@@ -490,7 +469,6 @@ struct Clump {
 	/* functions */
 	void read(std::istream &dff);
 	void readExtension(std::istream &dff);
-	uint32 write(std::ostream &dff);
 	void dump(bool detailed = false);
 	void clear(void);
 };
@@ -532,8 +510,6 @@ struct NativeTexture {
 	void readD3d(std::istream &txd);
 	void readPs2(std::istream &txd);
 	void readXbox(std::istream &txd);
-	uint32 writeD3d(std::ostream &txd);
-	void writeTGA(void);
 
 	void convertFromPS2(uint32 aref);
 	void processPs2Swizzle(uint32 mip);
@@ -555,7 +531,6 @@ struct TextureDictionary {
 
 	/* functions */
 	void read(std::istream &txd);
-	uint32 write(std::ostream &txd);
 	void clear(void);
 	~TextureDictionary(void);
 };
@@ -564,14 +539,12 @@ struct UVAnimation {
 	std::vector<uint8> data;
 
 	void read(std::istream &dff);
-	uint32 write(std::ostream &dff);
 };
 
 struct UVAnimDict {
 	std::vector<UVAnimation> animList;
 
 	void read(std::istream &dff);
-	uint32 write(std::ostream &dff);
 	void clear(void);
 	~UVAnimDict(void);
 };

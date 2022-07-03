@@ -24,37 +24,13 @@
     <ClCompile Include="main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="dffconv.cpp">
-      <Filter>Source Files\renderware</Filter>
-    </ClCompile>
     <ClCompile Include="dffread.cpp">
-      <Filter>Source Files\renderware</Filter>
-    </ClCompile>
-    <ClCompile Include="dffwrite.cpp">
-      <Filter>Source Files\renderware</Filter>
-    </ClCompile>
-    <ClCompile Include="dumprwtree.cpp">
-      <Filter>Source Files\renderware</Filter>
-    </ClCompile>
-    <ClCompile Include="oglnative.cpp">
-      <Filter>Source Files\renderware</Filter>
-    </ClCompile>
-    <ClCompile Include="ps2native.cpp">
       <Filter>Source Files\renderware</Filter>
     </ClCompile>
     <ClCompile Include="renderware.cpp">
       <Filter>Source Files\renderware</Filter>
     </ClCompile>
-    <ClCompile Include="txdconv.cpp">
-      <Filter>Source Files\renderware</Filter>
-    </ClCompile>
-    <ClCompile Include="txdex.cpp">
-      <Filter>Source Files\renderware</Filter>
-    </ClCompile>
     <ClCompile Include="txdread.cpp">
-      <Filter>Source Files\renderware</Filter>
-    </ClCompile>
-    <ClCompile Include="txdwrite.cpp">
       <Filter>Source Files\renderware</Filter>
     </ClCompile>
     <ClCompile Include="uvanim.cpp">
@@ -83,9 +59,6 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="args.h">
-      <Filter>Source Files\renderware</Filter>
-    </ClInclude>
     <ClInclude Include="renderware.h">
       <Filter>Source Files\renderware</Filter>
     </ClInclude>

@@ -33,17 +33,6 @@ HeaderInfo::peek(istream &rw)
 	return true;
 }
 
-uint32
-HeaderInfo::write(ostream &rw)
-{
-	uint32 buf[3];
-	buf[0] = type;
-	buf[1] = length;
-	buf[2] = build;
-	rw.write((char*)buf, 12);
-	return 3*sizeof(uint32);
-}
-
 bool
 HeaderInfo::findChunk(istream &rw, uint32 type)
 {
@@ -63,55 +52,6 @@ ChunkNotFound(CHUNK_TYPE chunk, uint32 address)
 	cerr << "chunk " << hex << chunk << " not found at 0x";
 	cerr << hex << address << endl;
 	exit(1);
-}
-
-uint32
-writeInt8(int8 tmp, ostream &rw)
-{
-	rw.write(reinterpret_cast <char *> (&tmp), sizeof(int8));
-	return sizeof(int8);
-}
-
-uint32
-writeUInt8(uint8 tmp, ostream &rw)
-{
-	rw.write(reinterpret_cast <char *> (&tmp), sizeof(uint8));
-	return sizeof(uint8);
-}
-
-uint32
-writeInt16(int16 tmp, ostream &rw)
-{
-	rw.write(reinterpret_cast <char *> (&tmp), sizeof(int16));
-	return sizeof(int16);
-}
-
-uint32
-writeUInt16(uint16 tmp, ostream &rw)
-{
-	rw.write(reinterpret_cast <char *> (&tmp), sizeof(uint16));
-	return sizeof(uint16);
-}
-
-uint32
-writeInt32(int32 tmp, ostream &rw)
-{
-	rw.write(reinterpret_cast <char *> (&tmp), sizeof(int32));
-	return sizeof(int32);
-}
-
-uint32
-writeUInt32(uint32 tmp, ostream &rw)
-{
-	rw.write(reinterpret_cast <char *> (&tmp), sizeof(uint32));
-	return sizeof(uint32);
-}
-
-uint32
-writeFloat32(float32 tmp, ostream &rw)
-{
-	rw.write(reinterpret_cast <char *> (&tmp), sizeof(float32));
-	return sizeof(float32);
 }
 
 int8

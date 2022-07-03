@@ -10,15 +10,6 @@ namespace rw {
 	uint32 headerPos = rw.tellp();\
 	rw.seekp(0x0C, ios::cur);
 
-#define WRITE_HEADER(chunkType)\
-	uint32 oldPos = rw.tellp();\
-	rw.seekp(headerPos, ios::beg);\
-	header.type = (chunkType);\
-	header.length = bytesWritten;\
-	bytesWritten += header.write(rw);\
-	writtenBytesReturn = bytesWritten;\
-	rw.seekp(oldPos, ios::beg);
-
 void
 UVAnimation::read(istream &rw)
 {
@@ -26,20 +17,6 @@ UVAnimation::read(istream &rw)
 	READ_HEADER(CHUNK_ANIMANIMATION);
 	data.resize(header.length);
 	rw.read((char*)&data[0], header.length);
-}
-
-uint32
-UVAnimation::write(ostream &rw)
-{
-	HeaderInfo header;
-	header.build = version;
-	uint32 writtenBytesReturn;
-
-	SKIP_HEADER();
-	rw.write((char*)&data[0], data.size());
-	bytesWritten += data.size();
-	WRITE_HEADER(CHUNK_ANIMANIMATION);
-	return bytesWritten;
 }
 
 void
@@ -56,26 +33,6 @@ UVAnimDict::read(istream &rw)
 	animList.resize(n);
 	for(uint32 i = 0; i < n; i++)
 		animList[i].read(rw);
-}
-
-uint32
-UVAnimDict::write(ostream &rw)
-{
-	HeaderInfo header;
-	header.build = version;
-	uint32 writtenBytesReturn;
-
-	SKIP_HEADER();
-	{
-		SKIP_HEADER();
-		bytesWritten += writeUInt32(animList.size(), rw);
-		WRITE_HEADER(CHUNK_STRUCT);
-	}
-	bytesWritten += writtenBytesReturn;
-	for(uint32 i = 0; i < animList.size(); i++)
-		bytesWritten += animList[i].write(rw);
-	WRITE_HEADER(CHUNK_UVANIMDICT);
-	return bytesWritten;
 }
 
 void
