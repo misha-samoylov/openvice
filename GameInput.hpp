@@ -25,4 +25,3 @@ private:
 	BYTE m_keyboardState[256];
 	DIMOUSESTATE m_mouseCurrState;
 };
-

@@ -13,7 +13,7 @@ HRESULT GameModel::CreateConstBuffer(GameRender *pRender)
 	bdcb.CPUAccessFlags = 0;
 	bdcb.MiscFlags = 0;
 
-	hr = pRender->GetDevice()->CreateBuffer(&bdcb, NULL, &m_pPerObjectBuffer);
+	hr = pRender->GetDevice()->CreateBuffer(&bdcb, NULL, &m_pObjectBuffer);
 
 	return hr;
 }
@@ -25,8 +25,8 @@ void GameModel::Cleanup()
 		m_pVertexBuffer->Release();
 	if (m_pIndexBuffer)
 		m_pIndexBuffer->Release();
-	if (m_pPerObjectBuffer)
-		m_pPerObjectBuffer->Release();
+	if (m_pObjectBuffer)
+		m_pObjectBuffer->Release();
 
 	/* clear layout */
 	if (m_pVertexLayout)
@@ -63,8 +63,8 @@ void GameModel::Render(GameRender * pRender, GameCamera *pCamera)
 	m_objectConstBuffer.WVP = XMMatrixTranspose(m_WVP);
 
 	/* send position to shader */
-	pRender->GetDeviceContext()->UpdateSubresource(m_pPerObjectBuffer, 0, NULL, &m_objectConstBuffer, 0, 0);
-	pRender->GetDeviceContext()->VSSetConstantBuffers(0, 1, &m_pPerObjectBuffer);
+	pRender->GetDeviceContext()->UpdateSubresource(m_pObjectBuffer, 0, NULL, &m_objectConstBuffer, 0, 0);
+	pRender->GetDeviceContext()->VSSetConstantBuffers(0, 1, &m_pObjectBuffer);
 
 	/* render indexed vertices */
 	pRender->GetDeviceContext()->DrawIndexed(m_countIndices, 0, 0);
@@ -150,8 +150,8 @@ HRESULT GameModel::CreateInputLayout(GameRender *pRender)
 
 	UINT numElements = ARRAYSIZE(layout);
 
-	hr = pRender->GetDevice()->CreateInputLayout(layout, numElements, m_pVSBlob->GetBufferPointer(),
-		m_pVSBlob->GetBufferSize(), &m_pVertexLayout);
+	hr = pRender->GetDevice()->CreateInputLayout(layout, numElements,
+		m_pVSBlob->GetBufferPointer(), m_pVSBlob->GetBufferSize(), &m_pVertexLayout);
 
 	if (FAILED(hr)) {
 		printf("Error: cannot create input layout\n");
@@ -160,8 +160,8 @@ HRESULT GameModel::CreateInputLayout(GameRender *pRender)
 	return hr;
 }
 
-HRESULT GameModel::CreateDataBuffer(GameRender * pRender, float *vertices, int verticesCount,
-	unsigned int *indices, int indicesCount)
+HRESULT GameModel::CreateDataBuffer(GameRender * pRender,
+	float *vertices, int verticesCount,	unsigned int *indices, int indicesCount)
 {
 	HRESULT hr;
 

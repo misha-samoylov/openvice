@@ -45,7 +45,7 @@ private:
 
 	ID3D11Buffer *m_pVertexBuffer;
 	ID3D11Buffer *m_pIndexBuffer;
-	ID3D11Buffer* m_pPerObjectBuffer;
+	ID3D11Buffer *m_pObjectBuffer;
 
 	ID3DBlob *m_pVSBlob;
 	struct objectConstBuffer m_objectConstBuffer;
@@ -56,4 +56,3 @@ private:
 	unsigned int m_countIndices;
 	D3D_PRIMITIVE_TOPOLOGY m_primitiveTopology;
 };
-

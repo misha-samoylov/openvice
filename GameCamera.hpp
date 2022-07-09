@@ -29,4 +29,3 @@ private:
 
 	XMMATRIX m_cameraRotationMatrix;
 };
-
