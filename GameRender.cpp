@@ -1,11 +1,11 @@
 #include "GameRender.hpp"
 
-ID3D11Device *GameRender::getDevice()
+ID3D11Device *GameRender::GetDevice()
 {
 	return m_pDevice;
 }
 
-ID3D11DeviceContext *GameRender::getDeviceContext()
+ID3D11DeviceContext *GameRender::GetDeviceContext()
 {
 	return m_pDeviceContext;
 }

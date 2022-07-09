@@ -26,9 +26,8 @@ public:
 	void Dump(bool detailed = false);
 	void Clear();
 
-	std::vector<Geometry> getGeometryList();
-	std::vector<Light> getLightList();
-	std::vector<Frame> getFrameList();
-	std::vector<Atomic> getAtomicList();
+	std::vector<Geometry> GetGeometryList();
+	std::vector<Light> GetLightList();
+	std::vector<Frame> GetFrameList();
+	std::vector<Atomic> GetAtomicList();
 };
-

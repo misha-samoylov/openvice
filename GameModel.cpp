@@ -8,12 +8,12 @@ HRESULT GameModel::CreateConstBuffer(GameRender *pRender)
 	ZeroMemory(&bdcb, sizeof(D3D11_BUFFER_DESC));
 
 	bdcb.Usage = D3D11_USAGE_DEFAULT;
-	bdcb.ByteWidth = sizeof(cbPerObject);
+	bdcb.ByteWidth = sizeof(struct objectConstBuffer);
 	bdcb.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
 	bdcb.CPUAccessFlags = 0;
 	bdcb.MiscFlags = 0;
 
-	hr = pRender->getDevice()->CreateBuffer(&bdcb, NULL, &m_pPerObjectBuffer);
+	hr = pRender->GetDevice()->CreateBuffer(&bdcb, NULL, &m_pPerObjectBuffer);
 
 	return hr;
 }
@@ -41,33 +41,33 @@ void GameModel::Cleanup()
 
 void GameModel::Render(GameRender * pRender, GameCamera *pCamera)
 {
-	pRender->getDeviceContext()->IASetInputLayout(m_pVertexLayout);
+	pRender->GetDeviceContext()->IASetInputLayout(m_pVertexLayout);
 
 	/* set index buffer */
-	pRender->getDeviceContext()->IASetIndexBuffer(m_pIndexBuffer, DXGI_FORMAT_R32_UINT, 0);
+	pRender->GetDeviceContext()->IASetIndexBuffer(m_pIndexBuffer, DXGI_FORMAT_R32_UINT, 0);
 
 	/* set vertex buffer */
 	UINT stride = sizeof(float) * 3; /* x, y, z */
 	UINT offset = 0;
-	pRender->getDeviceContext()->IASetVertexBuffers(0, 1, &m_pVertexBuffer, &stride, &offset);
+	pRender->GetDeviceContext()->IASetVertexBuffers(0, 1, &m_pVertexBuffer, &stride, &offset);
 
 	/* set topology */
-	pRender->getDeviceContext()->IASetPrimitiveTopology(this->m_primitiveTopology);
+	pRender->GetDeviceContext()->IASetPrimitiveTopology(this->m_primitiveTopology);
 
 	/* set shaders */
-	pRender->getDeviceContext()->VSSetShader(m_pVertexShader, NULL, 0);
-	pRender->getDeviceContext()->PSSetShader(m_pPixelShader, NULL, 0);
+	pRender->GetDeviceContext()->VSSetShader(m_pVertexShader, NULL, 0);
+	pRender->GetDeviceContext()->PSSetShader(m_pPixelShader, NULL, 0);
 
 	/* calculate position */
-	m_WVP = m_World * pCamera->getView() * pCamera->getProjection();
-	m_perObj.WVP = XMMatrixTranspose(m_WVP);
+	m_WVP = m_World * pCamera->GetView() * pCamera->GetProjection();
+	m_objectConstBuffer.WVP = XMMatrixTranspose(m_WVP);
 
 	/* send position to shader */
-	pRender->getDeviceContext()->UpdateSubresource(m_pPerObjectBuffer, 0, NULL, &m_perObj, 0, 0);
-	pRender->getDeviceContext()->VSSetConstantBuffers(0, 1, &m_pPerObjectBuffer);
+	pRender->GetDeviceContext()->UpdateSubresource(m_pPerObjectBuffer, 0, NULL, &m_objectConstBuffer, 0, 0);
+	pRender->GetDeviceContext()->VSSetConstantBuffers(0, 1, &m_pPerObjectBuffer);
 
 	/* render indexed vertices */
-	pRender->getDeviceContext()->DrawIndexed(m_countIndices, 0, 0);
+	pRender->GetDeviceContext()->DrawIndexed(m_countIndices, 0, 0);
 }
 
 void GameModel::InitPosition()
@@ -98,14 +98,13 @@ HRESULT GameModel::CreatePixelShader(GameRender *pRender)
 		return hr;
 	}
 
-	hr = pRender->getDevice()->CreatePixelShader(pPSBlob->GetBufferPointer(),
+	hr = pRender->GetDevice()->CreatePixelShader(pPSBlob->GetBufferPointer(),
 		pPSBlob->GetBufferSize(), NULL, &m_pPixelShader);
 
 	pPSBlob->Release();
 
 	if (FAILED(hr)) {
 		printf("Error: cannot create pixel shader\n");
-		return hr;
 	}
 
 	return hr;
@@ -122,13 +121,12 @@ HRESULT GameModel::CreateVertexShader(GameRender *pRender)
 		return hr;
 	}
 
-	hr = pRender->getDevice()->CreateVertexShader(m_pVSBlob->GetBufferPointer(),
+	hr = pRender->GetDevice()->CreateVertexShader(m_pVSBlob->GetBufferPointer(),
 		m_pVSBlob->GetBufferSize(), NULL, &m_pVertexShader);
 
 	if (FAILED(hr)) {
 		printf("Error: cannot create vertex shader\n");
 		m_pVSBlob->Release();
-		return hr;
 	}
 
 	return hr;
@@ -152,7 +150,7 @@ HRESULT GameModel::CreateInputLayout(GameRender *pRender)
 
 	UINT numElements = ARRAYSIZE(layout);
 
-	hr = pRender->getDevice()->CreateInputLayout(layout, numElements, m_pVSBlob->GetBufferPointer(),
+	hr = pRender->GetDevice()->CreateInputLayout(layout, numElements, m_pVSBlob->GetBufferPointer(),
 		m_pVSBlob->GetBufferSize(), &m_pVertexLayout);
 
 	if (FAILED(hr)) {
@@ -179,7 +177,7 @@ HRESULT GameModel::CreateDataBuffer(GameRender * pRender, float *vertices, int v
 	ZeroMemory(&datav, sizeof(datav));
 	datav.pSysMem = vertices; /* pointer to data */
 
-	hr = pRender->getDevice()->CreateBuffer(&bdv, &datav, &m_pVertexBuffer);
+	hr = pRender->GetDevice()->CreateBuffer(&bdv, &datav, &m_pVertexBuffer);
 
 	if (FAILED(hr)) {
 		printf("Error: cannot create vertex data buffer\n");
@@ -198,18 +196,17 @@ HRESULT GameModel::CreateDataBuffer(GameRender * pRender, float *vertices, int v
 	ZeroMemory(&datai, sizeof(datai));
 	datai.pSysMem = indices;
 
-	hr = pRender->getDevice()->CreateBuffer(&bdi, &datai, &m_pIndexBuffer);
+	hr = pRender->GetDevice()->CreateBuffer(&bdi, &datai, &m_pIndexBuffer);
 
 	if (FAILED(hr)) {
 		printf("Error: cannot create index data buffer\n");
-		return hr;
 	}
 
 	return hr;
 }
 
-HRESULT GameModel::Init(GameRender *pRender, float *vertices, int verticesCount,
-	unsigned int *indices, int indicesCount, D3D_PRIMITIVE_TOPOLOGY topology)
+HRESULT GameModel::Init(GameRender *pRender, float *pVertices, int verticesCount,
+	unsigned int *pIndices, int indicesCount, D3D_PRIMITIVE_TOPOLOGY topology)
 {
 	HRESULT hr;
 
@@ -240,8 +237,8 @@ HRESULT GameModel::Init(GameRender *pRender, float *vertices, int verticesCount,
 		printf("Error: cannot create input layout\n");
 		return hr;
 	}
-	hr = CreateDataBuffer(pRender, vertices, verticesCount,
-		indices, indicesCount);
+	hr = CreateDataBuffer(pRender, pVertices, verticesCount,
+		pIndices, indicesCount);
 	if (FAILED(hr)) {
 		printf("Error: cannot create data buffer\n");
 		return hr;

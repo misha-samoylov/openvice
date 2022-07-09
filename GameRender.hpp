@@ -17,8 +17,8 @@ public:
 	void RenderStart();
 	void RenderEnd();
 
-	ID3D11Device *getDevice();
-	ID3D11DeviceContext *getDeviceContext();
+	ID3D11Device *GetDevice();
+	ID3D11DeviceContext *GetDeviceContext();
 
 private:
 	void InitViewport(HWND hWnd);

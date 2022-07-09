@@ -11,8 +11,8 @@ public:
 	void Cleanup();
 	void Update(float camPitch, float camYaw, float moveLeftRight, float moveBackForward);
 
-	XMMATRIX getView();
-	XMMATRIX getProjection();
+	XMMATRIX GetView();
+	XMMATRIX GetProjection();
 
 private:
 	XMVECTOR m_cameraPosition;

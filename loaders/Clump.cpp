@@ -1,21 +1,21 @@
 #include "Clump.h"
 
-std::vector<Geometry> Clump::getGeometryList() 
+std::vector<Geometry> Clump::GetGeometryList() 
 { 
 	return m_geometryList; 
 }
 
-std::vector<Light> Clump::getLightList() 
+std::vector<Light> Clump::GetLightList() 
 { 
 	return m_lightList;
 }
 
-std::vector<Frame> Clump::getFrameList() 
+std::vector<Frame> Clump::GetFrameList() 
 { 
 	return m_frameList; 
 }
 
-std::vector<Atomic> Clump::getAtomicList() 
+std::vector<Atomic> Clump::GetAtomicList() 
 { 
 	return m_atomicList; 
 }

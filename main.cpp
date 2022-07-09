@@ -66,38 +66,38 @@ int LoadGameFile(GameRender *render)
 	clump->Read(in);
 	clump->Dump();
 	
-	for (uint32_t index = 0; index < clump->getGeometryList().size(); index++) {
+	for (uint32_t index = 0; index < clump->GetGeometryList().size(); index++) {
 
 		std::vector<float> gvertices;
 
-		for (uint32_t i = 0; i < clump->getGeometryList()[index].vertices.size() / 3; i++) {
+		for (uint32_t i = 0; i < clump->GetGeometryList()[index].vertices.size() / 3; i++) {
 
-			float x = clump->getGeometryList()[index].vertices[i * 3 + 0];
+			float x = clump->GetGeometryList()[index].vertices[i * 3 + 0];
 			gvertices.push_back(x);
 
-			float y = clump->getGeometryList()[index].vertices[i * 3 + 1];
+			float y = clump->GetGeometryList()[index].vertices[i * 3 + 1];
 			gvertices.push_back(y);
 
-			float z = clump->getGeometryList()[index].vertices[i * 3 + 2];
+			float z = clump->GetGeometryList()[index].vertices[i * 3 + 2];
 			gvertices.push_back(z);
 		}
 
-		for (uint32_t i = 0; i < clump->getGeometryList()[index].splits.size(); i++) {
+		for (uint32_t i = 0; i < clump->GetGeometryList()[index].splits.size(); i++) {
 
 			std::vector<uint32_t> gindices;
 
-			for (uint32_t j = 0; j < clump->getGeometryList()[index].splits[i].indices.size(); j++) {
-				gindices.push_back(clump->getGeometryList()[index].splits[i].indices[j]);
+			for (uint32_t j = 0; j < clump->GetGeometryList()[index].splits[i].indices.size(); j++) {
+				gindices.push_back(clump->GetGeometryList()[index].splits[i].indices[j]);
 			}
 
 			float *vertices = &gvertices[0]; /* convert to array float */
 			int countVertices = gvertices.size();
 
 			unsigned int *indices = &gindices[0];  /* convert to array unsigned int */
-			int countIndices = clump->getGeometryList()[index].splits[i].indices.size();
+			int countIndices = clump->GetGeometryList()[index].splits[i].indices.size();
 
 			D3D_PRIMITIVE_TOPOLOGY topology =
-				clump->getGeometryList()[index].faceType == FACETYPE_STRIP
+				clump->GetGeometryList()[index].faceType == FACETYPE_STRIP
 				? D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP
 				: D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 

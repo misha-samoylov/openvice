@@ -37,12 +37,12 @@ void GameCamera::Update(float camPitch, float camYaw, float moveLeftRight, float
 	m_cameraView = XMMatrixLookAtLH(m_cameraPosition, m_cameraTarget, m_cameraUp);
 }
 
-XMMATRIX GameCamera::getView()
+XMMATRIX GameCamera::GetView()
 {
 	return m_cameraView;
 }
 
-XMMATRIX GameCamera::getProjection()
+XMMATRIX GameCamera::GetProjection()
 {
 	return m_cameraProjection;
 }

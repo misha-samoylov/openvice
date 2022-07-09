@@ -14,7 +14,7 @@
 
 using namespace DirectX; /* DirectXMath */
 
-struct cbPerObject
+struct objectConstBuffer
 {
 	XMMATRIX WVP;
 };
@@ -33,8 +33,8 @@ private:
 	HRESULT CreatePixelShader(GameRender *pRender);
 	HRESULT CreateVertexShader(GameRender *pRender);
 	HRESULT CreateInputLayout(GameRender *pRender);
-	HRESULT CreateDataBuffer(GameRender *pRender, float *vertices, int verticesCount,
-		unsigned int *indices, int indicesCount);
+	HRESULT CreateDataBuffer(GameRender *pRender, float *pVertices, int verticesCount,
+		unsigned int *pIndices, int indicesCount);
 
 	HRESULT CompileShaderFromFile(LPCWSTR szFileName, LPCSTR szEntryPoint, LPCSTR szShaderModel, ID3DBlob** ppBlobOut);
 
@@ -48,7 +48,7 @@ private:
 	ID3D11Buffer* m_pPerObjectBuffer;
 
 	ID3DBlob *m_pVSBlob;
-	cbPerObject m_perObj;
+	struct objectConstBuffer m_objectConstBuffer;
 
 	XMMATRIX m_WVP;
 	XMMATRIX m_World;
