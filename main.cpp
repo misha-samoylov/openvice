@@ -7,7 +7,8 @@
 
 #include "renderware.h"
 
-#include "ImgLoader.hpp"
+#include "loaders/ImgLoader.hpp"
+#include "loaders/Clump.h"
 #include "GameModel.hpp"
 #include "GameRender.hpp"
 #include "GameCamera.hpp"
@@ -61,42 +62,42 @@ int LoadGameFile(GameRender *render)
 		return -1;
 	}
 
-	rw::Clump *clump = new rw::Clump();
-	clump->read(in);
-	clump->dump();
+	Clump *clump = new Clump();
+	clump->Read(in);
+	clump->Dump();
 	
-	for (uint32_t index = 0; index < clump->geometryList.size(); index++) {
+	for (uint32_t index = 0; index < clump->getGeometryList().size(); index++) {
 
 		std::vector<float> gvertices;
 
-		for (uint32_t i = 0; i < clump->geometryList[index].vertices.size() / 3; i++) {
+		for (uint32_t i = 0; i < clump->getGeometryList()[index].vertices.size() / 3; i++) {
 
-			float x = clump->geometryList[index].vertices[i * 3 + 0];
+			float x = clump->getGeometryList()[index].vertices[i * 3 + 0];
 			gvertices.push_back(x);
 
-			float y = clump->geometryList[index].vertices[i * 3 + 1];
+			float y = clump->getGeometryList()[index].vertices[i * 3 + 1];
 			gvertices.push_back(y);
 
-			float z = clump->geometryList[index].vertices[i * 3 + 2];
+			float z = clump->getGeometryList()[index].vertices[i * 3 + 2];
 			gvertices.push_back(z);
 		}
 
-		for (uint32_t i = 0; i < clump->geometryList[index].splits.size(); i++) {
+		for (uint32_t i = 0; i < clump->getGeometryList()[index].splits.size(); i++) {
 
 			std::vector<uint32_t> gindices;
 
-			for (uint32_t j = 0; j < clump->geometryList[index].splits[i].indices.size(); j++) {
-				gindices.push_back(clump->geometryList[index].splits[i].indices[j]);
+			for (uint32_t j = 0; j < clump->getGeometryList()[index].splits[i].indices.size(); j++) {
+				gindices.push_back(clump->getGeometryList()[index].splits[i].indices[j]);
 			}
 
 			float *vertices = &gvertices[0]; /* convert to array float */
 			int countVertices = gvertices.size();
 
 			unsigned int *indices = &gindices[0];  /* convert to array unsigned int */
-			int countIndices = clump->geometryList[index].splits[i].indices.size();
+			int countIndices = clump->getGeometryList()[index].splits[i].indices.size();
 
 			D3D_PRIMITIVE_TOPOLOGY topology =
-				clump->geometryList[index].faceType == rw::FACETYPE_STRIP
+				clump->getGeometryList()[index].faceType == FACETYPE_STRIP
 				? D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP
 				: D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 
@@ -109,7 +110,7 @@ int LoadGameFile(GameRender *render)
 		}
 	}
 
-	clump->clear();
+	clump->Clear();
 	delete clump;
 
 	return 0;

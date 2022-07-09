@@ -2,7 +2,7 @@
 
 HWND GameWindow::GetHandleWindow()
 {
-	return mHWnd;
+	return m_hWnd;
 }
 
 HRESULT GameWindow::Init(HINSTANCE hInstance, int nCmdShow, 
@@ -44,7 +44,7 @@ HRESULT GameWindow::CreateWindowApp(HINSTANCE hInstance, int nCmdShow,
 	RECT rc = { 0, 0, width, height };
 	AdjustWindowRect(&rc, WS_OVERLAPPEDWINDOW, FALSE);
 
-	mHWnd = CreateWindowEx(
+	m_hWnd = CreateWindowEx(
 		0, /* extended styles */
 		CLASS_NAME,
 		windowTitle,
@@ -57,13 +57,13 @@ HRESULT GameWindow::CreateWindowApp(HINSTANCE hInstance, int nCmdShow,
 		NULL /* extended app info */
 	);
 
-	if (mHWnd == NULL) {
+	if (m_hWnd == NULL) {
 		MessageBox(NULL, L"Cannot create window", L"Error", MB_OK);
 		return E_FAIL;
 	}
 
-	ShowWindow(mHWnd, nCmdShow);
-	UpdateWindow(mHWnd);
+	ShowWindow(m_hWnd, nCmdShow);
+	UpdateWindow(m_hWnd);
 
 	ShowCursor(FALSE);
 

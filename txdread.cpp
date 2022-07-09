@@ -4,10 +4,6 @@
 
 #include "renderware.h"
 
-using namespace std;
-
-namespace rw {
-
 void TextureDictionary::read(istream &rw)
 {
 	HeaderInfo header;
@@ -573,6 +569,4 @@ NativeTexture::~NativeTexture(void)
 		delete[] texels[i];
 		texels[i] = 0;
 	}
-}
-
 }

@@ -137,7 +137,8 @@
     <ClCompile Include="GameRender.cpp" />
     <ClCompile Include="GameUtils.cpp" />
     <ClCompile Include="GameWindow.cpp" />
-    <ClCompile Include="ImgLoader.cpp" />
+    <ClCompile Include="loaders\Clump.cpp" />
+    <ClCompile Include="loaders\ImgLoader.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="renderware.cpp" />
     <ClCompile Include="txdread.cpp" />
@@ -150,7 +151,8 @@
     <ClInclude Include="GameRender.hpp" />
     <ClInclude Include="GameUtils.hpp" />
     <ClInclude Include="GameWindow.hpp" />
-    <ClInclude Include="ImgLoader.hpp" />
+    <ClInclude Include="loaders\Clump.h" />
+    <ClInclude Include="loaders\ImgLoader.hpp" />
     <ClInclude Include="renderware.h" />
   </ItemGroup>
   <ItemGroup>

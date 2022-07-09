@@ -22,7 +22,7 @@ private:
 	IDirectInputDevice8 *m_pDIKeyboard;
 	IDirectInputDevice8 *m_pDIMouse;
 
-	BYTE mKeyboardState[256];
-	DIMOUSESTATE mMouseCurrState;
+	BYTE m_keyboardState[256];
+	DIMOUSESTATE m_mouseCurrState;
 };
 

@@ -1,9 +1,5 @@
 #include "renderware.h"
 
-using namespace std;
-
-namespace rw {
-
 void UVAnimation::read(istream &rw)
 {
 	HeaderInfo header;
@@ -35,6 +31,4 @@ void UVAnimDict::clear(void)
 UVAnimDict::~UVAnimDict(void)
 {
 	animList.clear();
-}
-
 }

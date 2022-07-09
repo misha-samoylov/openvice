@@ -15,18 +15,18 @@ public:
 	XMMATRIX getProjection();
 
 private:
-	XMVECTOR mCameraPosition;
-	XMVECTOR mCameraTarget;
-	XMVECTOR mCameraUp;
+	XMVECTOR m_cameraPosition;
+	XMVECTOR m_cameraTarget;
+	XMVECTOR m_cameraUp;
 
-	XMMATRIX mCameraView;
-	XMMATRIX mCameraProjection;
+	XMMATRIX m_cameraView;
+	XMMATRIX m_cameraProjection;
 
-	XMVECTOR mDefaultForward;
-	XMVECTOR mDefaultRight;
-	XMVECTOR mCameraForward;
-	XMVECTOR mCameraRight;
+	XMVECTOR m_defaultForward;
+	XMVECTOR m_defaultRight;
+	XMVECTOR m_cameraForward;
+	XMVECTOR m_cameraRight;
 
-	XMMATRIX mCameraRotationMatrix;
+	XMMATRIX m_cameraRotationMatrix;
 };
 
