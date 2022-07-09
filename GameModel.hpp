@@ -28,6 +28,7 @@ public:
 	void Render(GameRender *pRender, GameCamera *pCamera);
 
 private:
+	void InitPosition();
 	HRESULT CreateConstBuffer(GameRender *pRender);
 	HRESULT CreatePixelShader(GameRender *pRender);
 	HRESULT CreateVertexShader(GameRender *pRender);

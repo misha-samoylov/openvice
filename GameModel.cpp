@@ -58,19 +58,11 @@ void GameModel::Render(GameRender * pRender, GameCamera *pCamera)
 	pRender->getDeviceContext()->VSSetShader(m_pVertexShader, NULL, 0);
 	pRender->getDeviceContext()->PSSetShader(m_pPixelShader, NULL, 0);
 
-	/* set position */
-	XMMATRIX modelPosition = XMMatrixIdentity();
-	XMMATRIX modelScale = XMMatrixScaling(1.0f, 1.0f, 1.0f);
-	XMMATRIX modelTranslation = XMMatrixTranslation(0.0f, 0.0f, 0.0f);
-
-	XMVECTOR vector = XMVectorSet(-1.0, 0.0, 0.0, 0.0);
-	XMMATRIX modelRotation = XMMatrixRotationAxis(vector, 90.0f);
-
-	m_World = modelRotation * modelPosition * modelScale * modelTranslation;
-
+	/* calculate position */
 	m_WVP = m_World * pCamera->getView() * pCamera->getProjection();
 	m_perObj.WVP = XMMatrixTranspose(m_WVP);
 
+	/* send position to shader */
 	pRender->getDeviceContext()->UpdateSubresource(m_pPerObjectBuffer, 0, NULL, &m_perObj, 0, 0);
 	pRender->getDeviceContext()->VSSetConstantBuffers(0, 1, &m_pPerObjectBuffer);
 
@@ -78,6 +70,17 @@ void GameModel::Render(GameRender * pRender, GameCamera *pCamera)
 	pRender->getDeviceContext()->DrawIndexed(m_countIndices, 0, 0);
 }
 
+void GameModel::InitPosition()
+{
+	XMVECTOR vector = XMVectorSet(-1.0, 0.0, 0.0, 0.0);
+	XMMATRIX modelRotation = XMMatrixRotationAxis(vector, 90.0f);
+
+	XMMATRIX modelPosition = XMMatrixIdentity();
+	XMMATRIX modelScale = XMMatrixScaling(1.0f, 1.0f, 1.0f);
+	XMMATRIX modelTranslation = XMMatrixTranslation(0.0f, 0.0f, 0.0f);
+
+	m_World = modelRotation * modelPosition * modelScale * modelTranslation;
+}
 
 HRESULT GameModel::CreatePixelShader(GameRender *pRender)
 {
@@ -87,7 +90,7 @@ HRESULT GameModel::CreatePixelShader(GameRender *pRender)
 	/* ID3DBlob* pPSBlob = NULL;
 	hr = CompileShaderFromFile(L"pixel_shader.hlsl", "PS", "ps_4_0", &pPSBlob); */
 
-	ID3DBlob* pPSBlob = NULL;
+	ID3DBlob *pPSBlob = NULL;
 	hr = D3DReadFileToBlob(L"pixel_shader.cso", &pPSBlob);
 
 	if (FAILED(hr)) {
@@ -212,10 +215,10 @@ HRESULT GameModel::Init(GameRender *pRender, float *vertices, int verticesCount,
 
 	m_pVSBlob = NULL;
 
-	m_WVP = XMMatrixIdentity();
-	m_World = XMMatrixIdentity();
 	m_countIndices = indicesCount;
 	m_primitiveTopology = topology;
+
+	InitPosition();
 
 	hr = CreateVertexShader(pRender);
 	if (FAILED(hr)) {
