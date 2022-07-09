@@ -42,7 +42,7 @@ HRESULT GameInput::Init(HINSTANCE hInstance, HWND hwnd)
 
 bool GameInput::IsKey(BYTE key)
 {
-	if (mKeyboardState[key] & 0x80)
+	if (m_keyboardState[key] & 0x80)
 		return true;
 
 	return false;
@@ -59,21 +59,21 @@ HRESULT GameInput::Detect()
 	if (FAILED(hr))
 		return hr;
 
-	hr = m_pDIMouse->GetDeviceState(sizeof(DIMOUSESTATE), &mMouseCurrState);
+	hr = m_pDIMouse->GetDeviceState(sizeof(DIMOUSESTATE), &m_mouseCurrState);
 	if (FAILED(hr))
 		return hr;
-	hr = m_pDIKeyboard->GetDeviceState(sizeof(mKeyboardState), (LPVOID)&mKeyboardState);
+	hr = m_pDIKeyboard->GetDeviceState(sizeof(m_keyboardState), (LPVOID)&m_keyboardState);
 	return hr;
 }
 
 float GameInput::GetMouseSpeedX()
 {
-	return (float)mMouseCurrState.lX;
+	return (float)m_mouseCurrState.lX;
 }
 
 float GameInput::GetMouseSpeedY()
 {
-	return (float)mMouseCurrState.lY;
+	return (float)m_mouseCurrState.lY;
 }
 
 void GameInput::Cleanup()

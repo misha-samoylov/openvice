@@ -9,21 +9,26 @@ using namespace std;
 
 class Clump
 {
-public:
-	std::vector<Atomic> atomicList;
-	std::vector<Frame> frameList;
-	std::vector<Geometry> geometryList;
-	std::vector<Light> lightList;
+private:
+	std::vector<Atomic> m_atomicList;
+	std::vector<Frame> m_frameList;
+	std::vector<Geometry> m_geometryList;
+	std::vector<Light> m_lightList;
 
 	/* Extensions */
 	/* collision file */
-	bool hasCollision;
-	std::vector<uint8_t> colData;
+	bool m_hasCollision;
+	std::vector<uint8_t> m_colData;
 
-	/* functions */
-	void read(istream &dff);
-	void readExtension(istream &dff);
-	void dump(bool detailed = false);
-	void clear(void);
+public:
+	void Read(istream &dff);
+	void ReadExtension(istream &dff);
+	void Dump(bool detailed = false);
+	void Clear();
+
+	std::vector<Geometry> getGeometryList();
+	std::vector<Light> getLightList();
+	std::vector<Frame> getFrameList();
+	std::vector<Atomic> getAtomicList();
 };
 
