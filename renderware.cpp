@@ -2,10 +2,6 @@
 
 #include "renderware.h"
 
-using namespace std;
-
-namespace rw {
-
 bool HeaderInfo::read(istream &rw)
 {
 	uint32_t buf[3];
@@ -98,6 +94,4 @@ float readFloat32(istream &rw)
 	float tmp;
 	rw.read(reinterpret_cast <char *> (&tmp), sizeof(float));
 	return tmp;
-}
-
 }

@@ -19,6 +19,12 @@
     <Filter Include="Source Files\shaders">
       <UniqueIdentifier>{80043fb7-6c00-40c1-8a5a-4c5a5480e7be}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Header Files\loaders">
+      <UniqueIdentifier>{97ba0d90-a94c-498b-8053-a4b333776d89}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\loaders">
+      <UniqueIdentifier>{0a1a7b11-40fc-47a9-8d11-ee9d1e3862e8}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
@@ -54,16 +60,16 @@
     <ClCompile Include="GameUtils.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="ImgLoader.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="loaders\ImgLoader.cpp">
+      <Filter>Source Files\loaders</Filter>
+    </ClCompile>
+    <ClCompile Include="loaders\Clump.cpp">
+      <Filter>Source Files\loaders</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="renderware.h">
       <Filter>Source Files\renderware</Filter>
-    </ClInclude>
-    <ClInclude Include="ImgLoader.hpp">
-      <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="GameUtils.hpp">
       <Filter>Header Files</Filter>
@@ -82,6 +88,12 @@
     </ClInclude>
     <ClInclude Include="GameWindow.hpp">
       <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="loaders\Clump.h">
+      <Filter>Header Files\loaders</Filter>
+    </ClInclude>
+    <ClInclude Include="loaders\ImgLoader.hpp">
+      <Filter>Header Files\loaders</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

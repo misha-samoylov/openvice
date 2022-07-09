@@ -7,7 +7,8 @@
 
 #include "renderware.h"
 
-#include "ImgLoader.hpp"
+#include "loaders/ImgLoader.hpp"
+#include "loaders/Clump.h"
 #include "GameModel.hpp"
 #include "GameRender.hpp"
 #include "GameCamera.hpp"
@@ -61,7 +62,7 @@ int LoadGameFile(GameRender *render)
 		return -1;
 	}
 
-	rw::Clump *clump = new rw::Clump();
+	Clump *clump = new Clump();
 	clump->read(in);
 	clump->dump();
 	
@@ -96,7 +97,7 @@ int LoadGameFile(GameRender *render)
 			int countIndices = clump->geometryList[index].splits[i].indices.size();
 
 			D3D_PRIMITIVE_TOPOLOGY topology =
-				clump->geometryList[index].faceType == rw::FACETYPE_STRIP
+				clump->geometryList[index].faceType == FACETYPE_STRIP
 				? D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP
 				: D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 

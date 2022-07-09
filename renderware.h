@@ -1,5 +1,4 @@
-#ifndef _RENDERWARE_H_
-#define _RENDERWARE_H_
+#pragma once
 
 #ifdef _WIN32
   #include <windows.h>
@@ -9,6 +8,8 @@
 #include <iostream>
 #include <vector>
 #include <string>
+
+using namespace std;
 
 #ifdef _DEBUG
 	#define READ_HEADER(x)\
@@ -20,8 +21,6 @@
 	#define READ_HEADER(x)\
 		header.read(rw);
 #endif
-
-namespace rw {
 
 enum PLATFORM_ID {
 	PLATFORM_OGL = 2,
@@ -433,24 +432,6 @@ struct Light {
 	void read(std::istream &dff);
 };
 
-struct Clump {
-	std::vector<Atomic> atomicList;
-	std::vector<Frame> frameList;
-	std::vector<Geometry> geometryList;
-	std::vector<Light> lightList;
-
-	/* Extensions */
-	/* collision file */
-	bool hasCollision;
-	std::vector<uint8_t> colData;
-
-	/* functions */
-	void read(std::istream &dff);
-	void readExtension(std::istream &dff);
-	void dump(bool detailed = false);
-	void clear(void);
-};
-
 /*
  * TXDs
  */
@@ -521,7 +502,3 @@ struct UVAnimDict {
 	void clear(void);
 	~UVAnimDict(void);
 };
-
-}
-
-#endif
