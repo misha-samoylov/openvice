@@ -2,73 +2,89 @@
 
 #include "renderware.h"
 
-void Light::read(istream &rw)
+void Light::read(char *bytes, size_t *offset)
 {
 	HeaderInfo header;
 
-	READ_HEADER(CHUNK_LIGHT);
+	// READ_HEADER(CHUNK_LIGHT);
+	header.read(bytes, offset);
 
-	READ_HEADER(CHUNK_STRUCT);
-	radius = readFloat32(rw);
-	rw.read((char*)&color[0], 12);
-	minusCosAngle = readFloat32(rw);
-	flags = readUInt16(rw);
-	type = readUInt16(rw);
-	READ_HEADER(CHUNK_EXTENSION);
-	rw.seekg(header.length, ios::cur);
+	// READ_HEADER(CHUNK_STRUCT);
+	header.read(bytes, offset);
+
+	radius = readFloat32(bytes, offset);
+	//rw.read((char*)&color[0], 12);
+	memcpy((char*)&color[0], &bytes[*offset], 12);
+	*offset += 12;
+
+	minusCosAngle = readFloat32(bytes, offset);
+	flags = readUInt16(bytes, offset);
+	type = readUInt16(bytes, offset);
+
+	// READ_HEADER(CHUNK_EXTENSION);
+	header.read(bytes, offset);
+
+	// rw.seekg(header.length, ios::cur);
+	*offset += header.length;
 }
 
 /*
  * Atomic
  */
 
-void Atomic::read(istream &rw)
+void Atomic::read(char *bytes, size_t *offset)
 {
 	HeaderInfo header;
 
-	READ_HEADER(CHUNK_ATOMIC);
+	//READ_HEADER(CHUNK_ATOMIC);
+	header.read(bytes, offset);
 
-	READ_HEADER(CHUNK_STRUCT);
-	frameIndex = readUInt32(rw);
-	geometryIndex = readUInt32(rw);
-	rw.seekg(8, ios::cur);	// constant
+	//READ_HEADER(CHUNK_STRUCT);
+	header.read(bytes, offset);
 
-	readExtension(rw);
+	frameIndex = readUInt32(bytes, offset);
+	geometryIndex = readUInt32(bytes, offset);
+	//rw.seekg(8, ios::cur);	// constant
+	*offset += 8;
+
+	readExtension(bytes, offset);
 }
 
-void Atomic::readExtension(istream &rw)
+void Atomic::readExtension(char *bytes, size_t *offset)
 {
 	HeaderInfo header;
 
-	READ_HEADER(CHUNK_EXTENSION);
+	// READ_HEADER(CHUNK_EXTENSION);
+	header.read(bytes, offset);
 
-	streampos end = rw.tellg();
+	streampos end = *offset;
 	end += header.length;
 
-	while (rw.tellg() < end) {
-		header.read(rw);
+	while (*offset < end) {
+		header.read(bytes, offset);
 		switch (header.type) {
 		case CHUNK_RIGHTTORENDER:
 			hasRightToRender = true;
-			rightToRenderVal1 = readUInt32(rw);
-			rightToRenderVal2 = readUInt32(rw);
+			rightToRenderVal1 = readUInt32(bytes, offset);
+			rightToRenderVal2 = readUInt32(bytes, offset);
 //cout << filename << " atmrights: " << hex << rightToRenderVal1 << " " << rightToRenderVal2 << endl;
 			break;
 		case CHUNK_PARTICLES:
 			hasParticles = true;
-			particlesVal = readUInt32(rw);
+			particlesVal = readUInt32(bytes, offset);
 			break;
 		case CHUNK_MATERIALEFFECTS:
 			hasMaterialFx = true;
-			materialFxVal = readUInt32(rw);
+			materialFxVal = readUInt32(bytes, offset);
 			break;
 		case CHUNK_PIPELINESET:
 			hasPipelineSet = true;
-			pipelineSetVal = readUInt32(rw);
+			pipelineSetVal = readUInt32(bytes, offset);
 //cout << filename << " pipelineset " << hex << pipelineSetVal << endl;
 			break;
 		default:
-			rw.seekg(header.length, ios::cur);
+			//rw.seekg(header.length, ios::cur);
+			*offset += header.length;
 			break;
 		}
 	}
@@ -117,30 +133,43 @@ Atomic::Atomic(void)
  */
 
 // only reads part of the frame struct
-void Frame::readStruct(istream &rw)
+void Frame::readStruct(char *bytes, size_t *offset)
 {
-	rw.read((char *) rotationMatrix, 9*sizeof(float));
-	rw.read((char *) position, 3*sizeof(float));
-	parent = readInt32(rw);
-	rw.seekg(4, ios::cur);	// matrix creation flag, unused
+	//rw.read((char *) rotationMatrix, 9*sizeof(float));
+	memcpy((char *)rotationMatrix, &bytes[*offset], 9 * sizeof(float));
+	*offset += 9 * sizeof(float);
+	
+	// rw.read((char *) position, 3*sizeof(float));
+	memcpy((char *)position, &bytes[*offset], 3 * sizeof(float));
+	*offset += 3 * sizeof(float);
+
+	parent = readInt32(bytes, offset);
+
+	// rw.seekg(4, ios::cur);	// matrix creation flag, unused
+	*offset += 4;
 }
 
-void Frame::readExtension(istream &rw)
+void Frame::readExtension(char *bytes, size_t *offset)
 {
 	HeaderInfo header;
 
-	READ_HEADER(CHUNK_EXTENSION);
+	//READ_HEADER(CHUNK_EXTENSION);
+	header.read(bytes, offset);
 
-	streampos end = rw.tellg();
+	streampos end = *offset;
 	end += header.length;
 
-	while (rw.tellg() < end) {
-		header.read(rw);
+	while (*offset < end) {
+		header.read(bytes, offset);
+
 		switch (header.type) {
 		case CHUNK_FRAME:
 		{
 			char *buffer = new char[header.length+1];
-			rw.read(buffer, header.length);
+			//rw.read(buffer, header.length);
+			memcpy(buffer, &bytes[*offset], header.length);
+			*offset += header.length;
+
 			buffer[header.length] = '\0';
 			name = buffer;
 			delete[] buffer;
@@ -148,24 +177,31 @@ void Frame::readExtension(istream &rw)
 		}
 		case CHUNK_HANIM:
 			hasHAnim = true;
-			hAnimUnknown1 = readUInt32(rw);;
-			hAnimBoneId = readInt32(rw);;
-			hAnimBoneCount = readUInt32(rw);;
+
+			hAnimUnknown1 = readUInt32(bytes, offset);
+			hAnimBoneId = readInt32(bytes, offset);;
+			hAnimBoneCount = readUInt32(bytes, offset);
+
 			if (hAnimBoneCount != 0) {
-				hAnimUnknown2 = readUInt32(rw);;
-				hAnimUnknown3 = readUInt32(rw);;
+				hAnimUnknown2 = readUInt32(bytes, offset);;
+				hAnimUnknown3 = readUInt32(bytes, offset);;
 			}
+
 			for (uint32_t i = 0; i < hAnimBoneCount; i++) {
-				hAnimBoneIds.push_back(readInt32(rw));
-				hAnimBoneNumbers.push_back(readUInt32(rw));
-				uint32_t flag = readUInt32(rw);
+				hAnimBoneIds.push_back(readInt32(bytes, offset));
+				hAnimBoneNumbers.push_back(readUInt32(bytes, offset));
+
+				uint32_t flag = readUInt32(bytes, offset);
+
 				if((flag&~0x3) != 0)
 					cout << flag << endl;
+
 				hAnimBoneTypes.push_back(flag);
 			}
 			break;
 		default:
-			rw.seekg(header.length, ios::cur);
+			//rw.seekg(header.length, ios::cur);
+			*offset += header.length;
 			break;
 		}
 	}
@@ -212,124 +248,172 @@ Frame::Frame(void)
  * Geometry
  */
 
-void Geometry::read(istream &rw)
+void Geometry::read(char *bytes, size_t *offset)
 {
 	HeaderInfo header;
 
-	READ_HEADER(CHUNK_GEOMETRY);
+	// READ_HEADER(CHUNK_GEOMETRY);
+	header.read(bytes, offset);
 
-	READ_HEADER(CHUNK_STRUCT);
-	flags = readUInt16(rw);
-	numUVs = readUInt8(rw);
+	//READ_HEADER(CHUNK_STRUCT);
+	header.read(bytes, offset);
+	flags = readUInt16(bytes, offset);
+	numUVs = readUInt8(bytes, offset);
 	if (flags & FLAGS_TEXTURED)
 		numUVs = 1;
-	hasNativeGeometry = readUInt8(rw);
-	uint32_t triangleCount = readUInt32(rw);
-	vertexCount = readUInt32(rw);
+	hasNativeGeometry = readUInt8(bytes, offset);
+	uint32_t triangleCount = readUInt32(bytes, offset);
+	vertexCount = readUInt32(bytes, offset);
 
-	rw.seekg(4, ios::cur); /* number of morph targets, uninteresting */
+	//rw.seekg(4, ios::cur); /* number of morph targets, uninteresting */
+	*offset += 4;
 
 	// skip light info
 	if (header.version < 0x34000)
-		rw.seekg(12, ios::cur);
+		// rw.seekg(12, ios::cur);
+		*offset += 12;
 
 	if (!hasNativeGeometry) {
 		if (flags & FLAGS_PRELIT) {
 			vertexColors.resize(4*vertexCount);
-			rw.read((char *) (&vertexColors[0]),
-			         4*vertexCount*sizeof(uint8_t));
+			//rw.read((char *) (&vertexColors[0]),
+			//         4*vertexCount*sizeof(uint8_t));
+			memcpy((char *)(&vertexColors[0]),
+				&bytes[*offset],
+				4 * vertexCount * sizeof(uint8_t));
+			*offset += 4 * vertexCount * sizeof(uint8_t);
 		}
 		if (flags & FLAGS_TEXTURED) {
 			texCoords[0].resize(2*vertexCount);
-			rw.read((char *) (&texCoords[0][0]),
-			         2*vertexCount*sizeof(float));
+			//rw.read((char *) (&texCoords[0][0]),
+			//         2*vertexCount*sizeof(float));
+			memcpy((char *)(&texCoords[0][0]),
+				&bytes[*offset],
+				2 * vertexCount * sizeof(float));
+			*offset += 2 * vertexCount * sizeof(float);
+
 		}
 		if (flags & FLAGS_TEXTURED2) {
 			for (uint32_t i = 0; i < numUVs; i++) {
 				texCoords[i].resize(2*vertexCount);
-				rw.read((char *) (&texCoords[i][0]),
-					 2*vertexCount*sizeof(float));
+				//rw.read((char *) (&texCoords[i][0]),
+				//	 2*vertexCount*sizeof(float));
+
+				memcpy((char *)(&texCoords[i][0]),
+					&bytes[*offset],
+					2 * vertexCount * sizeof(float));
+				*offset += 2 * vertexCount * sizeof(float);
 			}
 		}
 		faces.resize(4*triangleCount);
-		rw.read((char *) (&faces[0]), 4*triangleCount*sizeof(uint16_t));
+		//rw.read((char *) (&faces[0]), 4*triangleCount*sizeof(uint16_t));
+		memcpy((char *)(&faces[0]),
+			&bytes[*offset],
+			4 * triangleCount * sizeof(uint16_t));
+		*offset += 4 * triangleCount * sizeof(uint16_t);
 	}
 
 	/* morph targets, only 1 in gta */
-	rw.read((char *)(boundingSphere), 4*sizeof(float));
+	//rw.read((char *)(boundingSphere), 4*sizeof(float));
+	memcpy((char *)(boundingSphere),
+		&bytes[*offset],
+		4 * sizeof(float));
+	*offset += 4 * sizeof(float);
+
 	//hasPositions = (flags & FLAGS_POSITIONS) ? 1 : 0;
-	hasPositions = readUInt32(rw);
-	hasNormals = readUInt32(rw);
+	hasPositions = readUInt32(bytes, offset);
+	hasNormals = readUInt32(bytes, offset);
 	// need to recompute:
 	hasPositions = 1;
 	hasNormals = (flags & FLAGS_NORMALS) ? 1 : 0;
 
 	if (!hasNativeGeometry) {
 		vertices.resize(3*vertexCount);
-		rw.read((char *) (&vertices[0]), 3*vertexCount*sizeof(float));
+		//rw.read((char *) (&vertices[0]), 3*vertexCount*sizeof(float));
+		memcpy((char *)(&vertices[0]),
+			&bytes[*offset],
+			3 * vertexCount * sizeof(float));
+		*offset += 3 * vertexCount * sizeof(float);
+
+
 		if (flags & FLAGS_NORMALS) {
 			normals.resize(3*vertexCount);
-			rw.read((char *) (&normals[0]),
-				 3*vertexCount*sizeof(float));
+			//rw.read((char *) (&normals[0]),
+			//	 3*vertexCount*sizeof(float));
+			memcpy((char *)(&normals[0]),
+				&bytes[*offset],
+				3 * vertexCount * sizeof(float));
+			*offset += 3 * vertexCount * sizeof(float);
+
 		}
+
 	}
 
-	READ_HEADER(CHUNK_MATLIST);
+	//READ_HEADER(CHUNK_MATLIST);
+	header.read(bytes, offset);
 
-	READ_HEADER(CHUNK_STRUCT);
-	uint32_t numMaterials = readUInt32(rw);
-	rw.seekg(numMaterials*4, ios::cur);	// constant
+	//READ_HEADER(CHUNK_STRUCT);
+	header.read(bytes, offset);
+
+	uint32_t numMaterials = readUInt32(bytes, offset);
+	//rw.seekg(numMaterials*4, ios::cur);	// constant
+	*offset += numMaterials * 4;
 
 	materialList.resize(numMaterials);
 	for (uint32_t i = 0; i < numMaterials; i++)
-		materialList[i].read(rw);
+		materialList[i].read(bytes, offset);
 
-	readExtension(rw);
+	readExtension(bytes, offset);
 }
 
-void Geometry::readExtension(istream &rw)
+void Geometry::readExtension(char *bytes, size_t *offset)
 {
 	HeaderInfo header;
 
-	READ_HEADER(CHUNK_EXTENSION);
+	// READ_HEADER(CHUNK_EXTENSION);
+	header.read(bytes, offset);
 
-	streampos end = rw.tellg();
+	streampos end = *offset;
 	end += header.length;
 
-	while(rw.tellg() < end){
-		header.read(rw);
+	while(*offset < end){
+		header.read(bytes, offset);
+
 		switch(header.type){
 		case CHUNK_BINMESH: {
-			faceType = readUInt32(rw);
-			uint32_t numSplits = readUInt32(rw);
-			numIndices = readUInt32(rw);
+			faceType = readUInt32(bytes, offset);
+			uint32_t numSplits = readUInt32(bytes, offset);
+			numIndices = readUInt32(bytes, offset);
 			splits.resize(numSplits);
 			bool hasData = header.length > 12+numSplits*8;
 			for(uint32_t i = 0; i < numSplits; i++){
-				uint32_t numIndices = readUInt32(rw);
-				splits[i].matIndex = readUInt32(rw);
+				uint32_t numIndices = readUInt32(bytes, offset);
+				splits[i].matIndex = readUInt32(bytes, offset);
 				splits[i].indices.resize(numIndices);
 				if(hasData){
 					/* OpenGL Data */
 					if(hasNativeGeometry)
 					for(uint32_t j = 0; j < numIndices; j++)
 						splits[i].indices[j] = 
-						  readUInt16(rw);
+						  readUInt16(bytes, offset);
 					else
 					for(uint32_t j = 0; j < numIndices; j++)
 						splits[i].indices[j] = 
-						  readUInt32(rw);
+						  readUInt32(bytes, offset);
 				}
 			}
 			break;
 		} case CHUNK_NATIVEDATA: {
-			streampos beg = rw.tellg();
+			streampos beg = *offset;
 			uint32_t size = header.length;
 			uint32_t build = header.build;
-			header.read(rw);
+			header.read(bytes, offset);
+
 			if(header.build==build && header.type==CHUNK_STRUCT){
-				uint32_t platform = readUInt32(rw);
-				rw.seekg(beg, ios::beg);
+				uint32_t platform = readUInt32(bytes, offset);
+				//rw.seekg(beg, ios::beg);
+				*offset += beg;
+
 				//if(platform == PLATFORM_PS2)
 				//	readPs2NativeData(rw);
 				//else if(platform == PLATFORM_XBOX)
@@ -338,7 +422,8 @@ void Geometry::readExtension(istream &rw)
 					cout << "unknown platform " <<
 					        platform << endl;
 			}else{
-				rw.seekg(beg, ios::beg);
+				//rw.seekg(beg, ios::beg);
+				*offset += beg;
 				//readOglNativeData(rw, size);
 			}
 			break;
@@ -346,180 +431,267 @@ void Geometry::readExtension(istream &rw)
 		case CHUNK_MESHEXTENSION: {
 			hasMeshExtension = true;
 			meshExtension = new MeshExtension;
-			meshExtension->unknown = readUInt32(rw);
-			readMeshExtension(rw);
+			meshExtension->unknown = readUInt32(bytes, offset);
+			readMeshExtension(bytes, offset);
 			break;
 		} case CHUNK_NIGHTVERTEXCOLOR: {
 			hasNightColors = true;
-			nightColorsUnknown = readUInt32(rw);
+			nightColorsUnknown = readUInt32(bytes, offset);
 			if(nightColors.size() != 0){
 				// native data also has them, so skip
-				rw.seekg(header.length - sizeof(uint32_t),
-				          ios::cur);
+				//rw.seekg(header.length - sizeof(uint32_t),
+				//          ios::cur);
+				*offset += header.length - sizeof(uint32_t);
 			}else{
 				if(nightColorsUnknown != 0){
 				/* TODO: could be better */
 					nightColors.resize(header.length-4);
-					rw.read((char *)
-					   (&nightColors[0]), header.length-4);
+					//rw.read((char *)
+					//   (&nightColors[0]), header.length-4);
+					memcpy((char *)(&nightColors[0]),
+						&bytes[*offset],
+						header.length - 4);
+					*offset += header.length - 4;
+
 				}
 			}
 			break;
 		} case CHUNK_MORPH: {
 			hasMorph = true;
 			/* always 0 */
-			readUInt32(rw);
+			readUInt32(bytes, offset);
 			break;
 		} case CHUNK_SKIN: {
 			if(hasNativeGeometry){
-				streampos beg = rw.tellg();
-				rw.seekg(0x0c, ios::cur);
-				uint32_t platform = readUInt32(rw);
-				rw.seekg(beg, ios::beg);
+				streampos beg = *offset;
+				//rw.seekg(0x0c, ios::cur);
+				*offset += 0x0c;
+
+				uint32_t platform = readUInt32(bytes, offset);
+				//rw.seekg(beg, ios::beg);
+				*offset += beg;
+
 //				streampos end = beg+header.length;
 				if(platform == PLATFORM_OGL ||
 				   platform == PLATFORM_PS2){
 					hasSkin = true;
-					readNativeSkinMatrices(rw);
+					readNativeSkinMatrices(bytes, offset);
 				//}else if(platform == PLATFORM_XBOX){
 				//	hasSkin = true;
 				//	readXboxNativeSkin(rw);
 				}else{
 					cout << "skin: unknown platform "
 					     << platform << endl;
-					rw.seekg(header.length, ios::cur);
+					//rw.seekg(header.length, ios::cur);
+					*offset = header.length;
 				}
 			}else{
 				hasSkin = true;
-				boneCount = readUInt8(rw);
-				specialIndexCount = readUInt8(rw);
-				unknown1 = readUInt8(rw);
-				unknown2 = readUInt8(rw);
+				boneCount = readUInt8(bytes, offset);
+				specialIndexCount = readUInt8(bytes, offset);
+				unknown1 = readUInt8(bytes, offset);
+				unknown2 = readUInt8(bytes, offset);
 
 				if (specialIndexCount) {
 					specialIndices.resize(specialIndexCount);
-					rw.read((char *)(&specialIndices[0]),
+					//rw.read((char *)(&specialIndices[0]),
+					//	specialIndexCount * sizeof(uint8_t));
+					memcpy((char *)(&specialIndices[0]),
+						&bytes[*offset],
 						specialIndexCount * sizeof(uint8_t));
+					*offset += specialIndexCount * sizeof(uint8_t);
 				}
 
 				vertexBoneIndices.resize(vertexCount);
-				rw.read((char *) (&vertexBoneIndices[0]),
-					 vertexCount*sizeof(uint32_t));
+				//rw.read((char *) (&vertexBoneIndices[0]),
+				//	 vertexCount*sizeof(uint32_t));
+				memcpy((char *)(&vertexBoneIndices[0]),
+					&bytes[*offset],
+					vertexCount * sizeof(uint32_t));
+				*offset += vertexCount * sizeof(uint32_t);
 
 				vertexBoneWeights.resize(vertexCount*4);
-				rw.read((char *) (&vertexBoneWeights[0]),
-					 vertexCount*4*sizeof(float));
+				//rw.read((char *) (&vertexBoneWeights[0]),
+				//	 vertexCount*4*sizeof(float));
+				memcpy((char *)(&vertexBoneWeights[0]),
+					&bytes[*offset],
+					vertexCount * 4 * sizeof(float));
+				*offset += vertexCount * 4 * sizeof(float);
 
 				inverseMatrices.resize(boneCount*16);
 				for(uint32_t i = 0; i < boneCount; i++){
 					// skip 0xdeaddead
 					if (specialIndexCount == 0)
-						rw.seekg(4, ios::cur);
-					rw.read((char *)
-						 (&inverseMatrices[i*0x10]),
-						 0x10*sizeof(float));
+						//rw.seekg(4, ios::cur);
+						*offset += 4;
+
+					//rw.read((char *)(&inverseMatrices[i*0x10]),
+					//	 0x10*sizeof(float));
+					memcpy((char *)(&inverseMatrices[i * 0x10]),
+						&bytes[*offset],
+						0x10 * sizeof(float));
+					*offset += 0x10 * sizeof(float);
 				}
 				// skip some zeroes
-				if(specialIndexCount != 0)
-					rw.seekg(0x0C, ios::cur);
+				if (specialIndexCount != 0)
+					//rw.seekg(0x0C, ios::cur);
+					*offset += 0x0C;
 			}
 			break;
 		}
 		case CHUNK_ADCPLG:
 			/* only sa ps2, ignore (not very interesting anyway) */
-			rw.seekg(header.length, ios::cur);
+			//rw.seekg(header.length, ios::cur);
+			*offset += header.length;
 			break;
 		case CHUNK_2DFX:
 			has2dfx = true;
 			twodfxData.resize(header.length);
-			rw.read((char*)&twodfxData[0], header.length);
+			//rw.read((char*)&twodfxData[0], header.length);
+			memcpy((char*)&twodfxData[0],
+				&bytes[*offset],
+				header.length);
+			*offset += header.length;
+
 			break;
 		default:
-			rw.seekg(header.length, ios::cur);
+			//rw.seekg(header.length, ios::cur);
+			*offset += header.length;
 			break;
 		}
 	}
 }
 
-void Geometry::readNativeSkinMatrices(istream &rw)
+void Geometry::readNativeSkinMatrices(char *bytes, size_t *offset)
 {
 	HeaderInfo header;
 
-	READ_HEADER(CHUNK_STRUCT);
+	//READ_HEADER(CHUNK_STRUCT);
+	header.read(bytes, offset);
 
-	uint32_t platform = readUInt32(rw);
+	uint32_t platform = readUInt32(bytes, offset);
 	if (platform != PLATFORM_PS2 && platform != PLATFORM_OGL) {
 		cerr << "error: native skin not in ps2 or ogl format\n";
 		return;
 	}
 
-	boneCount = readUInt8(rw);
-	specialIndexCount = readUInt8(rw);
-	unknown1 = readUInt8(rw);
-	unknown2 = readUInt8(rw);
+	boneCount = readUInt8(bytes, offset);
+	specialIndexCount = readUInt8(bytes, offset);
+	unknown1 = readUInt8(bytes, offset);
+	unknown2 = readUInt8(bytes, offset);
 
 	specialIndices.resize(specialIndexCount);
-	rw.read((char *) (&specialIndices[0]),
-			specialIndexCount*sizeof(uint8_t));
+	//rw.read((char *) (&specialIndices[0]),
+	//		specialIndexCount*sizeof(uint8_t));
+	memcpy((char *)(&specialIndices[0]),
+		&bytes[*offset],
+		specialIndexCount * sizeof(uint8_t));
+	*offset += specialIndexCount * sizeof(uint8_t);
 
-	inverseMatrices.resize(boneCount*0x10);
-	for (uint32_t i = 0; i < boneCount; i++)
-		rw.read((char *) (&inverseMatrices[i*0x10]),
-		        0x10*sizeof(float));
+	inverseMatrices.resize(boneCount * 0x10);
+	for (uint32_t i = 0; i < boneCount; i++) {
+	//rw.read((char *) (&inverseMatrices[i*0x10]),
+	//        0x10*sizeof(float));
+		memcpy((char *)(&inverseMatrices[i * 0x10]),
+			&bytes[*offset],
+			0x10 * sizeof(float));
+		*offset += 0x10 * sizeof(float);
+	}
 
 	// skip unknowns
 	if (specialIndexCount != 0)
-		rw.seekg(0x1C, ios::cur);
+		//rw.seekg(0x1C, ios::cur);
+		*offset += 0x1C;
 }
 
-void Geometry::readMeshExtension(istream &rw)
+void Geometry::readMeshExtension(char *bytes, size_t *offset)
 {
 	if (meshExtension->unknown == 0)
 		return;
-	rw.seekg(0x4, ios::cur);
-	uint32_t vertexCount = readUInt32(rw);
-	rw.seekg(0xC, ios::cur);
-	uint32_t faceCount = readUInt32(rw);
-	rw.seekg(0x8, ios::cur);
-	uint32_t materialCount = readUInt32(rw);
-	rw.seekg(0x10, ios::cur);
+
+	// rw.seekg(0x4, ios::cur);
+	*offset += 0x4;
+	
+	uint32_t vertexCount = readUInt32(bytes, offset);
+	//rw.seekg(0xC, ios::cur);
+	*offset += 0xC;
+
+	uint32_t faceCount = readUInt32(bytes, offset);
+	//rw.seekg(0x8, ios::cur);
+	*offset += 0x8;
+
+	uint32_t materialCount = readUInt32(bytes, offset);
+	//rw.seekg(0x10, ios::cur);
+	*offset += 0x10;
 
 	/* vertices */
 	meshExtension->vertices.resize(3*vertexCount);
-	rw.read((char *) (&meshExtension->vertices[0]),
-		 3*vertexCount*sizeof(float));
+	//rw.read((char *) (&meshExtension->vertices[0]),
+		 //3*vertexCount*sizeof(float));
+	memcpy((char *)(&meshExtension->vertices[0]),
+		&bytes[*offset],
+		3 * vertexCount * sizeof(float));
+	*offset += 3 * vertexCount * sizeof(float);
+
 	/* tex coords */
 	meshExtension->texCoords.resize(2*vertexCount);
-	rw.read((char *) (&meshExtension->texCoords[0]),
-		 2*vertexCount*sizeof(float));
+	//rw.read((char *) (&meshExtension->texCoords[0]),
+	//	 2*vertexCount*sizeof(float));
+	memcpy((char *)(&meshExtension->texCoords[0]),
+		&bytes[*offset],
+		2 * vertexCount * sizeof(float));
+	*offset += 2 * vertexCount * sizeof(float);
+
 	/* vertex colors */
 	meshExtension->vertexColors.resize(4*vertexCount);
-	rw.read((char *) (&meshExtension->vertexColors[0]),
-		 4*vertexCount*sizeof(uint8_t));
+	//rw.read((char *) (&meshExtension->vertexColors[0]),
+	//	 4*vertexCount*sizeof(uint8_t));
+	memcpy((char *)(&meshExtension->vertexColors[0]),
+		&bytes[*offset],
+		4 * vertexCount * sizeof(uint8_t));
+	*offset += 4 * vertexCount * sizeof(uint8_t);
+
+
 	/* faces */
 	meshExtension->faces.resize(3*faceCount);
-	rw.read((char *) (&meshExtension->faces[0]),
-		 3*faceCount*sizeof(uint16_t));
+	//rw.read((char *) (&meshExtension->faces[0]),
+	//	 3*faceCount*sizeof(uint16_t));
+	memcpy((char *)(&meshExtension->faces[0]),
+		&bytes[*offset],
+		3 * faceCount * sizeof(uint16_t));
+	*offset += 3 * faceCount * sizeof(uint16_t);
+
+
 	/* material assignments */
 	meshExtension->assignment.resize(faceCount);
-	rw.read((char *) (&meshExtension->assignment[0]),
-		 faceCount*sizeof(uint16_t));
+	//rw.read((char *) (&meshExtension->assignment[0]),
+	//	 faceCount*sizeof(uint16_t));
+	memcpy((char *)(&meshExtension->assignment[0]),
+		&bytes[*offset],
+		faceCount * sizeof(uint16_t));
+	*offset += faceCount * sizeof(uint16_t);
 
 	meshExtension->textureName.resize(materialCount);
 	meshExtension->maskName.resize(materialCount);
 	char buffer[0x20];
 	for (uint32_t i = 0; i < materialCount; i++) {
-		rw.read(buffer, 0x20);
+		// rw.read(buffer, 0x20);
+		memcpy(buffer, &bytes[*offset], 0x20);
+		*offset += 0x20;
+
 		meshExtension->textureName[i] = buffer;
 	}
 	for (uint32_t i = 0; i < materialCount; i++) {
-		rw.read(buffer, 0x20);
+		// rw.read(buffer, 0x20);
+		memcpy(buffer, &bytes[*offset], 0x20);
+		*offset += 0x20;
+
 		meshExtension->maskName[i] = buffer;
 	}
 	for (uint32_t i = 0; i < materialCount; i++) {
-		meshExtension->unknowns.push_back(readFloat32(rw));
-		meshExtension->unknowns.push_back(readFloat32(rw));
-		meshExtension->unknowns.push_back(readFloat32(rw));
+		meshExtension->unknowns.push_back(readFloat32(bytes, offset));
+		meshExtension->unknowns.push_back(readFloat32(bytes, offset));
+		meshExtension->unknowns.push_back(readFloat32(bytes, offset));
 	}
 }
 
@@ -957,111 +1129,141 @@ Geometry::~Geometry(void)
  * Material
  */
 
-void Material::read(istream &rw)
+void Material::read(char *bytes, size_t *offset)
 {
 	HeaderInfo header;
 
-	READ_HEADER(CHUNK_MATERIAL);
+	//READ_HEADER(CHUNK_MATERIAL);
+	header.read(bytes, offset);
 
-	READ_HEADER(CHUNK_STRUCT);
-	flags = readUInt32(rw);
-	rw.read((char *) (color), 4*sizeof(uint8_t));
-	unknown = readUInt32(rw);;
-	hasTex = readInt32(rw);
-	rw.read((char *) (surfaceProps), 3*sizeof(float));
+	//READ_HEADER(CHUNK_STRUCT);
+	header.read(bytes, offset);
+
+	flags = readUInt32(bytes, offset);
+
+	//rw.read((char *) (color), 4*sizeof(uint8_t));
+	memcpy((char *)(color), &bytes[*offset], 4 * sizeof(uint8_t));
+	*offset += 4 * sizeof(uint8_t);
+
+	unknown = readUInt32(bytes, offset);
+	hasTex = readInt32(bytes, offset);
+
+
+	//rw.read((char *) (surfaceProps), 3*sizeof(float));
+	memcpy((char *)(surfaceProps), &bytes[*offset], 3 * sizeof(float));
+	*offset += 3 * sizeof(float);
 
 	if (hasTex)
-		texture.read(rw);
+		texture.read(bytes, offset);
 
-	readExtension(rw);
+	readExtension(bytes, offset);
 }
 
-void Material::readExtension(istream &rw)
+void Material::readExtension(char *bytes, size_t *offset)
 {
 	HeaderInfo header;
 	char buf[32];
 
-	READ_HEADER(CHUNK_EXTENSION);
+	//READ_HEADER(CHUNK_EXTENSION);
+	header.read(bytes, offset);
 
-	streampos end = rw.tellg();
-	end += header.length;
+	streampos end = *offset + header.length;
 
-	while (rw.tellg() < end) {
-		header.read(rw);
+	while (*offset < end) {
+		header.read(bytes, offset);
 		switch (header.type) {
 		case CHUNK_RIGHTTORENDER:
 			hasRightToRender = true;
-			rightToRenderVal1 = readUInt32(rw);
-			rightToRenderVal2 = readUInt32(rw);
+			rightToRenderVal1 = readUInt32(bytes, offset);
+			rightToRenderVal2 = readUInt32(bytes, offset);
 //cout << filename << " matrights: " << hex << rightToRenderVal1 << " " << rightToRenderVal2 << endl;
 			break;
 		case CHUNK_MATERIALEFFECTS: {
 			hasMatFx = true;
 			matFx = new MatFx;
-			matFx->type = readUInt32(rw);
+			matFx->type = readUInt32(bytes, offset);
 			switch (matFx->type) {
 			case MATFX_BUMPMAP: {
 //cout << filename << " BUMPMAP\n";
-				rw.seekg(4, ios::cur); // also MATFX_BUMPMAP
-				matFx->bumpCoefficient = readFloat32(rw);
+				// rw.seekg(4, ios::cur); // also MATFX_BUMPMAP
+				*offset += 4;
 
-				matFx->hasTex1 = readUInt32(rw);
+				matFx->bumpCoefficient = readFloat32(bytes, offset);
+
+				matFx->hasTex1 = readUInt32(bytes, offset);
 				if (matFx->hasTex1)
-					matFx->tex1.read(rw);
+					matFx->tex1.read(bytes, offset);
 
-				matFx->hasTex2 = readUInt32(rw);
+				matFx->hasTex2 = readUInt32(bytes, offset);
 				if (matFx->hasTex2)
-					matFx->tex2.read(rw);
+					matFx->tex2.read(bytes, offset);
 
-				rw.seekg(4, ios::cur); // 0
+				//rw.seekg(4, ios::cur); // 0
+				*offset += 4;
+
 				break;
 			} case MATFX_ENVMAP: {
-				rw.seekg(4, ios::cur); // also MATFX_ENVMAP
-				matFx->envCoefficient = readFloat32(rw);
+				// rw.seekg(4, ios::cur); // also MATFX_ENVMAP
+				*offset += 4;
 
-				matFx->hasTex1 = readUInt32(rw);
+				matFx->envCoefficient = readFloat32(bytes, offset);
+
+				matFx->hasTex1 = readUInt32(bytes, offset);
 				if (matFx->hasTex1)
-					matFx->tex1.read(rw);
+					matFx->tex1.read(bytes, offset);
 
-				matFx->hasTex2 = readUInt32(rw);
+				matFx->hasTex2 = readUInt32(bytes, offset);
 				if (matFx->hasTex2)
-					matFx->tex2.read(rw);
+					matFx->tex2.read(bytes, offset);
 
-				rw.seekg(4, ios::cur); // 0
+				//rw.seekg(4, ios::cur); // 0
+				*offset += 4;
+
 				break;
 			} case MATFX_BUMPENVMAP: {
 //cout << filename << " BUMPENVMAP\n";
-				rw.seekg(4, ios::cur); // MATFX_BUMPMAP
-				matFx->bumpCoefficient = readFloat32(rw);
-				matFx->hasTex1 = readUInt32(rw);
-				if (matFx->hasTex1)
-					matFx->tex1.read(rw);
-				// needs to be 0, tex2 will be used
-				rw.seekg(4, ios::cur);
+				// rw.seekg(4, ios::cur); // MATFX_BUMPMAP
+				*offset += 4;
 
-				rw.seekg(4, ios::cur); // MATFX_ENVMPMAP
-				matFx->envCoefficient = readFloat32(rw);
+				matFx->bumpCoefficient = readFloat32(bytes, offset);
+				matFx->hasTex1 = readUInt32(bytes, offset);
+				if (matFx->hasTex1)
+					matFx->tex1.read(bytes, offset);
+				// needs to be 0, tex2 will be used
+				// rw.seekg(4, ios::cur);
+				*offset += 4;
+
+				// rw.seekg(4, ios::cur); // MATFX_ENVMPMAP
+				*offset += 4;
+
+				matFx->envCoefficient = readFloat32(bytes, offset);
 				// needs to be 0, tex1 is already used
-				rw.seekg(4, ios::cur);
-				matFx->hasTex2 = readUInt32(rw);
+				// rw.seekg(4, ios::cur);
+				*offset += 4;
+
+				matFx->hasTex2 = readUInt32(bytes, offset);
 				if (matFx->hasTex2)
-					matFx->tex2.read(rw);
+					matFx->tex2.read(bytes, offset);
 				break;
 			} case MATFX_DUAL: {
 //cout << filename << " DUAL\n";
-				rw.seekg(4, ios::cur); // also MATFX_DUAL
-				matFx->srcBlend = readUInt32(rw);
-				matFx->destBlend = readUInt32(rw);
+				//rw.seekg(4, ios::cur); // also MATFX_DUAL
+				*offset += 4;
+				matFx->srcBlend = readUInt32(bytes, offset);
+				matFx->destBlend = readUInt32(bytes, offset);
 
-				matFx->hasDualPassMap = readUInt32(rw);
+				matFx->hasDualPassMap = readUInt32(bytes, offset);
 				if (matFx->hasDualPassMap)
-					matFx->dualPassMap.read(rw);
-				rw.seekg(4, ios::cur); // 0
+					matFx->dualPassMap.read(bytes, offset);
+				//rw.seekg(4, ios::cur); // 0
+				*offset += 4;
 				break;
 			} case MATFX_UVTRANSFORM: {
 //cout << filename << " UVTRANSFORM\n";
-				rw.seekg(4, ios::cur);//also MATFX_UVTRANSFORM
-				rw.seekg(4, ios::cur); // 0
+				// rw.seekg(4, ios::cur);//also MATFX_UVTRANSFORM
+				*offset += 4;
+				// rw.seekg(4, ios::cur); // 0
+				*offset += 4;
 				break;
 			} case MATFX_DUALUVTRANSFORM: {
 //cout << filename << " DUALUVTRANSFORM\n";
@@ -1073,33 +1275,43 @@ void Material::readExtension(istream &rw)
 			break;
 		} case CHUNK_REFLECTIONMAT:
 			hasReflectionMat = true;
-			reflectionChannelAmount[0] = readFloat32(rw);
-			reflectionChannelAmount[1] = readFloat32(rw);
-			reflectionChannelAmount[2] = readFloat32(rw);
-			reflectionChannelAmount[3] = readFloat32(rw);
-			reflectionIntensity = readFloat32(rw);
-			rw.seekg(4, ios::cur);
+			reflectionChannelAmount[0] = readFloat32(bytes, offset);
+			reflectionChannelAmount[1] = readFloat32(bytes, offset);
+			reflectionChannelAmount[2] = readFloat32(bytes, offset);
+			reflectionChannelAmount[3] = readFloat32(bytes, offset);
+			reflectionIntensity = readFloat32(bytes, offset);
+			//rw.seekg(4, ios::cur);
+			*offset += 4;
 			break;
 		case CHUNK_SPECULARMAT: {
 			hasSpecularMat = true;
-			specularLevel = readFloat32(rw);
+			specularLevel = readFloat32(bytes, offset);
 			uint32_t len = header.length - sizeof(float) - 4;
 			char *name = new char[len];
-			rw.read(name, len);
+			//rw.read(name, len);
+			memcpy(name, &bytes[*offset], len);
+			*offset += len;
+
 			specularName = name;
-			rw.seekg(4, ios::cur);
+			//rw.seekg(4, ios::cur);
+			*offset += 4;
 			delete[] name;
 			break;
 		}
 		case CHUNK_UVANIMPLG:
-			READ_HEADER(CHUNK_STRUCT);
+			//READ_HEADER(CHUNK_STRUCT);
+			header.read(bytes, offset);
 			hasUVAnim = true;
-			uvVal = readUInt32(rw);
-			rw.read(buf, 32);
+			uvVal = readUInt32(bytes, offset);
+			//rw.read(buf, 32);
+			memcpy(buf, &bytes[*offset], 32);
+			*offset += 32;
+
 			uvName = buf;
 			break;
 		default:
-			rw.seekg(header.length, ios::cur);
+			//rw.seekg(header.length, ios::cur);
+			*offset += header.length;
 			break;
 		}
 	}
@@ -1283,51 +1495,66 @@ MatFx::MatFx(void)
  * Texture
  */
 
-void Texture::read(istream &rw)
+void Texture::read(char *bytes, size_t *offset)
 {
 	HeaderInfo header;
 
-	READ_HEADER(CHUNK_TEXTURE);
+	// READ_HEADER(CHUNK_TEXTURE);
+	header.read(bytes, offset);
 
-	READ_HEADER(CHUNK_STRUCT);
-	filterFlags = readUInt16(rw);
-	rw.seekg(2, ios::cur);
+	// READ_HEADER(CHUNK_STRUCT);
+	header.read(bytes, offset);
 
-	READ_HEADER(CHUNK_STRING);
+	filterFlags = readUInt16(bytes, offset);
+	//rw.seekg(2, ios::cur);
+	*offset += 2;
+
+	// READ_HEADER(CHUNK_STRING);
+	header.read(bytes, offset);
+
 	char *buffer = new char[header.length+1];
-	rw.read(buffer, header.length);
+	//rw.read(buffer, header.length);
+	memcpy(buffer, &bytes[*offset], header.length);
+	*offset += header.length;
+
 	buffer[header.length] = '\0';
 	name = buffer;
 	delete[] buffer;
 
-	READ_HEADER(CHUNK_STRING);
+	// READ_HEADER(CHUNK_STRING);
+	header.read(bytes, offset);
+
 	buffer = new char[header.length+1];
-	rw.read(buffer, header.length);
+	//rw.read(buffer, header.length);
+	memcpy(buffer, &bytes[*offset], header.length);
+	*offset += header.length;
+
 	buffer[header.length] = '\0';
 	maskName = buffer;
 	delete[] buffer;
 
-	readExtension(rw);
+	readExtension(bytes, offset);
 }
 
-void Texture::readExtension(istream &rw)
+void Texture::readExtension(char *bytes, size_t *offset)
 {
 	HeaderInfo header;
+	// READ_HEADER(CHUNK_EXTENSION);
+	header.read(bytes, offset);
 
-	READ_HEADER(CHUNK_EXTENSION);
+	streampos end = *offset + header.length;
 
-	streampos end = rw.tellg();
-	end += header.length;
-
-	while (rw.tellg() < end) {
-		header.read(rw);
+	while (*offset < end) {
+		header.read(bytes, offset);
 		switch (header.type) {
 		case CHUNK_SKYMIPMAP:
 			hasSkyMipmap = true;
-			rw.seekg(header.length, ios::cur);
+			//rw.seekg(header.length, ios::cur);
+			*offset += header.length;
 			break;
 		default:
-			rw.seekg(header.length, ios::cur);
+			// rw.seekg(header.length, ios::cur);
+			*offset += header.length;
 			break;
 		}
 	}

@@ -21,8 +21,8 @@ private:
 	std::vector<uint8_t> m_colData;
 
 public:
-	void Read(istream &dff);
-	void ReadExtension(istream &dff);
+	void Read(char *bytes);
+	void ReadExtension(char *bytes, size_t *offset);
 	void Dump(bool detailed = false);
 	void Clear();
 

@@ -49,21 +49,23 @@ std::vector<GameModel*> gModels;
 
 int LoadGameFile(GameRender *render)
 {
-	/* ImgLoader *imgLoader = new ImgLoader();
+	ImgLoader *imgLoader = new ImgLoader();
 	imgLoader->Open("D:/games/Grand Theft Auto Vice City/models/gta3.img",
 		"D:/games/Grand Theft Auto Vice City/models/gta3.dir");
-	imgLoader->FileSaveById(152);
+	//imgLoader->FileSaveById(152);
+	char *fileBuffer = imgLoader->FileGetById(152);
 	imgLoader->Cleanup();
-	delete imgLoader; */
+	delete imgLoader;
 
-	std::ifstream in("C:/Users/john/Downloads/basketballcourt04.dff", std::ios::binary);
-	if (!in.is_open()) {
-		MessageBox(NULL, L"Cannot open file", L"Error", MB_ICONERROR | MB_OK);
-		return -1;
-	}
+	//std::ifstream in("C:/Users/john/Downloads/basketballcourt04.dff", std::ios::binary);
+	//if (!in.is_open()) {
+	//	MessageBox(NULL, L"Cannot open file", L"Error", MB_ICONERROR | MB_OK);
+	//	return -1;
+	//}
 
 	Clump *clump = new Clump();
-	clump->Read(in);
+	//clump->Read(in);
+	clump->Read(fileBuffer);
 	clump->Dump();
 	
 	for (uint32_t index = 0; index < clump->GetGeometryList().size(); index++) {

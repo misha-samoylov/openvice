@@ -11,16 +11,16 @@
 
 using namespace std;
 
-#ifdef _DEBUG
+//#ifdef _DEBUG
+//	#define READ_HEADER(x)\
+//	header.read(bytes, &offset);\
+//	if (header.type != (x)) {\
+//		ChunkNotFound((x), rw.tellg());\
+//	}
+//#else
 	#define READ_HEADER(x)\
-	header.read(rw);\
-	if (header.type != (x)) {\
-		ChunkNotFound((x), rw.tellg());\
-	}
-#else
-	#define READ_HEADER(x)\
-		header.read(rw);
-#endif
+		header.read(bytes, &offset);
+//#endif
 
 enum PLATFORM_ID {
 	PLATFORM_OGL = 2,
@@ -168,19 +168,19 @@ struct HeaderInfo {
 	uint32_t length;
 	uint32_t build;
 	uint32_t version;
-	bool read(std::istream &rw);
-	bool peek(std::istream &rw);
-	bool findChunk(std::istream &rw, uint32_t type);
+	bool read(char *bytes, size_t *offset);
+	bool peek(size_t *offset);
+	bool findChunk(char *bytes, size_t *offset, uint32_t type);
 };
 
 void ChunkNotFound(CHUNK_TYPE chunk, uint32_t address);
-int8_t readInt8(std::istream &rw);
-uint8_t readUInt8(std::istream &rw);
-int16_t readInt16(std::istream &rw);
-uint16_t readUInt16(std::istream &rw);
-int32_t readInt32(std::istream &rw);
-uint32_t readUInt32(std::istream &rw);
-float readFloat32(std::istream &rw);
+int8_t readInt8(char *bytes, size_t *offset);
+uint8_t readUInt8(char *bytes, size_t *offset);
+int16_t readInt16(char *bytes, size_t *offset);
+uint16_t readUInt16(char *bytes, size_t *offset);
+int32_t readInt32(char *bytes, size_t *offset);
+uint32_t readUInt32(char *bytes, size_t *offset);
+float readFloat32(char *bytes, size_t *offset);
 
 struct Frame {
 	float rotationMatrix[9];
@@ -204,8 +204,8 @@ struct Frame {
 	std::vector<uint32_t> hAnimBoneTypes;
 
 	/* functions */
-	void readStruct(std::istream &dff);
-	void readExtension(std::istream &dff);
+	void readStruct(char *bytes, size_t *offset);
+	void readExtension(char *bytes, size_t *offset);
 
 	void dump(uint32_t index, std::string ind = "");
 
@@ -236,8 +236,8 @@ struct Atomic {
 	uint32_t materialFxVal;
 
 	/* functions */
-	void read(std::istream &dff);
-	void readExtension(std::istream &dff);
+	void read(char *bytes, size_t *offset);
+	void readExtension(char *bytes, size_t *offset);
 	void dump(uint32_t index, std::string ind = "");
 
 	Atomic(void);
@@ -254,8 +254,8 @@ struct Texture {
 	bool hasSkyMipmap;
 
 	/* functions */
-	void read(std::istream &dff);
-	void readExtension(std::istream &dff);
+	void read(char *bytes, size_t *offset);
+	void readExtension(char *bytes, size_t *offset);
 	void dump(std::string ind = "");
 
 	Texture(void);
@@ -317,8 +317,8 @@ struct Material {
 	std::string uvName;
 
 	/* functions */
-	void read(std::istream &dff);
-	void readExtension(std::istream &dff);
+	void read(char *bytes, size_t *offset);
+	void readExtension(char *bytes, size_t *offset);
 
 	void dump(uint32_t index, std::string ind = "");
 
@@ -401,9 +401,9 @@ struct Geometry {
 	bool hasMorph;
 
 	/* functions */
-	void read(std::istream &dff);
-	void readExtension(std::istream &dff);
-	void readMeshExtension(std::istream &dff);
+	void read(char *bytes, size_t *offset);
+	void readExtension(char *bytes, size_t *offset);
+	void readMeshExtension(char *bytes, size_t *offset);
 
 	void cleanUp(void);
 
@@ -414,7 +414,7 @@ struct Geometry {
 	Geometry &operator= (const Geometry &other);
 	~Geometry(void);
 private:
-	void readNativeSkinMatrices(std::istream &dff);
+	void readNativeSkinMatrices(char *bytes, size_t *offset);
 	bool isDegenerateFace(uint32_t i, uint32_t j, uint32_t k);
 	void generateFaces(void);
 
@@ -429,7 +429,7 @@ struct Light {
 	uint32_t type;
 	uint32_t flags;
 
-	void read(std::istream &dff);
+	void read(char *bytes, size_t *offset);
 };
 
 /*
@@ -466,7 +466,7 @@ struct NativeTexture {
 	uint32_t dxtCompression;
 
 	/* functions */
-	void readD3d(std::istream &txd);
+	void readD3d(char *bytes, size_t *offset);
 
 	void decompressDxt(void);
 	void decompressDxt1(void);
@@ -484,7 +484,7 @@ struct TextureDictionary {
 	std::vector<NativeTexture> texList;
 
 	/* functions */
-	void read(std::istream &txd);
+	void read(char *bytes, size_t *offset);
 	void clear(void);
 	~TextureDictionary(void);
 };
@@ -492,13 +492,13 @@ struct TextureDictionary {
 struct UVAnimation {
 	std::vector<uint8_t> data;
 
-	void read(std::istream &dff);
+	void read(char *bytes, size_t *offset);
 };
 
 struct UVAnimDict {
 	std::vector<UVAnimation> animList;
 
-	void read(std::istream &dff);
+	void read(char *bytes, size_t *offset);
 	void clear(void);
 	~UVAnimDict(void);
 };
