@@ -23,7 +23,8 @@ class GameModel
 {
 public:
 	HRESULT Init(GameRender *pRender, float *vertices, int verticesCount, 
-		unsigned int *indices, int indicesCount, D3D_PRIMITIVE_TOPOLOGY topology);
+		unsigned int *indices, int indicesCount,
+		D3D_PRIMITIVE_TOPOLOGY topology);
 	void Cleanup();
 	void Render(GameRender *pRender, GameCamera *pCamera);
 
@@ -33,10 +34,12 @@ private:
 	HRESULT CreatePixelShader(GameRender *pRender);
 	HRESULT CreateVertexShader(GameRender *pRender);
 	HRESULT CreateInputLayout(GameRender *pRender);
-	HRESULT CreateDataBuffer(GameRender *pRender, float *pVertices, int verticesCount,
+	HRESULT CreateDataBuffer(GameRender *pRender,
+		float *pVertices, int verticesCount,
 		unsigned int *pIndices, int indicesCount);
 
-	HRESULT CompileShaderFromFile(LPCWSTR szFileName, LPCSTR szEntryPoint, LPCSTR szShaderModel, ID3DBlob** ppBlobOut);
+	HRESULT CompileShaderFromFile(LPCWSTR szFileName, 
+		LPCSTR szEntryPoint, LPCSTR szShaderModel, ID3DBlob** ppBlobOut);
 
 	ID3D11VertexShader *m_pVertexShader;
 	ID3D11PixelShader *m_pPixelShader;

@@ -9,7 +9,8 @@ class GameCamera
 public:
 	void Init(float width, float height);
 	void Cleanup();
-	void Update(float camPitch, float camYaw, float moveLeftRight, float moveBackForward);
+	void Update(float camPitch, float camYaw,
+		float moveLeftRight, float moveBackForward);
 
 	XMMATRIX GetView();
 	XMMATRIX GetProjection();
