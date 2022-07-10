@@ -9,14 +9,14 @@ void GameUtils::StartTimer()
 
 	QueryPerformanceCounter(&frequencyCount);
 	g_counterStart = frequencyCount.QuadPart;
-};
+}
 
 double GameUtils::GetTime()
 {
 	LARGE_INTEGER currentTime;
 	QueryPerformanceCounter(&currentTime);
 	return double(currentTime.QuadPart - g_counterStart) / g_countsPerSecond;
-};
+}
 
 double GameUtils::GetFrameTime()
 {
@@ -31,4 +31,4 @@ double GameUtils::GetFrameTime()
 		tickCount = 0.0f;
 
 	return float(tickCount) / g_countsPerSecond;
-};
+}
