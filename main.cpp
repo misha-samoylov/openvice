@@ -115,6 +115,8 @@ int LoadGameFile(GameRender *render)
 	clump->Clear();
 	delete clump;
 
+	free(fileBuffer);
+
 	return 0;
 }
 
