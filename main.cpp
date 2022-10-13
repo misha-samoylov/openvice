@@ -71,6 +71,12 @@ int LoadGameFile(GameRender *render)
 
 		std::vector<float> gvertices;
 
+		for (int i = 0; i < clump->GetGeometryList()[index].materialList.size(); i++) {
+			Material material = clump->GetGeometryList()[index].materialList[i];
+
+			std::cout << "Material texture " << material.texture.name << std::endl;
+		}
+
 		for (uint32_t i = 0; i < clump->GetGeometryList()[index].vertices.size() / 3; i++) {
 
 			float x = clump->GetGeometryList()[index].vertices[i * 3 + 0];
