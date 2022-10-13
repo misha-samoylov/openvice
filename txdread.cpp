@@ -30,7 +30,8 @@ void TextureDictionary::read(char *bytes, size_t *offset)
 
 		texList[i].platform = readUInt32(bytes, offset);
 		//rw.seekg(-0x10, ios::cur);
-		*offset -= -0x10;
+		//*offset -= -0x10;
+		*offset -= 0x10;
 
 		if (texList[i].platform == PLATFORM_D3D8 ||
 		           texList[i].platform == PLATFORM_D3D9) {

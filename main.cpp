@@ -24,10 +24,9 @@ using namespace DirectX; /* DirectXMath.h */
 
 std::vector<GameModel*> gModels;
 
-/* void LoadTxdFile()
+void LoadTxdFile()
 {
-	filename = argv[1];
-	ifstream rw(argv[1], ios::binary);
+	/*ifstream rw(argv[1], ios::binary);
 	TextureDictionary txd;
 	txd.read(rw);
 	rw.close();
@@ -44,14 +43,14 @@ std::vector<GameModel*> gModels;
 			txd.texList[i].decompressDxt();
 		txd.texList[i].convertTo32Bit();
 		txd.texList[i].writeTGA();
-	}
-} */
+	}*/
+}
 
 int LoadGameFile(GameRender *render)
 {
 	ImgLoader *imgLoader = new ImgLoader();
-	imgLoader->Open("D:/games/Grand Theft Auto Vice City/models/gta3.img",
-		"D:/games/Grand Theft Auto Vice City/models/gta3.dir");
+	imgLoader->Open("C:/Games/Grand Theft Auto Vice City/models/gta3.img",
+		"C:/Games/Grand Theft Auto Vice City/models/gta3.dir");
 	//imgLoader->FileSaveById(152);
 	char *fileBuffer = imgLoader->FileGetById(152);
 	imgLoader->Cleanup();
@@ -166,6 +165,36 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 	int frameCount = 0;
 	double frameTime;
 	int fps = 0;
+
+
+	ImgLoader *imgLoader = new ImgLoader();
+	imgLoader->Open("C:/Games/Grand Theft Auto Vice City/models/gta3.img",
+		"C:/Games/Grand Theft Auto Vice City/models/gta3.dir");
+	//imgLoader->FileSaveById(152);
+	char *fileBuffer = imgLoader->FileGetById(1);
+	imgLoader->Cleanup();
+	delete imgLoader;
+
+
+	TextureDictionary txd;
+	size_t offset = 0;
+	txd.read(fileBuffer, &offset);
+	for (uint32_t i = 0; i < txd.texList.size(); i++) {
+		NativeTexture &t = txd.texList[i];
+		cout << i << " " << t.name << " " << t.maskName << " "
+			<< " " << t.width[0] << " " << t.height[0] << " "
+			<< " " << t.depth << " " << hex << t.rasterFormat << endl;
+		//if (txd.texList[i].platform == PLATFORM_PS2)
+		//	txd.texList[i].convertFromPS2(0x40);
+		//if (txd.texList[i].platform == PLATFORM_XBOX)
+		//	txd.texList[i].convertFromXbox();
+		if (txd.texList[i].dxtCompression)
+			txd.texList[i].decompressDxt();
+		txd.texList[i].convertTo32Bit();
+		//txd.texList[i].writeTGA();
+	}
+
+
 
 	/* main loop */
 	MSG msg;
