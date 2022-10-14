@@ -46,15 +46,28 @@ void LoadTxdFile()
 	}*/
 }
 
-int LoadGameFile(GameRender *render)
+
+ImgLoader *LoadImgFile()
 {
 	ImgLoader *imgLoader = new ImgLoader();
-	imgLoader->Open("C:/Games/Grand Theft Auto Vice City/models/gta3.img",
-		"C:/Games/Grand Theft Auto Vice City/models/gta3.dir");
+	imgLoader->Open(
+		"C:/Games/Grand Theft Auto Vice City/models/gta3.img",
+		"C:/Games/Grand Theft Auto Vice City/models/gta3.dir"
+	);
+
+	return imgLoader;
+}
+
+void FreeImgFile(ImgLoader *pImgLoader)
+{
+	pImgLoader->Cleanup();
+	delete pImgLoader;
+}
+
+int LoadGameFile(ImgLoader *pImgLoader, GameRender *render)
+{
 	//imgLoader->FileSaveById(152);
-	char *fileBuffer = imgLoader->FileGetById(152);
-	imgLoader->Cleanup();
-	delete imgLoader;
+	char *fileBuffer = pImgLoader->FileGetById(152);
 
 	//std::ifstream in("C:/Users/john/Downloads/basketballcourt04.dff", std::ios::binary);
 	//if (!in.is_open()) {
@@ -136,6 +149,29 @@ void Render(GameRender *render, GameCamera *camera)
 	render->RenderEnd();
 }
 
+void LoadTexture(ImgLoader *pImgLoader, int fileId)
+{
+	char *fileBuffer = pImgLoader->FileGetById(fileId);
+
+	TextureDictionary txd;
+	size_t offset = 0;
+	txd.read(fileBuffer, &offset);
+
+	for (uint32_t i = 0; i < txd.texList.size(); i++) {
+		NativeTexture &t = txd.texList[i];
+		cout << i << " " << t.name << " " << t.maskName << " "
+			<< " " << t.width[0] << " " << t.height[0] << " "
+			<< " " << t.depth << " " << hex << t.rasterFormat << endl;
+
+		if (txd.texList[i].dxtCompression)
+			txd.texList[i].decompressDxt();
+
+		txd.texList[i].convertTo32Bit();
+	}
+
+	free(fileBuffer);
+}
+
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 	PWSTR pCmdLine, int nCmdShow)
 {
@@ -151,7 +187,9 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 	GameRender *gameRender = new GameRender();
 	gameRender->Init(gameWindow->GetHandleWindow());
 
-	LoadGameFile(gameRender);
+	ImgLoader *imgLoader = LoadImgFile();
+	LoadGameFile(imgLoader, gameRender);
+	LoadTexture(imgLoader, 1);
 
 	float moveLeftRight = 0.0f;
 	float moveBackForward = 0.0f;
@@ -171,36 +209,6 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 	int frameCount = 0;
 	double frameTime;
 	int fps = 0;
-
-
-	ImgLoader *imgLoader = new ImgLoader();
-	imgLoader->Open("C:/Games/Grand Theft Auto Vice City/models/gta3.img",
-		"C:/Games/Grand Theft Auto Vice City/models/gta3.dir");
-	//imgLoader->FileSaveById(152);
-	char *fileBuffer = imgLoader->FileGetById(1);
-	imgLoader->Cleanup();
-	delete imgLoader;
-
-
-	TextureDictionary txd;
-	size_t offset = 0;
-	txd.read(fileBuffer, &offset);
-	for (uint32_t i = 0; i < txd.texList.size(); i++) {
-		NativeTexture &t = txd.texList[i];
-		cout << i << " " << t.name << " " << t.maskName << " "
-			<< " " << t.width[0] << " " << t.height[0] << " "
-			<< " " << t.depth << " " << hex << t.rasterFormat << endl;
-		//if (txd.texList[i].platform == PLATFORM_PS2)
-		//	txd.texList[i].convertFromPS2(0x40);
-		//if (txd.texList[i].platform == PLATFORM_XBOX)
-		//	txd.texList[i].convertFromXbox();
-		if (txd.texList[i].dxtCompression)
-			txd.texList[i].decompressDxt();
-		txd.texList[i].convertTo32Bit();
-		//txd.texList[i].writeTGA();
-	}
-
-
 
 	/* main loop */
 	MSG msg;
@@ -277,6 +285,8 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 	delete gameCamera;
 	delete gameInput;
 	delete gameRender;
+
+	FreeImgFile(imgLoader);
 
 	return msg.wParam;
 }
