@@ -46,7 +46,6 @@ void LoadTxdFile()
 	}*/
 }
 
-
 ImgLoader *LoadImgFile()
 {
 	ImgLoader *imgLoader = new ImgLoader();
@@ -64,13 +63,45 @@ void FreeImgFile(ImgLoader *pImgLoader)
 	delete pImgLoader;
 }
 
-int LoadGameFile(ImgLoader *pImgLoader, GameRender *render, uint32_t fileId)
+void LoadTextureWithId(ImgLoader *pImgLoader, uint32_t fileId)
 {
-	
+	char *fileBuffer = pImgLoader->FileGetById(fileId);
 
+	TextureDictionary txd;
+	size_t offset = 0;
+	txd.read(fileBuffer, &offset);
+
+	for (uint32_t i = 0; i < txd.texList.size(); i++) {
+		NativeTexture &t = txd.texList[i];
+		cout << i << " " << t.name << " " << t.maskName << " "
+			<< " " << t.width[0] << " " << t.height[0] << " "
+			<< " " << t.depth << " " << hex << t.rasterFormat << endl;
+
+		if (txd.texList[i].dxtCompression)
+			txd.texList[i].decompressDxt();
+
+		txd.texList[i].convertTo32Bit();
+	}
+
+	free(fileBuffer);
+}
+
+void LoadTextureWithName(ImgLoader *pImgLoader, const char *name)
+{
+	std::string textureName = name;
+	textureName += ".txd";
+
+	int index = pImgLoader->FileGetIndexByName(textureName.c_str());
+	if (index == -1)
+		return;
+
+	LoadTextureWithId(pImgLoader, index);
+}
+
+int LoadGameFileWithId(ImgLoader *pImgLoader, GameRender *render, uint32_t fileId)
+{
 	char *fileBuffer = pImgLoader->FileGetById(fileId);
 	
-
 	Clump *clump = new Clump();
 	clump->Read(fileBuffer);
 	clump->Dump();
@@ -83,6 +114,7 @@ int LoadGameFile(ImgLoader *pImgLoader, GameRender *render, uint32_t fileId)
 			Material material = clump->GetGeometryList()[index].materialList[i];
 
 			std::cout << "Model material texture " << material.texture.name << std::endl;
+			LoadTextureWithName(pImgLoader, material.texture.name.c_str() );
 		}
 
 		for (uint32_t i = 0; i < clump->GetGeometryList()[index].vertices.size() / 3; i++) {
@@ -144,41 +176,6 @@ void Render(GameRender *render, GameCamera *camera)
 	render->RenderEnd();
 }
 
-void LoadTexture(ImgLoader *pImgLoader, uint32_t fileId)
-{
-	char *fileBuffer = pImgLoader->FileGetById(fileId);
-
-	TextureDictionary txd;
-	size_t offset = 0;
-	txd.read(fileBuffer, &offset);
-
-	for (uint32_t i = 0; i < txd.texList.size(); i++) {
-		NativeTexture &t = txd.texList[i];
-		cout << i << " " << t.name << " " << t.maskName << " "
-			<< " " << t.width[0] << " " << t.height[0] << " "
-			<< " " << t.depth << " " << hex << t.rasterFormat << endl;
-
-		if (txd.texList[i].dxtCompression)
-			txd.texList[i].decompressDxt();
-
-		txd.texList[i].convertTo32Bit();
-	}
-
-	free(fileBuffer);
-}
-
-void LoadTextureWithName(ImgLoader *pImgLoader, const char *name)
-{
-	std::string textureName = name;
-	textureName += ".txd";
-
-	int index = pImgLoader->FileGetIndexByName(textureName.c_str());
-	if (index == -1)
-		return;
-
-	LoadTexture(pImgLoader, index);
-}
-
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 	PWSTR pCmdLine, int nCmdShow)
 {
@@ -201,8 +198,8 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 	LoadTextureWithName(imgLoader, "radar02");
 	LoadTextureWithName(imgLoader, "radar03");
 	LoadTextureWithName(imgLoader, "radar04");
-	LoadGameFile(imgLoader, gameRender, 152);
-	LoadGameFile(imgLoader, gameRender, 153);
+	LoadGameFileWithId(imgLoader, gameRender, 152);
+	LoadGameFileWithId(imgLoader, gameRender, 153);
 
 	float moveLeftRight = 0.0f;
 	float moveBackForward = 0.0f;
