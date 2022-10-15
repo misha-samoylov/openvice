@@ -20,6 +20,7 @@ public:
 	void Cleanup();
 
 	char *FileGetById(uint32_t id);
+	int FileGetIndexByName(const char *name);
 	int FileSaveById(uint32_t id);
 	int FileSave(int32_t offset, int32_t size, const char *name);
 
@@ -33,4 +34,6 @@ private:
 	struct dirEntry *m_pFilesDir;
 	FILE *m_pFileImg;
 	FILE *m_pFileDir;
+
+	int m_countFiles;
 };

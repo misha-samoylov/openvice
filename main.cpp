@@ -64,22 +64,17 @@ void FreeImgFile(ImgLoader *pImgLoader)
 	delete pImgLoader;
 }
 
-int LoadGameFile(ImgLoader *pImgLoader, GameRender *render)
+int LoadGameFile(ImgLoader *pImgLoader, GameRender *render, uint32_t fileId)
 {
-	//imgLoader->FileSaveById(152);
-	char *fileBuffer = pImgLoader->FileGetById(152);
+	
 
-	//std::ifstream in("C:/Users/john/Downloads/basketballcourt04.dff", std::ios::binary);
-	//if (!in.is_open()) {
-	//	MessageBox(NULL, L"Cannot open file", L"Error", MB_ICONERROR | MB_OK);
-	//	return -1;
-	//}
+	char *fileBuffer = pImgLoader->FileGetById(fileId);
+	
 
 	Clump *clump = new Clump();
-	//clump->Read(in);
 	clump->Read(fileBuffer);
 	clump->Dump();
-	
+
 	for (uint32_t index = 0; index < clump->GetGeometryList().size(); index++) {
 
 		std::vector<float> gvertices;
@@ -87,7 +82,7 @@ int LoadGameFile(ImgLoader *pImgLoader, GameRender *render)
 		for (int i = 0; i < clump->GetGeometryList()[index].materialList.size(); i++) {
 			Material material = clump->GetGeometryList()[index].materialList[i];
 
-			std::cout << "Material texture " << material.texture.name << std::endl;
+			std::cout << "Model material texture " << material.texture.name << std::endl;
 		}
 
 		for (uint32_t i = 0; i < clump->GetGeometryList()[index].vertices.size() / 3; i++) {
@@ -149,7 +144,7 @@ void Render(GameRender *render, GameCamera *camera)
 	render->RenderEnd();
 }
 
-void LoadTexture(ImgLoader *pImgLoader, int fileId)
+void LoadTexture(ImgLoader *pImgLoader, uint32_t fileId)
 {
 	char *fileBuffer = pImgLoader->FileGetById(fileId);
 
@@ -172,6 +167,18 @@ void LoadTexture(ImgLoader *pImgLoader, int fileId)
 	free(fileBuffer);
 }
 
+void LoadTextureWithName(ImgLoader *pImgLoader, const char *name)
+{
+	std::string textureName = name;
+	textureName += ".txd";
+
+	int index = pImgLoader->FileGetIndexByName(textureName.c_str());
+	if (index == -1)
+		return;
+
+	LoadTexture(pImgLoader, index);
+}
+
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 	PWSTR pCmdLine, int nCmdShow)
 {
@@ -188,8 +195,14 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 	gameRender->Init(gameWindow->GetHandleWindow());
 
 	ImgLoader *imgLoader = LoadImgFile();
-	LoadGameFile(imgLoader, gameRender);
-	LoadTexture(imgLoader, 1);
+	imgLoader->FileSaveById(152);
+
+	LoadTextureWithName(imgLoader, "radar01");
+	LoadTextureWithName(imgLoader, "radar02");
+	LoadTextureWithName(imgLoader, "radar03");
+	LoadTextureWithName(imgLoader, "radar04");
+	LoadGameFile(imgLoader, gameRender, 152);
+	LoadGameFile(imgLoader, gameRender, 153);
 
 	float moveLeftRight = 0.0f;
 	float moveBackForward = 0.0f;

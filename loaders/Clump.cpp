@@ -27,19 +27,27 @@ void Clump::Read(char *bytes)
 	HeaderInfo header;
 	header.read(bytes, &offset);
 
-	READ_HEADER(CHUNK_STRUCT);
+	//READ_HEADER(CHUNK_STRUCT);
+	header.read(bytes, &offset);
+
 	uint32_t numAtomics = readUInt32(bytes, &offset);
 	uint32_t numLights = 0;
 	if (header.length == 0xC) {
 		numLights = readUInt32(bytes, &offset);
 		//rw.seekg(4, ios::cur); /* camera count, unused in gta */
 		offset += 4;
+		
 	}
+
+
 	m_atomicList.resize(numAtomics);
 
-	READ_HEADER(CHUNK_FRAMELIST);
 
-	READ_HEADER(CHUNK_STRUCT);
+	//READ_HEADER(CHUNK_FRAMELIST);
+	header.read(bytes, &offset);
+
+	//READ_HEADER(CHUNK_STRUCT);
+	header.read(bytes, &offset);
 	uint32_t numFrames = readUInt32(bytes, &offset);
 	m_frameList.resize(numFrames);
 	for (uint32_t i = 0; i < numFrames; i++)
@@ -47,9 +55,12 @@ void Clump::Read(char *bytes)
 	for (uint32_t i = 0; i < numFrames; i++)
 		m_frameList[i].readExtension(bytes, &offset);
 
-	READ_HEADER(CHUNK_GEOMETRYLIST);
+	//READ_HEADER(CHUNK_GEOMETRYLIST);
+	header.read(bytes, &offset);
 
-	READ_HEADER(CHUNK_STRUCT);
+	//READ_HEADER(CHUNK_STRUCT);
+	header.read(bytes, &offset);
+
 	uint32_t numGeometries = readUInt32(bytes, &offset);
 	m_geometryList.resize(numGeometries);
 	for (uint32_t i = 0; i < numGeometries; i++)
@@ -62,7 +73,9 @@ void Clump::Read(char *bytes)
 	/* read lights */
 	m_lightList.resize(numLights);
 	for (uint32_t i = 0; i < numLights; i++) {
-		READ_HEADER(CHUNK_STRUCT);
+		//READ_HEADER(CHUNK_STRUCT);
+		header.read(bytes, &offset);
+
 		m_lightList[i].frameIndex = readInt32(bytes, &offset);
 		m_lightList[i].read(bytes, &offset);
 	}

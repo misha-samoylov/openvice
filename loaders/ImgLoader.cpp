@@ -15,15 +15,15 @@ int ImgLoader::DirFileOpen(const char *filepath)
     fileSize = ftell(m_pFileDir);
     fseek(m_pFileDir, 0L, SEEK_SET);
 
-    countFiles = fileSize / 32;
+	m_countFiles = fileSize / 32;
 
-    m_pFilesDir = (struct dirEntry*)malloc(sizeof(struct dirEntry) * countFiles);
+    m_pFilesDir = (struct dirEntry*)malloc(sizeof(struct dirEntry) * m_countFiles);
     if (m_pFilesDir == NULL) {
 		printf("Error: cannot allocate memory variable m_pFilesDir\n");
 		return -1;
     }
 
-    fread(m_pFilesDir, sizeof(struct dirEntry) * countFiles, 1, m_pFileDir);
+    fread(m_pFilesDir, sizeof(struct dirEntry) * m_countFiles, 1, m_pFileDir);
 
     return 0;
 }
@@ -86,13 +86,30 @@ char *ImgLoader::FileGetById(uint32_t id)
 	}
 
 	/* read from img_file to buff */
-	fseek(m_pFileImg, fileOffset, SEEK_CUR);
+	fseek(m_pFileImg, fileOffset, SEEK_SET);
 	fread(buff, fileSize, 1, m_pFileImg);
-	fseek(m_pFileImg, 0, SEEK_CUR);
 
 	/* do not remember to free memory */
 	return buff;
 }
+
+int ImgLoader::FileGetIndexByName(const char *name)
+{
+	int index = -1;
+
+	for (int i = 0; i < m_countFiles; i++) {
+		if (strcmp(m_pFilesDir[i].name, name) == 0) {
+			index = i;
+			break;
+		}
+	}
+
+	if (index == -1)
+		printf("Filename %s is not found in IMG\n", name);
+
+	return index;
+}
+
 
 int ImgLoader::FileSave(int32_t offset, int32_t size, const char *name)
 {
@@ -117,7 +134,7 @@ int ImgLoader::FileSave(int32_t offset, int32_t size, const char *name)
     }
 
     /* read from img_file to buff */
-    fseek(m_pFileImg, fileOffset, SEEK_CUR);
+    fseek(m_pFileImg, fileOffset, SEEK_SET);
     fread(buff, fileSize, 1, m_pFileImg);
     fseek(m_pFileImg, 0, SEEK_CUR);
 
