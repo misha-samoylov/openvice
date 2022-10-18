@@ -23,7 +23,7 @@ class GameModel
 {
 public:
 	HRESULT Init(GameRender *pRender, float *vertices, int verticesCount, 
-		unsigned int *indices, int indicesCount,
+		unsigned int *indices, int indicesCount, 
 		D3D_PRIMITIVE_TOPOLOGY topology);
 	void Cleanup();
 	void Render(GameRender *pRender, GameCamera *pCamera);

@@ -109,6 +109,7 @@ int LoadGameFileWithId(ImgLoader *pImgLoader, GameRender *render, uint32_t fileI
 	for (uint32_t index = 0; index < clump->GetGeometryList().size(); index++) {
 
 		std::vector<float> gvertices;
+		std::vector<float> gtexture;
 
 		for (int i = 0; i < clump->GetGeometryList()[index].materialList.size(); i++) {
 			Material material = clump->GetGeometryList()[index].materialList[i];
@@ -127,22 +128,69 @@ int LoadGameFileWithId(ImgLoader *pImgLoader, GameRender *render, uint32_t fileI
 
 			float z = clump->GetGeometryList()[index].vertices[i * 3 + 2];
 			gvertices.push_back(z);
+
+			// загшружаем текстурные координаты
+			if (clump->GetGeometryList()[index].flags & FLAGS_TEXTURED /*|| clump->GetGeometryList()[index].flags & FLAGS_TEXTURED2*/) {
+				for (uint32_t j = 0; j < 1 /* clump->GetGeometryList()[index].numUVs */; j++) { // вставл€ем пока только  FLAGS_TEXTURED
+
+					float tx = clump->GetGeometryList()[index].texCoords[j][i * 2 + 0]; /* index OR i ??? в последнем [] */
+
+					float ty = clump->GetGeometryList()[index].texCoords[j][i * 2 + 1]; /* index OR i ??? в последнем [] */
+
+					gtexture.push_back(tx);
+					gtexture.push_back(tx);
+				}
+			}
+			//else { // делаем загрушку на случай отсутви€ текстуры
+				//	gvertices.push_back(0.0);
+				//	gvertices.push_back(0.0);
+			//}
 		}
 
+		/* ѕробегаемс€ по каждой модели	*/
 		for (uint32_t i = 0; i < clump->GetGeometryList()[index].splits.size(); i++) {
 
 			std::vector<uint32_t> gindices;
 
+			/**
+			 * —охран€ем индексы
+			 */
 			for (uint32_t j = 0; j < clump->GetGeometryList()[index].splits[i].indices.size(); j++) {
-				gindices.push_back(clump->GetGeometryList()[index].splits[i].indices[j]);
+				uint32_t indices = clump->GetGeometryList()[index].splits[i].indices[j];
+				gindices.push_back(indices);
 			}
 
-			float *vertices = &gvertices[0]; /* convert to array float */
-			int countVertices = gvertices.size();
+			/**
+			 * —охран€ем в массив вершины и текстурные координаты,
+			 * чтобы создать валидный вершинный буфер
+			 */
+			std::vector<float> vert;
+
+			for (int v = 0; v < gvertices.size() / 3; v++) {
+				float x = gvertices[v * 3 + 0];
+				float y = gvertices[v * 3 + 1];
+				float z = gvertices[v * 3 + 2];
+
+				float tx = gtexture[v *2 + 0];
+				float ty = gtexture[v * 2 + 1];
+
+				vert.push_back(x);
+				vert.push_back(y);
+				vert.push_back(z);
+
+				vert.push_back(tx);
+				vert.push_back(ty);
+			}
+
+			//float *vertices = &gvertices[0]; /* convert to array float */
+			//int countVertices = gvertices.size();
+			float *vertices = &vert[0];
+			int countVertices = vert.size();
 
 			unsigned int *indices = &gindices[0];  /* convert to array unsigned int */
 			int countIndices = clump->GetGeometryList()[index].splits[i].indices.size();
 
+			
 			D3D_PRIMITIVE_TOPOLOGY topology =
 				clump->GetGeometryList()[index].faceType == FACETYPE_STRIP
 				? D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP
@@ -151,6 +199,7 @@ int LoadGameFileWithId(ImgLoader *pImgLoader, GameRender *render, uint32_t fileI
 			GameModel *gameModel = new GameModel();
 			gameModel->Init(render, vertices, countVertices,
 				indices, countIndices,
+				
 				topology);
 
 			gModels.push_back(gameModel);
@@ -194,12 +243,12 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 	ImgLoader *imgLoader = LoadImgFile();
 	imgLoader->FileSaveById(152);
 
-	LoadTextureWithName(imgLoader, "radar01");
-	LoadTextureWithName(imgLoader, "radar02");
-	LoadTextureWithName(imgLoader, "radar03");
-	LoadTextureWithName(imgLoader, "radar04");
+	//LoadTextureWithName(imgLoader, "radar01");
+	//LoadTextureWithName(imgLoader, "radar02");
+	//LoadTextureWithName(imgLoader, "radar03");
+	//LoadTextureWithName(imgLoader, "radar04");
 	LoadGameFileWithId(imgLoader, gameRender, 152);
-	LoadGameFileWithId(imgLoader, gameRender, 153);
+	//LoadGameFileWithId(imgLoader, gameRender, 153);
 
 	float moveLeftRight = 0.0f;
 	float moveBackForward = 0.0f;

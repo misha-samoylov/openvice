@@ -47,7 +47,7 @@ void GameModel::Render(GameRender * pRender, GameCamera *pCamera)
 	pRender->GetDeviceContext()->IASetIndexBuffer(m_pIndexBuffer, DXGI_FORMAT_R32_UINT, 0);
 
 	/* set vertex buffer */
-	UINT stride = sizeof(float) * 3; /* x, y, z */
+	UINT stride = sizeof(float) * 5; /* x, y, z, tx, ty */ 
 	UINT offset = 0;
 	pRender->GetDeviceContext()->IASetVertexBuffers(0, 1, &m_pVertexBuffer, &stride, &offset);
 
@@ -146,6 +146,7 @@ HRESULT GameModel::CreateInputLayout(GameRender *pRender)
 			D3D11_INPUT_PER_VERTEX_DATA, /* class incoming slot (no matter) */
 			0 /* InstanceDataStepRate (no matter) */
 		},
+		{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 },
 	};
 
 	UINT numElements = ARRAYSIZE(layout);
@@ -206,7 +207,8 @@ HRESULT GameModel::CreateDataBuffer(GameRender * pRender,
 }
 
 HRESULT GameModel::Init(GameRender *pRender, float *pVertices, int verticesCount,
-	unsigned int *pIndices, int indicesCount, D3D_PRIMITIVE_TOPOLOGY topology)
+	unsigned int *pIndices, int indicesCount, 
+	D3D_PRIMITIVE_TOPOLOGY topology)
 {
 	HRESULT hr;
 
