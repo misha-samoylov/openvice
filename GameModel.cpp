@@ -1,4 +1,8 @@
-#include "GameModel.hpp"
+﻿#include "GameModel.hpp"
+
+#include <DDSTextureLoader.h>
+
+using namespace DirectX;
 
 HRESULT GameModel::CreateConstBuffer(GameRender *pRender)
 {
@@ -65,6 +69,12 @@ void GameModel::Render(GameRender * pRender, GameCamera *pCamera)
 	/* send position to shader */
 	pRender->GetDeviceContext()->UpdateSubresource(m_pObjectBuffer, 0, NULL, &m_objectConstBuffer, 0, 0);
 	pRender->GetDeviceContext()->VSSetConstantBuffers(0, 1, &m_pObjectBuffer);
+
+
+	///////////////**************new**************////////////////////
+	pRender->GetDeviceContext()->PSSetShaderResources(0, 1, &CubesTexture);
+	pRender->GetDeviceContext()->PSSetSamplers(0, 1, &CubesTexSamplerState);
+	///////////////**************new**************////////////////////
 
 	/* render indexed vertices */
 	pRender->GetDeviceContext()->DrawIndexed(m_countIndices, 0, 0);
@@ -202,6 +212,34 @@ HRESULT GameModel::CreateDataBuffer(GameRender * pRender,
 	if (FAILED(hr)) {
 		printf("Error: cannot create index data buffer\n");
 	}
+
+
+
+
+	///////////////**************new**************////////////////////
+	hr = CreateDDSTextureFromFile(pRender->GetDevice(), L"C:/Users/john/Documents/GitHub/openvice/test-dxt5.dds", nullptr, &CubesTexture);
+	if (FAILED(hr)) {
+		printf("Error: cannot create dds file\n");
+	}
+
+
+	// Describe the Sample State
+	D3D11_SAMPLER_DESC sampDesc;
+	ZeroMemory(&sampDesc, sizeof(sampDesc));
+	sampDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+	sampDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
+	sampDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
+	sampDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+	sampDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
+	sampDesc.MinLOD = 0;
+	sampDesc.MaxLOD = D3D11_FLOAT32_MAX;
+
+	//Create the Sample State
+	hr = pRender->GetDevice()->CreateSamplerState(&sampDesc, &CubesTexSamplerState);
+	///////////////**************new**************////////////////////
+
+
+
 
 	return hr;
 }

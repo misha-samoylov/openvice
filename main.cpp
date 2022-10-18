@@ -199,7 +199,6 @@ int LoadGameFileWithId(ImgLoader *pImgLoader, GameRender *render, uint32_t fileI
 			GameModel *gameModel = new GameModel();
 			gameModel->Init(render, vertices, countVertices,
 				indices, countIndices,
-				
 				topology);
 
 			gModels.push_back(gameModel);

@@ -1,4 +1,13 @@
-float4 main(float4 Pos: SV_POSITION, float2 Tex : TEXCOORD0): SV_TARGET
+Texture2D ObjTexture;
+SamplerState ObjSamplerState;
+
+struct VS_OUTPUT
 {
-	return float4(1.0f, 1.0f, 0.0f, 1.0f); 
+	float4 Pos : SV_POSITION;
+	float2 TexCoord : TEXCOORD;
+};
+
+float4 main(VS_OUTPUT input) : SV_TARGET
+{
+	return ObjTexture.Sample(ObjSamplerState, input.TexCoord);
 }
