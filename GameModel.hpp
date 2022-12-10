@@ -27,6 +27,7 @@ public:
 		D3D_PRIMITIVE_TOPOLOGY topology);
 	void Cleanup();
 	void Render(GameRender *pRender, GameCamera *pCamera);
+	void setTgaFile(void* source, size_t size) { tgaFileSource = source; tgaFileSize = size; };
 
 private:
 	void InitPosition();
@@ -63,4 +64,6 @@ private:
 
 	ID3D11ShaderResourceView* CubesTexture;
 	ID3D11SamplerState* CubesTexSamplerState;
+	void* tgaFileSource;
+	size_t tgaFileSize;
 };

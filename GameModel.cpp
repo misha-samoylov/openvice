@@ -1,6 +1,7 @@
 ﻿#include "GameModel.hpp"
 
 #include <DDSTextureLoader.h>
+#include <DirectXTex.h>
 
 using namespace DirectX;
 
@@ -217,11 +218,27 @@ HRESULT GameModel::CreateDataBuffer(GameRender * pRender,
 
 
 	///////////////**************new**************////////////////////
-	hr = CreateDDSTextureFromFile(pRender->GetDevice(), L"C:/Users/john/Documents/GitHub/openvice/test-dxt5.dds", nullptr, &CubesTexture);
-	if (FAILED(hr)) {
-		printf("Error: cannot create dds file\n");
-	}
+	//hr = CreateDDSTextureFromFile(pRender->GetDevice(), L"C:/Users/john/Documents/GitHub/openvice/test-dxt5.dds", nullptr, &CubesTexture);
+	//if (FAILED(hr)) {
+	//	printf("Error: cannot create dds file\n");
+	//}
 
+	//auto image = std::make_unique<ScratchImage>();
+	ScratchImage image;
+	hr = LoadFromTGAFile(L"C:\\Users\\master\\Downloads\\earth.tga", TGA_FLAGS_NONE, nullptr, image);
+	//hr = LoadFromTGAMemory(tgaFileSource, tgaFileSize, TGA_FLAGS_NONE, nullptr, image);
+	if (FAILED(hr)) {
+		printf("Error: cannot load tga file\n");
+	}
+		// error
+
+	//ID3D11ShaderResourceView* pSRV = nullptr;
+	hr = CreateShaderResourceView(pRender->GetDevice(),
+		image.GetImages(), image.GetImageCount(),
+		image.GetMetadata(), &CubesTexture);
+	if (FAILED(hr)) {
+		printf("Error: cannot CreateShaderResourceView tga file\n");
+	}
 
 	// Describe the Sample State
 	D3D11_SAMPLER_DESC sampDesc;
