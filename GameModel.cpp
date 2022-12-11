@@ -1,6 +1,6 @@
 ﻿#include "GameModel.hpp"
 
-#include <DDSTextureLoader.h>
+//#include <DDSTextureLoader.h>
 #include <DirectXTex.h>
 
 using namespace DirectX;
@@ -91,6 +91,60 @@ void GameModel::InitPosition()
 	XMMATRIX modelTranslation = XMMatrixTranslation(0.0f, 0.0f, 0.0f);
 
 	m_World = modelRotation * modelPosition * modelScale * modelTranslation;
+}
+
+void GameModel::setTgaFile(GameRender* pRender, void* source, size_t size)
+{
+	HRESULT hr;
+		tgaFileSource = source; tgaFileSize = size;
+
+
+
+		///////////////**************new**************////////////////////
+		//hr = CreateDDSTextureFromFile(pRender->GetDevice(), L"C:/Users/john/Documents/GitHub/openvice/test-dxt5.dds", nullptr, &CubesTexture);
+		//if (FAILED(hr)) {
+		//	printf("Error: cannot create dds file\n");
+		//}
+
+		//auto image = std::make_unique<ScratchImage>();
+		ScratchImage image;
+		hr = LoadFromTGAFile(L"C:\\Users\\master\\Downloads\\lawyer1.tga", TGA_FLAGS_NONE, nullptr, image);
+		//hr = LoadFromTGAMemory(tgaFileSource, tgaFileSize, TGA_FLAGS_NONE, nullptr, image);
+		if (FAILED(hr)) {
+			printf("Error: cannot load tga file\n");
+		}
+
+		//	ScratchImage destImage;
+		//hr = FlipRotate(image.GetImages(), image.GetImageCount(),
+		//	image.GetMetadata(),
+		//	TEX_FR_ROTATE270, destImage);
+		// error
+
+	//ID3D11ShaderResourceView* pSRV = nullptr;
+		hr = CreateShaderResourceView(pRender->GetDevice(),
+			image.GetImages(), image.GetImageCount(),
+			image.GetMetadata(), &CubesTexture);
+		if (FAILED(hr)) {
+			printf("Error: cannot CreateShaderResourceView dds file\n");
+		}
+
+		// Describe the Sample State
+		D3D11_SAMPLER_DESC sampDesc;
+		ZeroMemory(&sampDesc, sizeof(sampDesc));
+		sampDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+		//sampDesc.Filter = D3D11_FILTER_ANISOTROPIC;
+		//sampDesc.MaxAnisotropy = 16;
+		sampDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
+		sampDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
+		//sampDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
+		sampDesc.MinLOD = 0;
+		sampDesc.MaxLOD = D3D11_FLOAT32_MAX;
+
+		//Create the Sample State
+		hr = pRender->GetDevice()->CreateSamplerState(&sampDesc, &CubesTexSamplerState);
+		///////////////**************new**************////////////////////
+
+
 }
 
 HRESULT GameModel::CreatePixelShader(GameRender *pRender)
@@ -213,47 +267,6 @@ HRESULT GameModel::CreateDataBuffer(GameRender * pRender,
 	if (FAILED(hr)) {
 		printf("Error: cannot create index data buffer\n");
 	}
-
-
-
-
-	///////////////**************new**************////////////////////
-	//hr = CreateDDSTextureFromFile(pRender->GetDevice(), L"C:/Users/john/Documents/GitHub/openvice/test-dxt5.dds", nullptr, &CubesTexture);
-	//if (FAILED(hr)) {
-	//	printf("Error: cannot create dds file\n");
-	//}
-
-	//auto image = std::make_unique<ScratchImage>();
-	ScratchImage image;
-	hr = LoadFromTGAFile(L"C:\\Users\\master\\Downloads\\earth.tga", TGA_FLAGS_NONE, nullptr, image);
-	//hr = LoadFromTGAMemory(tgaFileSource, tgaFileSize, TGA_FLAGS_NONE, nullptr, image);
-	if (FAILED(hr)) {
-		printf("Error: cannot load tga file\n");
-	}
-		// error
-
-	//ID3D11ShaderResourceView* pSRV = nullptr;
-	hr = CreateShaderResourceView(pRender->GetDevice(),
-		image.GetImages(), image.GetImageCount(),
-		image.GetMetadata(), &CubesTexture);
-	if (FAILED(hr)) {
-		printf("Error: cannot CreateShaderResourceView tga file\n");
-	}
-
-	// Describe the Sample State
-	D3D11_SAMPLER_DESC sampDesc;
-	ZeroMemory(&sampDesc, sizeof(sampDesc));
-	sampDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
-	sampDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
-	sampDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
-	sampDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
-	sampDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
-	sampDesc.MinLOD = 0;
-	sampDesc.MaxLOD = D3D11_FLOAT32_MAX;
-
-	//Create the Sample State
-	hr = pRender->GetDevice()->CreateSamplerState(&sampDesc, &CubesTexSamplerState);
-	///////////////**************new**************////////////////////
 
 
 

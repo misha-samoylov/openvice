@@ -93,6 +93,17 @@ char *ImgLoader::FileGetById(uint32_t id)
 	return buff;
 }
 
+int ImgLoader::GetFileSize(uint32_t id)
+{
+	char* buff;
+	int32_t fileSize;
+	int32_t fileOffset;
+
+	fileSize = m_pFilesDir[id].size * IMG_BLOCK_SIZE;
+
+	return fileSize;
+}
+
 int ImgLoader::FileGetIndexByName(const char *name)
 {
 	int index = -1;

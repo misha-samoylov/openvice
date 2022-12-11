@@ -27,7 +27,7 @@ public:
 		D3D_PRIMITIVE_TOPOLOGY topology);
 	void Cleanup();
 	void Render(GameRender *pRender, GameCamera *pCamera);
-	void setTgaFile(void* source, size_t size) { tgaFileSource = source; tgaFileSize = size; };
+	void setTgaFile(GameRender* pRender, void* source, size_t size);
 
 private:
 	void InitPosition();

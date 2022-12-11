@@ -50,15 +50,60 @@ HRESULT GameRender::CreateBackBuffer()
 		return hr;
 	}
 
+
+
+
+
+	// Переходим к созданию буфера глубин
+
+   // Создаем текстуру-описание буфера глубин
+
+	D3D11_TEXTURE2D_DESC descDepth;     // Структура с параметрами
+	ZeroMemory(&descDepth, sizeof(descDepth));
+	descDepth.Width = 1400;            // ширина и
+	descDepth.Height = 1200;    // высота текстуры
+	descDepth.MipLevels = 1;            // уровень интерполяции
+	descDepth.ArraySize = 1;
+	descDepth.Format = DXGI_FORMAT_D24_UNORM_S8_UINT; // формат (размер пикселя)
+	descDepth.SampleDesc.Count = 1;
+	descDepth.SampleDesc.Quality = 0;
+	descDepth.Usage = D3D11_USAGE_DEFAULT;
+	descDepth.BindFlags = D3D11_BIND_DEPTH_STENCIL;         // вид - буфер глубин
+	descDepth.CPUAccessFlags = 0;
+	descDepth.MiscFlags = 0;
+
+	// При помощи заполненной структуры-описания создаем объект текстуры
+	hr = m_pDevice->CreateTexture2D(&descDepth, NULL, &g_pDepthStencil);
+
+	if (FAILED(hr)) return hr;
+
+
+
+	// Теперь надо создать сам объект буфера глубин
+	D3D11_DEPTH_STENCIL_VIEW_DESC descDSV;     // Структура с параметрами
+	ZeroMemory(&descDSV, sizeof(descDSV));
+	descDSV.Format = descDepth.Format;  // формат как в текстуре
+	descDSV.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
+	descDSV.Texture2D.MipSlice = 0;
+
+	// При помощи заполненной структуры-описания и текстуры создаем объект буфера глубин
+
+	hr = m_pDevice->CreateDepthStencilView(g_pDepthStencil, &descDSV, &g_pDepthStencilView);
+
+	if (FAILED(hr)) return hr;
+
+
+
+
 	/* connect back buffer to device context */
-	m_pDeviceContext->OMSetRenderTargets(1, &m_pRenderTargetView, NULL);
+	m_pDeviceContext->OMSetRenderTargets(1, &m_pRenderTargetView, g_pDepthStencilView);
 
 	return hr;
 }
 
 HRESULT GameRender::CreateWireframe()
 {
-	HRESULT hr;
+	HRESULT hr = S_OK;
 
 	D3D11_RASTERIZER_DESC wfdesc;
 	ZeroMemory(&wfdesc, sizeof(D3D11_RASTERIZER_DESC));
@@ -133,8 +178,12 @@ HRESULT GameRender::Init(HWND hWnd)
 
 void GameRender::Cleanup()
 {
+	// Сначала отключим контекст устройства
 	if (m_pDeviceContext) 
 		m_pDeviceContext->ClearState();
+
+	// Потом удалим объекты
+	if (g_pDepthStencilView) g_pDepthStencilView->Release();
 
 	if (m_pRenderTargetView) 
 		m_pRenderTargetView->Release();
@@ -158,6 +207,9 @@ void GameRender::RenderStart()
 
 	/* enable wireframe */
 	m_pDeviceContext->RSSetState(m_pWireframe);
+
+	// Очищаем буфер глубин до едицины (максимальная глубина)
+	m_pDeviceContext->ClearDepthStencilView(g_pDepthStencilView, D3D11_CLEAR_DEPTH, 1.0f, 0);
 }
 
 void GameRender::RenderEnd()

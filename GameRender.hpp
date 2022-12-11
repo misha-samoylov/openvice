@@ -8,6 +8,7 @@
 #pragma comment(lib, "d3d11.lib")
 #pragma comment(lib, "d3dcompiler.lib")
 
+
 class GameRender
 {
 public:
@@ -32,4 +33,9 @@ private:
 	ID3D11RenderTargetView *m_pRenderTargetView;
 
 	ID3D11RasterizerState *m_pWireframe;
+
+	ID3D11Texture2D* g_pDepthStencil = NULL;       // Текстура буфера глубин
+
+	ID3D11DepthStencilView* g_pDepthStencilView = NULL;   // Объект вида, буфер глубин
+
 };

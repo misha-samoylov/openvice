@@ -63,9 +63,19 @@ void FreeImgFile(ImgLoader *pImgLoader)
 	delete pImgLoader;
 }
 
-void LoadTextureWithId(ImgLoader *pImgLoader, uint32_t fileId)
+struct Mat {
+	int index;
+	std::string name;
+	uint8_t *source;
+	int size;
+};
+std::vector<Mat> g_materials;
+
+void LoadTextureWithId(ImgLoader *pImgLoader, uint32_t fileId, int materialIndex)
 {
 	char *fileBuffer = pImgLoader->FileGetById(fileId);
+
+	
 
 	TextureDictionary txd;
 	size_t offset = 0;
@@ -81,12 +91,18 @@ void LoadTextureWithId(ImgLoader *pImgLoader, uint32_t fileId)
 			txd.texList[i].decompressDxt();
 
 		txd.texList[i].convertTo32Bit();
+
+		struct Mat m;
+		m.index = materialIndex;
+		m.source = *txd.texList[i].texels.data();
+		m.size = txd.texList[i].dataSizes[0];
+		g_materials.push_back(m);
 	}
 
-	free(fileBuffer);
+	// free(fileBuffer);
 }
 
-void LoadTextureWithName(ImgLoader *pImgLoader, const char *name)
+void LoadTextureWithName(ImgLoader *pImgLoader, const char *name, int materialIndex)
 {
 	std::string textureName = name;
 	textureName += ".txd";
@@ -95,7 +111,7 @@ void LoadTextureWithName(ImgLoader *pImgLoader, const char *name)
 	if (index == -1)
 		return;
 
-	LoadTextureWithId(pImgLoader, index);
+	LoadTextureWithId(pImgLoader, index, materialIndex);
 }
 
 int LoadGameFileWithId(ImgLoader *pImgLoader, GameRender *render, uint32_t fileId)
@@ -111,11 +127,12 @@ int LoadGameFileWithId(ImgLoader *pImgLoader, GameRender *render, uint32_t fileI
 		std::vector<float> gvertices;
 		std::vector<float> gtexture;
 
+		// Загружаем все материалы
 		for (int i = 0; i < clump->GetGeometryList()[index].materialList.size(); i++) {
 			Material material = clump->GetGeometryList()[index].materialList[i];
 
 			std::cout << "Model material texture " << material.texture.name << std::endl;
-			LoadTextureWithName(pImgLoader, material.texture.name.c_str() );
+			LoadTextureWithName(pImgLoader, material.texture.name.c_str(), i);
 		}
 
 		for (uint32_t i = 0; i < clump->GetGeometryList()[index].vertices.size() / 3; i++) {
@@ -129,16 +146,15 @@ int LoadGameFileWithId(ImgLoader *pImgLoader, GameRender *render, uint32_t fileI
 			float z = clump->GetGeometryList()[index].vertices[i * 3 + 2];
 			gvertices.push_back(z);
 
-			// загшружаем текстурные координаты
+			// загружаем текстурные координаты
 			if (clump->GetGeometryList()[index].flags & FLAGS_TEXTURED /*|| clump->GetGeometryList()[index].flags & FLAGS_TEXTURED2*/) {
 				for (uint32_t j = 0; j < 1 /* clump->GetGeometryList()[index].numUVs */; j++) { // вставляем пока только  FLAGS_TEXTURED
 
 					float tx = clump->GetGeometryList()[index].texCoords[j][i * 2 + 0]; /* index OR i ??? в последнем [] */
-
 					float ty = clump->GetGeometryList()[index].texCoords[j][i * 2 + 1]; /* index OR i ??? в последнем [] */
 
 					gtexture.push_back(tx);
-					gtexture.push_back(tx);
+					gtexture.push_back(ty);
 				}
 			}
 			//else { // делаем загрушку на случай отсутвия текстуры
@@ -191,6 +207,7 @@ int LoadGameFileWithId(ImgLoader *pImgLoader, GameRender *render, uint32_t fileI
 			int countIndices = clump->GetGeometryList()[index].splits[i].indices.size();
 
 			
+			
 			D3D_PRIMITIVE_TOPOLOGY topology =
 				clump->GetGeometryList()[index].faceType == FACETYPE_STRIP
 				? D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP
@@ -199,7 +216,21 @@ int LoadGameFileWithId(ImgLoader *pImgLoader, GameRender *render, uint32_t fileI
 			GameModel *gameModel = new GameModel();
 			gameModel->Init(render, vertices, countVertices,
 				indices, countIndices,
-				topology);
+				D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
+
+			uint32_t materialIndex = clump->GetGeometryList()[index].splits[i].matIndex;
+
+			uint8_t *findedSrcTga;
+			int siz = 0;
+			for (int i = 0; i < g_materials.size(); i++) {
+				if (g_materials[i].index == materialIndex) {
+					findedSrcTga = g_materials[i].source;
+					siz = g_materials[i].size;
+				}
+			}
+
+			gameModel->setTgaFile(render, 
+				&findedSrcTga, siz);
 
 			gModels.push_back(gameModel);
 		}
