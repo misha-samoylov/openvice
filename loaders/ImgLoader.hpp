@@ -23,7 +23,7 @@ public:
 	int FileGetIndexByName(const char *name);
 	int FileSaveById(uint32_t id);
 	int FileSave(int32_t offset, int32_t size, const char *name);
-	int GetFileSize(uint32_t id);
+	int32_t GetFileSize(uint32_t id);
 
 private:
 	int DirFileOpen(const char *filepathDir);

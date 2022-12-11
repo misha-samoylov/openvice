@@ -73,8 +73,8 @@ void GameModel::Render(GameRender * pRender, GameCamera *pCamera)
 
 
 	///////////////**************new**************////////////////////
-	pRender->GetDeviceContext()->PSSetShaderResources(0, 1, &CubesTexture);
-	pRender->GetDeviceContext()->PSSetSamplers(0, 1, &CubesTexSamplerState);
+	pRender->GetDeviceContext()->PSSetShaderResources(0, 1, &m_pTexture);
+	pRender->GetDeviceContext()->PSSetSamplers(0, 1, &m_pTextureSampler);
 	///////////////**************new**************////////////////////
 
 	/* render indexed vertices */
@@ -93,58 +93,51 @@ void GameModel::InitPosition()
 	m_World = modelRotation * modelPosition * modelScale * modelTranslation;
 }
 
-void GameModel::setTgaFile(GameRender* pRender, void* source, size_t size)
+HRESULT GameModel::SetTgaFile(GameRender* pRender, void* source, size_t size)
 {
 	HRESULT hr;
-		tgaFileSource = source; tgaFileSize = size;
 
+	tgaFileSource = source;
+	tgaFileSize = size;
 
+	///////////////**************new**************////////////////////
+	//hr = CreateDDSTextureFromFile(pRender->GetDevice(), L"C:/Users/john/Documents/GitHub/openvice/test-dxt5.dds", nullptr, &CubesTexture);
+	//if (FAILED(hr)) {
+	//	printf("Error: cannot create dds file\n");
+	//}
 
-		///////////////**************new**************////////////////////
-		//hr = CreateDDSTextureFromFile(pRender->GetDevice(), L"C:/Users/john/Documents/GitHub/openvice/test-dxt5.dds", nullptr, &CubesTexture);
-		//if (FAILED(hr)) {
-		//	printf("Error: cannot create dds file\n");
-		//}
-
-		//auto image = std::make_unique<ScratchImage>();
-		ScratchImage image;
-		hr = LoadFromTGAFile(L"C:\\Users\\master\\Downloads\\lawyer1.tga", TGA_FLAGS_NONE, nullptr, image);
-		//hr = LoadFromTGAMemory(tgaFileSource, tgaFileSize, TGA_FLAGS_NONE, nullptr, image);
-		if (FAILED(hr)) {
-			printf("Error: cannot load tga file\n");
-		}
-
-		//	ScratchImage destImage;
-		//hr = FlipRotate(image.GetImages(), image.GetImageCount(),
-		//	image.GetMetadata(),
-		//	TEX_FR_ROTATE270, destImage);
-		// error
+	//auto image = std::make_unique<ScratchImage>();
+	ScratchImage image;
+	hr = LoadFromTGAFile(L"C:\\Users\\master\\Downloads\\lawyer1.tga", TGA_FLAGS_NONE, nullptr, image);
+	//hr = LoadFromTGAMemory(tgaFileSource, tgaFileSize, TGA_FLAGS_NONE, nullptr, image);
+	if (FAILED(hr)) {
+		printf("Error: cannot load tga file\n");
+	}
 
 	//ID3D11ShaderResourceView* pSRV = nullptr;
-		hr = CreateShaderResourceView(pRender->GetDevice(),
-			image.GetImages(), image.GetImageCount(),
-			image.GetMetadata(), &CubesTexture);
-		if (FAILED(hr)) {
-			printf("Error: cannot CreateShaderResourceView dds file\n");
-		}
+	hr = CreateShaderResourceView(pRender->GetDevice(),
+		image.GetImages(), image.GetImageCount(),
+		image.GetMetadata(), &m_pTexture);
 
-		// Describe the Sample State
-		D3D11_SAMPLER_DESC sampDesc;
-		ZeroMemory(&sampDesc, sizeof(sampDesc));
-		sampDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
-		//sampDesc.Filter = D3D11_FILTER_ANISOTROPIC;
-		//sampDesc.MaxAnisotropy = 16;
-		sampDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
-		sampDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
-		//sampDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
-		sampDesc.MinLOD = 0;
-		sampDesc.MaxLOD = D3D11_FLOAT32_MAX;
+	if (FAILED(hr)) {
+		printf("Error: cannot CreateShaderResourceView dds file\n");
+	}
 
-		//Create the Sample State
-		hr = pRender->GetDevice()->CreateSamplerState(&sampDesc, &CubesTexSamplerState);
-		///////////////**************new**************////////////////////
+	// Describe the Sample State
+	D3D11_SAMPLER_DESC sampDesc;
+	ZeroMemory(&sampDesc, sizeof(sampDesc));
+	sampDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+	//sampDesc.Filter = D3D11_FILTER_ANISOTROPIC;
+	//sampDesc.MaxAnisotropy = 16;
+	sampDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
+	sampDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
+	//sampDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
+	sampDesc.MinLOD = 0;
+	sampDesc.MaxLOD = D3D11_FLOAT32_MAX;
 
+	hr = pRender->GetDevice()->CreateSamplerState(&sampDesc, &m_pTextureSampler);
 
+	return hr;
 }
 
 HRESULT GameModel::CreatePixelShader(GameRender *pRender)
@@ -199,28 +192,35 @@ HRESULT GameModel::CreateVertexShader(GameRender *pRender)
 
 HRESULT GameModel::CreateInputLayout(GameRender *pRender)
 {
+	// Указываем форму данных в вершинном шейдере
 	HRESULT hr;
+	
+	// Координаты вершин X Y Z
+	D3D11_INPUT_ELEMENT_DESC layout[2];
+	layout[0].SemanticName = "POSITION";
+	layout[0].SemanticIndex = 0;
+	layout[0].Format = DXGI_FORMAT_R32G32B32_FLOAT; // X Y Z
+	layout[0].InputSlot = 0;
+	layout[0].AlignedByteOffset = 0;
+	layout[0].InputSlotClass = D3D11_INPUT_PER_VERTEX_DATA;
+	layout[0].InstanceDataStepRate = 0;
 
-	D3D11_INPUT_ELEMENT_DESC layout[] = {
-		{
-			"POSITION",  /* name */
-			0, /* index */
-			DXGI_FORMAT_R32G32B32_FLOAT, /* size */
-			0, /* incoming slot (0-15) */ 
-			0, /* address start data in vertex buffer */
-			D3D11_INPUT_PER_VERTEX_DATA, /* class incoming slot (no matter) */
-			0 /* InstanceDataStepRate (no matter) */
-		},
-		{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-	};
-
+	// Координаты текстуры X Y
+	layout[1].SemanticName = "TEXCOORD";
+	layout[1].SemanticIndex = 0;
+	layout[1].Format = DXGI_FORMAT_R32G32_FLOAT; // X Y
+	layout[1].InputSlot = 0;
+	layout[1].AlignedByteOffset = 12; // Смещение от вершин X Y Z
+	layout[1].InputSlotClass = D3D11_INPUT_PER_VERTEX_DATA;
+	layout[1].InstanceDataStepRate = 0;
+	
 	UINT numElements = ARRAYSIZE(layout);
 
 	hr = pRender->GetDevice()->CreateInputLayout(layout, numElements,
 		m_pVSBlob->GetBufferPointer(), m_pVSBlob->GetBufferSize(), &m_pVertexLayout);
 
 	if (FAILED(hr)) {
-		printf("Error: cannot create input layout\n");
+		printf("Error: cannot CreateInputLayout\n");
 	}
 
 	return hr;
@@ -246,7 +246,7 @@ HRESULT GameModel::CreateDataBuffer(GameRender * pRender,
 	hr = pRender->GetDevice()->CreateBuffer(&bdv, &datav, &m_pVertexBuffer);
 
 	if (FAILED(hr)) {
-		printf("Error: cannot create vertex data buffer\n");
+		printf("Error: cannot CreateBuffer vertex buffer\n");
 		return hr;
 	}
 	
@@ -264,12 +264,8 @@ HRESULT GameModel::CreateDataBuffer(GameRender * pRender,
 
 	hr = pRender->GetDevice()->CreateBuffer(&bdi, &datai, &m_pIndexBuffer);
 
-	if (FAILED(hr)) {
-		printf("Error: cannot create index data buffer\n");
-	}
-
-
-
+	if (FAILED(hr))
+		printf("Error: cannot CreateBuffer index buffer\n");
 
 	return hr;
 }
@@ -315,21 +311,6 @@ HRESULT GameModel::Init(GameRender *pRender, float *pVertices, int verticesCount
 	}
 
 	m_pVSBlob->Release();
-
-	return hr;
-}
-
-HRESULT GameModel::CompileShaderFromFile(LPCWSTR szFileName, LPCSTR szEntryPoint, LPCSTR szShaderModel, ID3DBlob** ppBlobOut)
-{
-	HRESULT hr;
-	DWORD dwShaderFlags = D3DCOMPILE_ENABLE_STRICTNESS;
-
-	hr = D3DCompileFromFile(szFileName, NULL, NULL, szEntryPoint, szShaderModel,
-		dwShaderFlags, 0, ppBlobOut, NULL);
-
-	if (FAILED(hr)) {
-		printf("Error: cannot compile shader\n");
-	}
 
 	return hr;
 }

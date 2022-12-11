@@ -8,7 +8,6 @@
 #pragma comment(lib, "d3d11.lib")
 #pragma comment(lib, "d3dcompiler.lib")
 
-
 class GameRender
 {
 public:
@@ -25,6 +24,7 @@ private:
 	void InitViewport(HWND hWnd);
 	HRESULT CreateBackBuffer();
 	HRESULT CreateWireframe();
+	HRESULT CreateDepthStencil();
 
 	ID3D11Device *m_pDevice;
 	ID3D11DeviceContext *m_pDeviceContext;
@@ -34,8 +34,7 @@ private:
 
 	ID3D11RasterizerState *m_pWireframe;
 
-	ID3D11Texture2D* g_pDepthStencil = NULL;       // Текстура буфера глубин
-
-	ID3D11DepthStencilView* g_pDepthStencilView = NULL;   // Объект вида, буфер глубин
+	ID3D11Texture2D* m_pDepthStencil; // Текстура буфера глубин
+	ID3D11DepthStencilView* m_pDepthStencilView; // Объект вида, буфер глубин
 
 };

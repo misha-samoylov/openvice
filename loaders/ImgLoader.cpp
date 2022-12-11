@@ -3,7 +3,6 @@
 int ImgLoader::DirFileOpen(const char *filepath)
 {
 	int fileSize;
-	int countFiles;
 
     m_pFileDir = fopen(filepath, "rb");
     if (m_pFileDir == NULL) {
@@ -93,15 +92,9 @@ char *ImgLoader::FileGetById(uint32_t id)
 	return buff;
 }
 
-int ImgLoader::GetFileSize(uint32_t id)
+int32_t ImgLoader::GetFileSize(uint32_t id)
 {
-	char* buff;
-	int32_t fileSize;
-	int32_t fileOffset;
-
-	fileSize = m_pFilesDir[id].size * IMG_BLOCK_SIZE;
-
-	return fileSize;
+	return m_pFilesDir[id].size * IMG_BLOCK_SIZE;
 }
 
 int ImgLoader::FileGetIndexByName(const char *name)
@@ -116,11 +109,10 @@ int ImgLoader::FileGetIndexByName(const char *name)
 	}
 
 	if (index == -1)
-		printf("Filename %s is not found in IMG\n", name);
+		printf("File %s is not found in IMG\n", name);
 
 	return index;
 }
-
 
 int ImgLoader::FileSave(int32_t offset, int32_t size, const char *name)
 {

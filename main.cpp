@@ -69,13 +69,12 @@ struct Mat {
 	uint8_t *source;
 	int size;
 };
+
 std::vector<Mat> g_materials;
 
 void LoadTextureWithId(ImgLoader *pImgLoader, uint32_t fileId, int materialIndex)
 {
 	char *fileBuffer = pImgLoader->FileGetById(fileId);
-
-	
 
 	TextureDictionary txd;
 	size_t offset = 0;
@@ -229,7 +228,7 @@ int LoadGameFileWithId(ImgLoader *pImgLoader, GameRender *render, uint32_t fileI
 				}
 			}
 
-			gameModel->setTgaFile(render, 
+			gameModel->SetTgaFile(render, 
 				&findedSrcTga, siz);
 
 			gModels.push_back(gameModel);
@@ -255,8 +254,8 @@ void Render(GameRender *render, GameCamera *camera)
 	render->RenderEnd();
 }
 
-int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
-	PWSTR pCmdLine, int nCmdShow)
+INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
+	PSTR lpCmdLine, INT nCmdShow)
 {
 	GameWindow *gameWindow = new GameWindow();
 	gameWindow->Init(hInstance, nCmdShow, WINDOW_WIDTH, WINDOW_HEIGHT, WINDOW_TITLE);
