@@ -25,7 +25,7 @@ public:
 		D3D_PRIMITIVE_TOPOLOGY topology);
 	void Cleanup();
 	void Render(GameRender *pRender, GameCamera *pCamera);
-	HRESULT SetTgaFile(GameRender* pRender, uint8_t* source, size_t size);
+	HRESULT SetTgaFile(GameRender* pRender, uint8_t* source, size_t size, uint32_t width, uint32_t height);
 
 private:
 	void InitPosition();

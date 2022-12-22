@@ -105,7 +105,7 @@ struct dds_1 {
 
 using namespace DirectX;
 
-HRESULT GameModel::SetTgaFile(GameRender* pRender, uint8_t* source, size_t size)
+HRESULT GameModel::SetTgaFile(GameRender* pRender, uint8_t* source, size_t size, uint32_t width, uint32_t height)
 {
 	HRESULT hr;
 
@@ -122,9 +122,9 @@ HRESULT GameModel::SetTgaFile(GameRender* pRender, uint8_t* source, size_t size)
 	dds.dwMagic = DDS_MAGIC;
 	dds.header.size = sizeof(struct DDS_HEADER);
 	dds.header.flags = DDS_PAL8; // 0
-	dds.header.width = 256;
-	dds.header.height = 256;
-	dds.header.pitchOrLinearSize = 256 * 256;
+	dds.header.width = width;
+	dds.header.height = height;
+	dds.header.pitchOrLinearSize = width * height;
 	dds.header.mipMapCount = 0;
 	dds.header.ddspf.size = sizeof(struct DDS_PIXELFORMAT);
 	//ddsd.ddpfPixelFormat.dwSize = sizeof(ddsd.ddpfPixelFormat);

@@ -68,6 +68,8 @@ struct Mat {
 	std::string name;
 	uint8_t *source;
 	int size;
+	uint32_t width;
+	uint32_t height;
 };
 
 std::vector<Mat> g_materials;
@@ -101,6 +103,8 @@ void LoadTextureWithId(ImgLoader *pImgLoader, uint32_t fileId, int materialIndex
 		memcpy(m.source, texelsToArray, len);
 		//m.source = *txd.texList[i].texels.data();
 		m.size = txd.texList[i].dataSizes[0];
+		m.width = txd.texList[i].width[0];
+		m.height = txd.texList[i].height[0];
 		g_materials.push_back(m);
 	}
 
@@ -233,7 +237,8 @@ int LoadGameFileWithId(ImgLoader *pImgLoader, GameRender *render, uint32_t fileI
 			}
 
 			gameModel->SetTgaFile(render, 
-				g_materials[index].source, g_materials[index].size);
+				g_materials[index].source, g_materials[index].size,
+				g_materials[index].width, g_materials[index].height);
 
 			gModels.push_back(gameModel);
 		}
