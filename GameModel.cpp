@@ -1,6 +1,6 @@
 ﻿#include "GameModel.hpp"
 
-//#include <DDSTextureLoader.h>
+#include <DDSTextureLoader.h>
 #include <DirectXTex.h>
 
 using namespace DirectX;
@@ -93,12 +93,24 @@ void GameModel::InitPosition()
 	m_World = modelRotation * modelPosition * modelScale * modelTranslation;
 }
 
-HRESULT GameModel::SetTgaFile(GameRender* pRender, void* source, size_t size)
+#include <Dds.h>
+
+struct dds_1 {
+	DWORD         dwMagic; // (ASCII "DDS ")
+	struct DDS_HEADER    header;
+};
+
+//#define DDSF_FOURCC 0x00000004l
+#define FOURCC_DXT1  (MAKEFOURCC('D','X','T','1'))
+
+using namespace DirectX;
+
+HRESULT GameModel::SetTgaFile(GameRender* pRender, uint8_t* source, size_t size)
 {
 	HRESULT hr;
 
-	tgaFileSource = source;
-	tgaFileSize = size;
+	//tgaFileSource = source;
+	//tgaFileSize = size;
 
 	///////////////**************new**************////////////////////
 	//hr = CreateDDSTextureFromFile(pRender->GetDevice(), L"C:/Users/john/Documents/GitHub/openvice/test-dxt5.dds", nullptr, &CubesTexture);
@@ -106,10 +118,34 @@ HRESULT GameModel::SetTgaFile(GameRender* pRender, void* source, size_t size)
 	//	printf("Error: cannot create dds file\n");
 	//}
 
+	struct dds_1 dds;
+	dds.dwMagic = DDS_MAGIC;
+	dds.header.size = sizeof(struct DDS_HEADER);
+	dds.header.flags = DDS_PAL8; // 0
+	dds.header.width = 256;
+	dds.header.height = 256;
+	dds.header.pitchOrLinearSize = 256 * 256;
+	dds.header.mipMapCount = 0;
+	dds.header.ddspf.size = sizeof(struct DDS_PIXELFORMAT);
+	//ddsd.ddpfPixelFormat.dwSize = sizeof(ddsd.ddpfPixelFormat);
+	dds.header.ddspf.flags = DDS_FOURCC; // DDS_PAL8;
+	dds.header.ddspf.fourCC = FOURCC_DXT1;
+	// ddsd.ddpfPixelFormat.dwFourCC = bpp == 24 ? FOURCC_DXT1 : FOURCC_DXT5;
+
+	size_t len = sizeof(dds) + size;
+	uint8_t* buf = (uint8_t*)malloc(len);
+	memcpy(buf, &dds, sizeof(dds));
+	memcpy(buf + 1*sizeof(dds), source , size);
+
+	FILE* f = fopen("test.dds", "wb");
+	fwrite(buf, len, 1, f);
+	fclose(f);
+
 	//auto image = std::make_unique<ScratchImage>();
 	ScratchImage image;
-	hr = LoadFromTGAFile(L"C:\\Users\\master\\Downloads\\lawyer1.tga", TGA_FLAGS_NONE, nullptr, image);
-	//hr = LoadFromTGAMemory(tgaFileSource, tgaFileSize, TGA_FLAGS_NONE, nullptr, image);
+	//hr = LoadFromTGAFile(L"C:\\Users\\master\\Downloads\\lawyer1.tga", TGA_FLAGS_NONE, nullptr, image);
+	hr = LoadFromDDSMemory(buf, len, DDS_FLAGS_FORCE_DX9_LEGACY, nullptr, image);
+	//hr = LoadFromDDSFile(L"test.dds", DDS_FLAGS_FORCE_DX9_LEGACY, nullptr, image);
 	if (FAILED(hr)) {
 		printf("Error: cannot load tga file\n");
 	}

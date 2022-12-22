@@ -86,14 +86,20 @@ void LoadTextureWithId(ImgLoader *pImgLoader, uint32_t fileId, int materialIndex
 			<< " " << t.width[0] << " " << t.height[0] << " "
 			<< " " << t.depth << " " << hex << t.rasterFormat << endl;
 
-		if (txd.texList[i].dxtCompression)
-			txd.texList[i].decompressDxt();
+		//if (txd.texList[i].dxtCompression)
+		//	txd.texList[i].decompressDxt();
 
-		txd.texList[i].convertTo32Bit();
+		//txd.texList[i].convertTo32Bit();
 
 		struct Mat m;
 		m.index = materialIndex;
-		m.source = *txd.texList[i].texels.data();
+
+		uint8_t* texelsToArray = txd.texList[i].texels[0];
+
+		size_t len = txd.texList[i].dataSizes[0];
+		m.source = (uint8_t *)malloc(len);
+		memcpy(m.source, texelsToArray, len);
+		//m.source = *txd.texList[i].texels.data();
 		m.size = txd.texList[i].dataSizes[0];
 		g_materials.push_back(m);
 	}
@@ -219,17 +225,15 @@ int LoadGameFileWithId(ImgLoader *pImgLoader, GameRender *render, uint32_t fileI
 
 			uint32_t materialIndex = clump->GetGeometryList()[index].splits[i].matIndex;
 
-			uint8_t *findedSrcTga;
-			int siz = 0;
+			int index = -1;
 			for (int i = 0; i < g_materials.size(); i++) {
 				if (g_materials[i].index == materialIndex) {
-					findedSrcTga = g_materials[i].source;
-					siz = g_materials[i].size;
+					index = i;
 				}
 			}
 
 			gameModel->SetTgaFile(render, 
-				&findedSrcTga, siz);
+				g_materials[index].source, g_materials[index].size);
 
 			gModels.push_back(gameModel);
 		}
