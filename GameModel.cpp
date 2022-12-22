@@ -93,19 +93,8 @@ void GameModel::InitPosition()
 	m_World = modelRotation * modelPosition * modelScale * modelTranslation;
 }
 
-#include <Dds.h>
 
-struct dds_1 {
-	DWORD         dwMagic; // (ASCII "DDS ")
-	struct DDS_HEADER    header;
-};
-
-//#define DDSF_FOURCC 0x00000004l
-#define FOURCC_DXT1  (MAKEFOURCC('D','X','T','1'))
-
-using namespace DirectX;
-
-HRESULT GameModel::SetTgaFile(GameRender* pRender, uint8_t* source, size_t size, uint32_t width, uint32_t height)
+HRESULT GameModel::SetDataDDS(GameRender* pRender, uint8_t* source, size_t size, uint32_t width, uint32_t height, uint32_t dxtCompression)
 {
 	HRESULT hr;
 
@@ -118,10 +107,10 @@ HRESULT GameModel::SetTgaFile(GameRender* pRender, uint8_t* source, size_t size,
 	//	printf("Error: cannot create dds file\n");
 	//}
 
-	struct dds_1 dds;
+	struct DDS_File dds;
 	dds.dwMagic = DDS_MAGIC;
 	dds.header.size = sizeof(struct DDS_HEADER);
-	dds.header.flags = DDS_PAL8; // 0
+	dds.header.flags = 0; // 0
 	dds.header.width = width;
 	dds.header.height = height;
 	dds.header.pitchOrLinearSize = width * height;
@@ -129,7 +118,20 @@ HRESULT GameModel::SetTgaFile(GameRender* pRender, uint8_t* source, size_t size,
 	dds.header.ddspf.size = sizeof(struct DDS_PIXELFORMAT);
 	//ddsd.ddpfPixelFormat.dwSize = sizeof(ddsd.ddpfPixelFormat);
 	dds.header.ddspf.flags = DDS_FOURCC; // DDS_PAL8;
-	dds.header.ddspf.fourCC = FOURCC_DXT1;
+	switch (dxtCompression) {
+	case 1:
+		dds.header.ddspf.fourCC = FOURCC_DXT1;
+		break;
+	case 3:
+		dds.header.ddspf.fourCC = FOURCC_DXT3;
+		break;
+	case 4:
+		dds.header.ddspf.fourCC = FOURCC_DXT4;
+		break;
+	default:
+		dds.header.ddspf.fourCC = FOURCC_DXT1;
+		break;
+	}
 	// ddsd.ddpfPixelFormat.dwFourCC = bpp == 24 ? FOURCC_DXT1 : FOURCC_DXT5;
 
 	size_t len = sizeof(dds) + size;
@@ -144,7 +146,7 @@ HRESULT GameModel::SetTgaFile(GameRender* pRender, uint8_t* source, size_t size,
 	//auto image = std::make_unique<ScratchImage>();
 	ScratchImage image;
 	//hr = LoadFromTGAFile(L"C:\\Users\\master\\Downloads\\lawyer1.tga", TGA_FLAGS_NONE, nullptr, image);
-	hr = LoadFromDDSMemory(buf, len, DDS_FLAGS_FORCE_DX9_LEGACY, nullptr, image);
+	hr = LoadFromDDSMemory(buf, len, DDS_FLAGS_NONE, nullptr, image);
 	//hr = LoadFromDDSFile(L"test.dds", DDS_FLAGS_FORCE_DX9_LEGACY, nullptr, image);
 	if (FAILED(hr)) {
 		printf("Error: cannot load tga file\n");

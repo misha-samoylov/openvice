@@ -74,11 +74,16 @@ HRESULT GameRender::CreateDepthStencil()
 {
 	HRESULT hr;
 
+	RECT rc;
+	GetClientRect(m_hWnd, &rc);
+	UINT width = rc.right - rc.left;
+	UINT height = rc.bottom - rc.top;
+
 	// —оздаем текстуру-описание буфера глубин
 	D3D11_TEXTURE2D_DESC descDepth;
 	ZeroMemory(&descDepth, sizeof(descDepth));
-	descDepth.Width = 1400; // ширина и
-	descDepth.Height = 1200; // высота текстуры
+	descDepth.Width = width; // ширина и
+	descDepth.Height = height; // высота текстуры
 	descDepth.MipLevels = 1; // уровень интерпол€ции
 	descDepth.ArraySize = 1;
 	descDepth.Format = DXGI_FORMAT_D24_UNORM_S8_UINT; // формат (размер пиксел€)
@@ -109,6 +114,8 @@ HRESULT GameRender::CreateDepthStencil()
 
 HRESULT GameRender::Init(HWND hWnd)
 {
+	m_hWnd = hWnd;
+
 	RECT rc;
 	GetClientRect(hWnd, &rc);
 	UINT width = rc.right - rc.left;

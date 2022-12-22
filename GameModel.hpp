@@ -4,11 +4,23 @@
 
 #include <d3d11.h>
 #include <DirectXMath.h>
+#include <Dds.h>
 
 #pragma comment(lib, "d3d11.lib")
 
 #include "GameCamera.hpp"
 #include "GameRender.hpp"
+
+struct DDS_File {
+	DWORD dwMagic; // (ASCII "DDS ")
+	struct DDS_HEADER header;
+};
+
+//#define DDSF_FOURCC 0x00000004l
+#define FOURCC_DXT1 (MAKEFOURCC('D','X','T','1'))
+#define FOURCC_DXT3 (MAKEFOURCC('D','X','T','3'))
+#define FOURCC_DXT4 (MAKEFOURCC('D','X','T','4'))
+#define FOURCC_DXT5 (MAKEFOURCC('D','X','T','5'))
 
 using namespace DirectX; /* DirectXMath */
 
@@ -25,7 +37,7 @@ public:
 		D3D_PRIMITIVE_TOPOLOGY topology);
 	void Cleanup();
 	void Render(GameRender *pRender, GameCamera *pCamera);
-	HRESULT SetTgaFile(GameRender* pRender, uint8_t* source, size_t size, uint32_t width, uint32_t height);
+	HRESULT SetDataDDS(GameRender* pRender, uint8_t* pSource, size_t size, uint32_t width, uint32_t height, uint32_t dxtCompression);
 
 private:
 	void InitPosition();

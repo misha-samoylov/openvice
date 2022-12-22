@@ -37,4 +37,5 @@ private:
 	ID3D11Texture2D* m_pDepthStencil; // Текстура буфера глубин
 	ID3D11DepthStencilView* m_pDepthStencilView; // Объект вида, буфер глубин
 
+	HWND m_hWnd;
 };
