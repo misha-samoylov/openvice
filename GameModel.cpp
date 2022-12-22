@@ -137,9 +137,9 @@ HRESULT GameModel::SetTgaFile(GameRender* pRender, uint8_t* source, size_t size,
 	memcpy(buf, &dds, sizeof(dds));
 	memcpy(buf + 1*sizeof(dds), source , size);
 
-	FILE* f = fopen("test.dds", "wb");
-	fwrite(buf, len, 1, f);
-	fclose(f);
+	//FILE* f = fopen("test.dds", "wb");
+	//fwrite(buf, len, 1, f);
+	//fclose(f);
 
 	//auto image = std::make_unique<ScratchImage>();
 	ScratchImage image;

@@ -285,7 +285,7 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 	//LoadTextureWithName(imgLoader, "radar02");
 	//LoadTextureWithName(imgLoader, "radar03");
 	//LoadTextureWithName(imgLoader, "radar04");
-	LoadGameFileWithId(imgLoader, gameRender, 152);
+	LoadGameFileWithId(imgLoader, gameRender, 189);
 	//LoadGameFileWithId(imgLoader, gameRender, 153);
 
 	float moveLeftRight = 0.0f;
