@@ -16,54 +16,15 @@
 #include "GameWindow.hpp"
 #include "GameUtils.hpp"
 
-#define WINDOW_WIDTH 1400
-#define WINDOW_HEIGHT 1200
+#define WINDOW_WIDTH 1920
+#define WINDOW_HEIGHT 1080
 #define WINDOW_TITLE L"openvice"
 
 using namespace DirectX; /* DirectXMath.h */
 
-std::vector<GameModel*> gModels;
+std::vector<GameModel*> g_Models;
 
-void LoadTxdFile()
-{
-	/*ifstream rw(argv[1], ios::binary);
-	TextureDictionary txd;
-	txd.read(rw);
-	rw.close();
-	for (uint32 i = 0; i < txd.texList.size(); i++) {
-		NativeTexture &t = txd.texList[i];
-		cout << i << " " << t.name << " " << t.maskName << " "
-			<< " " << t.width[0] << " " << t.height[0] << " "
-			<< " " << t.depth << " " << hex << t.rasterFormat << endl;
-		if (txd.texList[i].platform == PLATFORM_PS2)
-			txd.texList[i].convertFromPS2(0x40);
-		if (txd.texList[i].platform == PLATFORM_XBOX)
-			txd.texList[i].convertFromXbox();
-		if (txd.texList[i].dxtCompression)
-			txd.texList[i].decompressDxt();
-		txd.texList[i].convertTo32Bit();
-		txd.texList[i].writeTGA();
-	}*/
-}
-
-ImgLoader *LoadImgFile()
-{
-	ImgLoader *imgLoader = new ImgLoader();
-	imgLoader->Open(
-		"C:/Games/Grand Theft Auto Vice City/models/gta3.img",
-		"C:/Games/Grand Theft Auto Vice City/models/gta3.dir"
-	);
-
-	return imgLoader;
-}
-
-void FreeImgFile(ImgLoader *pImgLoader)
-{
-	pImgLoader->Cleanup();
-	delete pImgLoader;
-}
-
-struct Mat {
+struct GameMaterial {
 	int index;
 	std::string name;
 	uint8_t *source;
@@ -73,16 +34,17 @@ struct Mat {
 	uint32_t dxtCompression;
 };
 
-std::vector<Mat> g_materials;
+std::vector<GameMaterial> g_materials;
 
 void LoadTextureWithId(ImgLoader *pImgLoader, uint32_t fileId, int materialIndex)
 {
-	char *fileBuffer = pImgLoader->FileGetById(fileId);
+	char *fileBuffer = pImgLoader->GetFileById(fileId);
 
 	TextureDictionary txd;
 	size_t offset = 0;
 	txd.read(fileBuffer, &offset);
 
+	// Loop for every texture in TXD file
 	for (uint32_t i = 0; i < txd.texList.size(); i++) {
 		NativeTexture &t = txd.texList[i];
 		cout << i << " " << t.name << " " << t.maskName << " "
@@ -91,26 +53,24 @@ void LoadTextureWithId(ImgLoader *pImgLoader, uint32_t fileId, int materialIndex
 
 		//if (txd.texList[i].dxtCompression)
 		//	txd.texList[i].decompressDxt();
-
 		//txd.texList[i].convertTo32Bit();
 
-		struct Mat m;
-		m.index = materialIndex;
-
 		uint8_t* texelsToArray = txd.texList[i].texels[0];
-
 		size_t len = txd.texList[i].dataSizes[0];
+
+		struct GameMaterial m;
+		m.index = materialIndex;
 		m.source = (uint8_t *)malloc(len);
 		memcpy(m.source, texelsToArray, len);
-		//m.source = *txd.texList[i].texels.data();
+		// m.source = *txd.texList[i].texels.data();
 		m.size = txd.texList[i].dataSizes[0];
 		m.width = txd.texList[i].width[0];
 		m.height = txd.texList[i].height[0];
-		m.dxtCompression = txd.texList[i].dxtCompression; // DXT1,DXT3,DXT4
+		m.dxtCompression = txd.texList[i].dxtCompression; // DXT1, DXT3, DXT4
 		g_materials.push_back(m);
 	}
 
-	// free(fileBuffer);
+	free(fileBuffer);
 }
 
 void LoadTextureWithName(ImgLoader *pImgLoader, const char *name, int materialIndex)
@@ -118,16 +78,24 @@ void LoadTextureWithName(ImgLoader *pImgLoader, const char *name, int materialIn
 	std::string textureName = name;
 	textureName += ".txd";
 
-	int index = pImgLoader->FileGetIndexByName(textureName.c_str());
-	if (index == -1)
+	int index = pImgLoader->GetFileIndexByName(textureName.c_str());
+	if (index == -1) {
+		printf("Cannot find texture %s.txd in IMG archive\n", name);
 		return;
+	}
 
 	LoadTextureWithId(pImgLoader, index, materialIndex);
 }
 
-int LoadGameFileWithId(ImgLoader *pImgLoader, GameRender *render, uint32_t fileId)
+int LoadFileDFFWithId(ImgLoader *pImgLoader, GameRender *render, uint32_t fileId)
 {
-	char *fileBuffer = pImgLoader->FileGetById(fileId);
+	char* name = pImgLoader->GetFilenameById(fileId);
+	if (strstr(name, ".dff") == NULL) {
+		printf("You want to load file: %s, but that file is not DFF file\n", name);
+		return 0;
+	}
+
+	char *fileBuffer = pImgLoader->GetFileById(fileId);
 	
 	Clump *clump = new Clump();
 	clump->Read(fileBuffer);
@@ -198,7 +166,7 @@ int LoadGameFileWithId(ImgLoader *pImgLoader, GameRender *render, uint32_t fileI
 				float y = gvertices[v * 3 + 1];
 				float z = gvertices[v * 3 + 2];
 
-				float tx = gtexture[v *2 + 0];
+				float tx = gtexture[v * 2 + 0];
 				float ty = gtexture[v * 2 + 1];
 
 				vert.push_back(x);
@@ -217,8 +185,6 @@ int LoadGameFileWithId(ImgLoader *pImgLoader, GameRender *render, uint32_t fileI
 			unsigned int *indices = &gindices[0];  /* convert to array unsigned int */
 			int countIndices = clump->GetGeometryList()[index].splits[i].indices.size();
 
-			
-			
 			D3D_PRIMITIVE_TOPOLOGY topology =
 				clump->GetGeometryList()[index].faceType == FACETYPE_STRIP
 				? D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP
@@ -238,12 +204,14 @@ int LoadGameFileWithId(ImgLoader *pImgLoader, GameRender *render, uint32_t fileI
 				}
 			}
 
-			gameModel->SetDataDDS(render, 
-				g_materials[index].source, g_materials[index].size,
-				g_materials[index].width, g_materials[index].height,
-				g_materials[index].dxtCompression);
-
-			gModels.push_back(gameModel);
+			if (index != -1) {
+				gameModel->SetDataDDS(render, 
+					g_materials[index].source, g_materials[index].size,
+					g_materials[index].width, g_materials[index].height,
+					g_materials[index].dxtCompression);
+			
+				g_Models.push_back(gameModel);
+			}
 		}
 	}
 
@@ -259,8 +227,8 @@ void Render(GameRender *render, GameCamera *camera)
 {
 	render->RenderStart();
 
-	for (int i = 0; i < gModels.size(); i++) {
-		gModels[i]->Render(render, camera);
+	for (int i = 0; i < g_Models.size(); i++) {
+		g_Models[i]->Render(render, camera);
 	}
 
 	render->RenderEnd();
@@ -281,15 +249,13 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 	GameRender *gameRender = new GameRender();
 	gameRender->Init(gameWindow->GetHandleWindow());
 
-	ImgLoader *imgLoader = LoadImgFile();
-	imgLoader->FileSaveById(152);
+	ImgLoader* imgLoader = new ImgLoader();
+	imgLoader->Open(
+		"C:/Games/Grand Theft Auto Vice City/models/gta3.img",
+		"C:/Games/Grand Theft Auto Vice City/models/gta3.dir"
+	);
 
-	//LoadTextureWithName(imgLoader, "radar01");
-	//LoadTextureWithName(imgLoader, "radar02");
-	//LoadTextureWithName(imgLoader, "radar03");
-	//LoadTextureWithName(imgLoader, "radar04");
-	LoadGameFileWithId(imgLoader, gameRender, 189);
-	//LoadGameFileWithId(imgLoader, gameRender, 153);
+	LoadFileDFFWithId(imgLoader, gameRender, 189);
 
 	float moveLeftRight = 0.0f;
 	float moveBackForward = 0.0f;
@@ -377,16 +343,18 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 	gameRender->Cleanup();
 	gameCamera->Cleanup();
 	gameInput->Cleanup();
-	for (int i = 0; i < gModels.size(); i++) {
-		gModels[i]->Cleanup();
-		delete gModels[i];
+
+	for (int i = 0; i < g_Models.size(); i++) {
+		g_Models[i]->Cleanup();
+		delete g_Models[i];
 	}
 
 	delete gameCamera;
 	delete gameInput;
 	delete gameRender;
 
-	FreeImgFile(imgLoader);
+	imgLoader->Cleanup();
+	delete imgLoader;
 
 	return msg.wParam;
 }

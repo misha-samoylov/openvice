@@ -1,6 +1,6 @@
 #include "ImgLoader.hpp"
 
-int ImgLoader::DirFileOpen(const char *filepath)
+int ImgLoader::OpenFileDir(const char *filepath)
 {
 	int fileSize;
 
@@ -27,12 +27,12 @@ int ImgLoader::DirFileOpen(const char *filepath)
     return 0;
 }
 
-void ImgLoader::DirFileDump()
+void ImgLoader::DumpFileDir()
 {
 	printf("[Dump] dir file[0].name = %s\n", m_pFilesDir[0].name);
 }
 
-int ImgLoader::ImgFileOpen(const char *filepathImg)
+int ImgLoader::OpenFileImg(const char *filepathImg)
 {
 	m_pFileImg = fopen(filepathImg, "rb");
 
@@ -46,17 +46,17 @@ int ImgLoader::ImgFileOpen(const char *filepathImg)
 
 int ImgLoader::Open(const char *filepathImg, const char *filepathDir)
 {
-	DirFileOpen(filepathDir);
-	ImgFileOpen(filepathImg);
+	OpenFileDir(filepathDir);
+	OpenFileImg(filepathImg);
 
     return 0;
 }
 
-int ImgLoader::FileSaveById(uint32_t id)
+int ImgLoader::SaveFileById(uint32_t id)
 {
 	int err;
 
-    err = FileSave(m_pFilesDir[id].offset,
+    err = SaveFile(m_pFilesDir[id].offset,
 		m_pFilesDir[id].size,
 		m_pFilesDir[id].name);
 
@@ -67,7 +67,12 @@ int ImgLoader::FileSaveById(uint32_t id)
     return 0;
 }
 
-char *ImgLoader::FileGetById(uint32_t id)
+char* ImgLoader::GetFilenameById(uint32_t id)
+{
+	return m_pFilesDir[id].name;
+}
+
+char *ImgLoader::GetFileById(uint32_t id)
 {
 	char *buff;
 	int32_t fileSize;
@@ -97,7 +102,7 @@ int32_t ImgLoader::GetFileSize(uint32_t id)
 	return m_pFilesDir[id].size * IMG_BLOCK_SIZE;
 }
 
-int ImgLoader::FileGetIndexByName(const char *name)
+int ImgLoader::GetFileIndexByName(const char *name)
 {
 	int index = -1;
 
@@ -109,12 +114,12 @@ int ImgLoader::FileGetIndexByName(const char *name)
 	}
 
 	if (index == -1)
-		printf("File %s is not found in IMG\n", name);
+		printf("File %s is not found in IMG archive\n", name);
 
 	return index;
 }
 
-int ImgLoader::FileSave(int32_t offset, int32_t size, const char *name)
+int ImgLoader::SaveFile(int32_t offset, int32_t size, const char *name)
 {
     FILE *pFile;
     char *buff;
@@ -150,19 +155,19 @@ int ImgLoader::FileSave(int32_t offset, int32_t size, const char *name)
     return 0;
 }
 
-void ImgLoader::DirFileCleanup()
+void ImgLoader::CleanupFileDir()
 {
 	free(m_pFilesDir);
 	fclose(m_pFileDir);
 }
 
-void ImgLoader::ImgFileCleanup()
+void ImgLoader::CleanupFileImg()
 {
 	fclose(m_pFileImg);
 }
 
 void ImgLoader::Cleanup()
 {
-	DirFileCleanup();
-	ImgFileCleanup();
+	CleanupFileDir();
+	CleanupFileImg();
 }
