@@ -1,6 +1,5 @@
 ﻿#include "GameModel.hpp"
 
-#include <DDSTextureLoader.h>
 #include <DirectXTex.h>
 
 using namespace DirectX;
