@@ -81,7 +81,7 @@ char *ImgLoader::GetFileById(uint32_t id)
 	fileSize = m_pFilesDir[id].size * IMG_BLOCK_SIZE;
 	fileOffset = m_pFilesDir[id].offset * IMG_BLOCK_SIZE;
 
-	printf("Loading %s file\n", m_pFilesDir[id].name);
+	printf("[NOTICE] ImgLoader: Loading %s file\n", m_pFilesDir[id].name);
 
 	buff = (char*)malloc(fileSize);
 	if (buff == NULL) {

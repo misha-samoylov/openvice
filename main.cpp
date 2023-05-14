@@ -33,6 +33,8 @@ struct GameMaterial {
 	uint32_t dxtCompression;
 };
 
+std::vector<std::string> g_loaded_txdFile;
+
 std::vector<GameMaterial> g_Textures;
 
 void LoadAllTexturesFromTXDFile(ImgLoader *pImgLoader, const char *filename)
@@ -54,6 +56,16 @@ void LoadAllTexturesFromTXDFile(ImgLoader *pImgLoader, const char *filename)
 	size_t offset = 0;
 	txd.read(fileBuffer, &offset);
 
+
+	for (int i = 0; i < g_loaded_txdFile.size(); i++) {
+		if (g_loaded_txdFile.at(i) == filename) {
+			printf("[NOTICE] Skip already loaded txd file %s\n", filename);
+			return;
+		}
+	}
+
+	g_loaded_txdFile.push_back(filename);
+
 	// Loop for every texture in TXD file
 	for (uint32_t i = 0; i < txd.texList.size(); i++) {
 
@@ -61,21 +73,6 @@ void LoadAllTexturesFromTXDFile(ImgLoader *pImgLoader, const char *filename)
 		cout << i << " " << t.name << " " << t.maskName << " "
 			<< " " << t.width[0] << " " << t.height[0] << " "
 			<< " " << t.depth << " " << hex << t.rasterFormat << endl;
-
-		//bool isLoaded = false;
-
-		// ѕроверка была ли загружена эта текстура ранее
-		/*for (int ti = 0; ti < g_Textures.size(); ti++) {
-			if (g_Textures[ti].name == t.name) {
-				isLoaded = true;
-				printf("[NOTICE] Skip loaded texture %s from TXD file %s\n", t.name, textureName.c_str());
-				break;
-			}
-		}
-
-		if (isLoaded) {
-			break;
-		}*/
 
 		//if (txd.texList[i].dxtCompression)
 		//	txd.texList[i].decompressDxt();
@@ -111,7 +108,7 @@ int LoadFileDFFWithId(ImgLoader *pImgLoader, GameRender *render, uint32_t fileId
 {
 	char* name = pImgLoader->GetFilenameById(fileId);
 	if (strstr(name, ".dff") == NULL) {
-		printf("You want to load file: %s, but that file is not DFF file\n", name);
+		printf("[ERROR] You want to load file: %s, but that file is not DFF file\n", name);
 		return 0;
 	}
 
@@ -289,9 +286,6 @@ void LoadFileDFFWithName(ImgLoader* pImgLoader, GameRender* render, std::string 
 	if (index == -1) {
 		printf("[ERROR] Cannot find %s.dff in IMG archive\n", name.c_str());
 		return;
-	}
-	else {
-		printf("[OK] Finded dff file %s.dff in IMG archive\n", name.c_str());
 	}
 
 	LoadFileDFFWithId(pImgLoader, render, index, x, y, z);
