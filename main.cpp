@@ -42,10 +42,10 @@ void LoadAllTexturesFromTXDFile(ImgLoader *pImgLoader, const char *filename)
 
 	int fileId = pImgLoader->GetFileIndexByName(textureName.c_str());
 	if (fileId == -1) {
-		printf("[ERROR] Cannot find texture %s in IMG archive\n", textureName);
+		printf("[ERROR] Cannot find file %s in IMG archive\n", textureName.c_str());
 		return;
 	} else {
-		printf("[OK] Finded txd file %s in IMG archive\n", textureName);
+		printf("[OK] Finded file %s in IMG archive\n", textureName.c_str());
 	}
 
 	char *fileBuffer = pImgLoader->GetFileById(fileId);
@@ -56,10 +56,26 @@ void LoadAllTexturesFromTXDFile(ImgLoader *pImgLoader, const char *filename)
 
 	// Loop for every texture in TXD file
 	for (uint32_t i = 0; i < txd.texList.size(); i++) {
+
 		NativeTexture &t = txd.texList[i];
 		cout << i << " " << t.name << " " << t.maskName << " "
 			<< " " << t.width[0] << " " << t.height[0] << " "
 			<< " " << t.depth << " " << hex << t.rasterFormat << endl;
+
+		bool isLoaded = false;
+
+		// ѕроверка была ли загружена эта текстура ранее
+		for (int ti = 0; ti < g_Textures.size(); ti++) {
+			if (g_Textures[ti].name == t.name) {
+				isLoaded = true;
+				printf("[NOTICE] Skip loaded texture %s from TXD file %s\n", t.name, textureName.c_str());
+				break;
+			}
+		}
+
+		if (isLoaded) {
+			break;
+		}
 
 		//if (txd.texList[i].dxtCompression)
 		//	txd.texList[i].decompressDxt();
@@ -78,7 +94,7 @@ void LoadAllTexturesFromTXDFile(ImgLoader *pImgLoader, const char *filename)
 		m.height = txd.texList[i].height[0];
 		m.dxtCompression = txd.texList[i].dxtCompression; // DXT1, DXT3, DXT4
 
-		printf("[OK] Loaded texture name %s from TXD file %s\n", t.name, textureName);
+		printf("[OK] Loaded texture name %s from TXD file %s\n", t.name, textureName.c_str());
 
 		g_Textures.push_back(m);
 	}
@@ -91,6 +107,11 @@ int LoadFileDFFWithId(ImgLoader *pImgLoader, GameRender *render, uint32_t fileId
 	char* name = pImgLoader->GetFilenameById(fileId);
 	if (strstr(name, ".dff") == NULL) {
 		printf("You want to load file: %s, but that file is not DFF file\n", name);
+		return 0;
+	}
+
+	if (strstr(name, "LOD")) {
+		printf("[NOTICE] Skip load LOD files %s\n", name);
 		return 0;
 	}
 
@@ -117,7 +138,7 @@ int LoadFileDFFWithId(ImgLoader *pImgLoader, GameRender *render, uint32_t fileId
 		for (int i = 0; i < clump->GetGeometryList()[index].materialList.size(); i++) {
 			Material material = clump->GetGeometryList()[index].materialList[i];
 
-			std::cout << "Model material texture " << material.texture.name << std::endl;
+			// std::cout << "Model material texture " << material.texture.name << std::endl;
 
 			// —опоставл€ем текстуру и его номер
 			struct materialAndHisIndex matInd;
@@ -261,11 +282,11 @@ void LoadFileDFFWithName(ImgLoader* pImgLoader, GameRender* render, std::string 
 {
 	int index = pImgLoader->GetFileIndexByName(name.c_str());
 	if (index == -1) {
-		printf("Cannot find %s.dff in IMG archive\n", name);
+		printf("[ERROR] Cannot find %s.dff in IMG archive\n", name.c_str());
 		return;
 	}
 	else {
-		printf("Finded dff file %s.dff in IMG archive\n", name);
+		printf("[OK] Finded dff file %s.dff in IMG archive\n", name.c_str());
 	}
 
 	LoadFileDFFWithId(pImgLoader, render, index, x, y, z);
