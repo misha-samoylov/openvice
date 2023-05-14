@@ -92,6 +92,9 @@ void GameModel::InitPosition(float x, float y, float z)
 	m_World = modelRotation * modelPosition * modelScale * modelTranslation;
 }
 
+#include <stdlib.h>
+#include<iostream>
+#include<cstdlib>
 
 HRESULT GameModel::SetDataDDS(GameRender* pRender, uint8_t* source, size_t size, uint32_t width, uint32_t height, uint32_t dxtCompression)
 {
@@ -138,9 +141,18 @@ HRESULT GameModel::SetDataDDS(GameRender* pRender, uint8_t* source, size_t size,
 	memcpy(buf, &dds, sizeof(dds));
 	memcpy(buf + 1*sizeof(dds), source , size);
 
-	//FILE* f = fopen("test.dds", "wb");
-	//fwrite(buf, len, 1, f);
-	//fclose(f);
+	// Providing a seed value
+	/*srand((unsigned)time(NULL));
+	// Get a random number
+	int random = rand();
+	int i = 247593;
+	char str[10];
+	sprintf(str, "%d", random);
+	std::string fname = str;
+	fname += ".dds";
+	FILE* f = fopen(fname.c_str(), "wb");
+	fwrite(buf, len, 1, f);
+	fclose(f);*/
 
 	//auto image = std::make_unique<ScratchImage>();
 	ScratchImage image;
@@ -164,11 +176,11 @@ HRESULT GameModel::SetDataDDS(GameRender* pRender, uint8_t* source, size_t size,
 	D3D11_SAMPLER_DESC sampDesc;
 	ZeroMemory(&sampDesc, sizeof(sampDesc));
 	sampDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
-	//sampDesc.Filter = D3D11_FILTER_ANISOTROPIC;
-	//sampDesc.MaxAnisotropy = 16;
-	sampDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
+	sampDesc.Filter = D3D11_FILTER_ANISOTROPIC; //
+	sampDesc.MaxAnisotropy = 16; //
+	sampDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP; // D3D11_TEXTURE_ADDRESS_WRAP
 	sampDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
-	//sampDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
+	sampDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
 	sampDesc.MinLOD = 0;
 	sampDesc.MaxLOD = D3D11_FLOAT32_MAX;
 

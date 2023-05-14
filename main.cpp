@@ -62,10 +62,10 @@ void LoadAllTexturesFromTXDFile(ImgLoader *pImgLoader, const char *filename)
 			<< " " << t.width[0] << " " << t.height[0] << " "
 			<< " " << t.depth << " " << hex << t.rasterFormat << endl;
 
-		bool isLoaded = false;
+		//bool isLoaded = false;
 
 		// Проверка была ли загружена эта текстура ранее
-		for (int ti = 0; ti < g_Textures.size(); ti++) {
+		/*for (int ti = 0; ti < g_Textures.size(); ti++) {
 			if (g_Textures[ti].name == t.name) {
 				isLoaded = true;
 				printf("[NOTICE] Skip loaded texture %s from TXD file %s\n", t.name, textureName.c_str());
@@ -75,7 +75,7 @@ void LoadAllTexturesFromTXDFile(ImgLoader *pImgLoader, const char *filename)
 
 		if (isLoaded) {
 			break;
-		}
+		}*/
 
 		//if (txd.texList[i].dxtCompression)
 		//	txd.texList[i].decompressDxt();
@@ -102,6 +102,11 @@ void LoadAllTexturesFromTXDFile(ImgLoader *pImgLoader, const char *filename)
 	free(fileBuffer);
 }
 
+struct materialAndHisIndex {
+	std::string materialName;
+	int index;
+};
+
 int LoadFileDFFWithId(ImgLoader *pImgLoader, GameRender *render, uint32_t fileId, float x = 0, float y = 0, float z = 0)
 {
 	char* name = pImgLoader->GetFilenameById(fileId);
@@ -115,21 +120,15 @@ int LoadFileDFFWithId(ImgLoader *pImgLoader, GameRender *render, uint32_t fileId
 		return 0;
 	}
 
-	struct materialAndHisIndex {
-		std::string materialName;
-		int index;
-	};
-
-	std::vector<materialAndHisIndex> materIndex;
-
 	char *fileBuffer = pImgLoader->GetFileById(fileId);
 	
 	Clump *clump = new Clump();
 	clump->Read(fileBuffer);
 	// clump->Dump();
 
-
 	for (uint32_t index = 0; index < clump->GetGeometryList().size(); index++) {
+
+		std::vector<materialAndHisIndex> materIndex;
 
 		std::vector<float> gvertices;
 		std::vector<float> gtexture;
@@ -236,7 +235,7 @@ int LoadFileDFFWithId(ImgLoader *pImgLoader, GameRender *render, uint32_t fileId
 			
 			gameModel->Init(render, vertices, countVertices,
 				indices, countIndices,
-				D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP, 
+				topology,
 				x, y, z
 			);
 
@@ -244,14 +243,20 @@ int LoadFileDFFWithId(ImgLoader *pImgLoader, GameRender *render, uint32_t fileId
 
 			int index = -1;
 
-			// получаем номер текстуры по его имени
+			// поиск текстуры по индексу
 			for (int ib = 0; ib < materIndex.size(); ib++) {
-				for (int im = 0; im < g_Textures.size(); im++) {
-					if (g_Textures[im].name == materIndex[ib].materialName) {
-						index = im;
-						break;
+
+				if (materialIndex == materIndex[ib].index) {
+
+					for (int im = 0; im < g_Textures.size(); im++) {
+						if (g_Textures[im].name == materIndex[ib].materialName) {
+							index = im;
+							break;
+						}
 					}
+
 				}
+
 			}
 
 			if (index != -1) {
