@@ -80,14 +80,14 @@ void GameModel::Render(GameRender * pRender, GameCamera *pCamera)
 	pRender->GetDeviceContext()->DrawIndexed(m_countIndices, 0, 0);
 }
 
-void GameModel::InitPosition()
+void GameModel::InitPosition(float x, float y, float z)
 {
 	XMVECTOR vector = XMVectorSet(-1.0, 0.0, 0.0, 0.0);
-	XMMATRIX modelRotation = XMMatrixRotationAxis(vector, 90.0f);
+	XMMATRIX modelRotation = XMMatrixRotationAxis(vector, 0.0f);
 
 	XMMATRIX modelPosition = XMMatrixIdentity();
 	XMMATRIX modelScale = XMMatrixScaling(1.0f, 1.0f, 1.0f);
-	XMMATRIX modelTranslation = XMMatrixTranslation(0.0f, 0.0f, 0.0f);
+	XMMATRIX modelTranslation = XMMatrixTranslation(x, y, z);
 
 	m_World = modelRotation * modelPosition * modelScale * modelTranslation;
 }
@@ -175,6 +175,18 @@ HRESULT GameModel::SetDataDDS(GameRender* pRender, uint8_t* source, size_t size,
 	hr = pRender->GetDevice()->CreateSamplerState(&sampDesc, &m_pTextureSampler);
 
 	return hr;
+}
+
+void GameModel::SetPosition(float x, float y, float z)
+{
+	XMVECTOR vector = XMVectorSet(-1.0, 0.0, 0.0, 0.0);
+	XMMATRIX modelRotation = XMMatrixRotationAxis(vector, 0.0f);
+
+	XMMATRIX modelPosition = XMMatrixIdentity();
+	XMMATRIX modelScale = XMMatrixScaling(1.0f, 1.0f, 1.0f);
+	XMMATRIX modelTranslation = XMMatrixTranslation(x,y,z);
+
+	m_World = modelRotation * modelPosition * modelScale * modelTranslation;
 }
 
 HRESULT GameModel::CreatePixelShader(GameRender *pRender)
@@ -309,7 +321,7 @@ HRESULT GameModel::CreateDataBuffer(GameRender * pRender,
 
 HRESULT GameModel::Init(GameRender *pRender, float *pVertices, int verticesCount,
 	unsigned int *pIndices, int indicesCount, 
-	D3D_PRIMITIVE_TOPOLOGY topology)
+	D3D_PRIMITIVE_TOPOLOGY topology, float x, float y, float z)
 {
 	HRESULT hr;
 
@@ -318,7 +330,7 @@ HRESULT GameModel::Init(GameRender *pRender, float *pVertices, int verticesCount
 	m_countIndices = indicesCount;
 	m_primitiveTopology = topology;
 
-	InitPosition();
+	InitPosition(x,y,z);
 
 	hr = CreateVertexShader(pRender);
 	if (FAILED(hr)) {

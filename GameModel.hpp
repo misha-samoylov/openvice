@@ -34,13 +34,14 @@ class GameModel
 public:
 	HRESULT Init(GameRender *pRender, float *vertices, int verticesCount, 
 		unsigned int *indices, int indicesCount, 
-		D3D_PRIMITIVE_TOPOLOGY topology);
+		D3D_PRIMITIVE_TOPOLOGY topology, float x, float y, float z);
 	void Cleanup();
 	void Render(GameRender *pRender, GameCamera *pCamera);
 	HRESULT SetDataDDS(GameRender* pRender, uint8_t* pSource, size_t size, uint32_t width, uint32_t height, uint32_t dxtCompression);
+	void SetPosition(float x, float y, float z);
 
 private:
-	void InitPosition();
+	void InitPosition(float x, float y, float z);
 	HRESULT CreateConstBuffer(GameRender *pRender);
 	HRESULT CreatePixelShader(GameRender *pRender);
 	HRESULT CreateVertexShader(GameRender *pRender);

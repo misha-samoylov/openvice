@@ -25,8 +25,7 @@ using namespace DirectX; /* DirectXMath.h */
 std::vector<GameModel*> g_Models;
 
 struct GameMaterial {
-	int index;
-	std::string name;
+	std::string name; // без .TXD
 	uint8_t *source;
 	int size;
 	uint32_t width;
@@ -34,10 +33,21 @@ struct GameMaterial {
 	uint32_t dxtCompression;
 };
 
-std::vector<GameMaterial> g_materials;
+std::vector<GameMaterial> g_Textures;
 
-void LoadTextureWithId(ImgLoader *pImgLoader, uint32_t fileId, int materialIndex)
+void LoadAllTexturesFromTXDFile(ImgLoader *pImgLoader, const char *filename)
 {
+	std::string textureName = filename;
+	textureName += ".txd";
+
+	int fileId = pImgLoader->GetFileIndexByName(textureName.c_str());
+	if (fileId == -1) {
+		printf("[ERROR] Cannot find texture %s in IMG archive\n", textureName);
+		return;
+	} else {
+		printf("[OK] Finded txd file %s in IMG archive\n", textureName);
+	}
+
 	char *fileBuffer = pImgLoader->GetFileById(fileId);
 
 	TextureDictionary txd;
@@ -59,7 +69,7 @@ void LoadTextureWithId(ImgLoader *pImgLoader, uint32_t fileId, int materialIndex
 		size_t len = txd.texList[i].dataSizes[0];
 
 		struct GameMaterial m;
-		m.index = materialIndex;
+		m.name = t.name; // без .TXD
 		m.source = (uint8_t *)malloc(len);
 		memcpy(m.source, texelsToArray, len);
 		// m.source = *txd.texList[i].texels.data();
@@ -67,27 +77,16 @@ void LoadTextureWithId(ImgLoader *pImgLoader, uint32_t fileId, int materialIndex
 		m.width = txd.texList[i].width[0];
 		m.height = txd.texList[i].height[0];
 		m.dxtCompression = txd.texList[i].dxtCompression; // DXT1, DXT3, DXT4
-		g_materials.push_back(m);
+
+		printf("[OK] Loaded texture name %s from TXD file %s\n", t.name, textureName);
+
+		g_Textures.push_back(m);
 	}
 
 	free(fileBuffer);
 }
 
-void LoadTextureWithName(ImgLoader *pImgLoader, const char *name, int materialIndex)
-{
-	std::string textureName = name;
-	textureName += ".txd";
-
-	int index = pImgLoader->GetFileIndexByName(textureName.c_str());
-	if (index == -1) {
-		printf("Cannot find texture %s.txd in IMG archive\n", name);
-		return;
-	}
-
-	LoadTextureWithId(pImgLoader, index, materialIndex);
-}
-
-int LoadFileDFFWithId(ImgLoader *pImgLoader, GameRender *render, uint32_t fileId)
+int LoadFileDFFWithId(ImgLoader *pImgLoader, GameRender *render, uint32_t fileId, float x = 0, float y = 0, float z = 0)
 {
 	char* name = pImgLoader->GetFilenameById(fileId);
 	if (strstr(name, ".dff") == NULL) {
@@ -95,11 +94,19 @@ int LoadFileDFFWithId(ImgLoader *pImgLoader, GameRender *render, uint32_t fileId
 		return 0;
 	}
 
+	struct materialAndHisIndex {
+		std::string materialName;
+		int index;
+	};
+
+	std::vector<materialAndHisIndex> materIndex;
+
 	char *fileBuffer = pImgLoader->GetFileById(fileId);
 	
 	Clump *clump = new Clump();
 	clump->Read(fileBuffer);
-	clump->Dump();
+	// clump->Dump();
+
 
 	for (uint32_t index = 0; index < clump->GetGeometryList().size(); index++) {
 
@@ -111,7 +118,21 @@ int LoadFileDFFWithId(ImgLoader *pImgLoader, GameRender *render, uint32_t fileId
 			Material material = clump->GetGeometryList()[index].materialList[i];
 
 			std::cout << "Model material texture " << material.texture.name << std::endl;
-			LoadTextureWithName(pImgLoader, material.texture.name.c_str(), i);
+
+			// Сопоставляем текстуру и его номер
+			struct materialAndHisIndex matInd;
+			matInd.materialName = material.texture.name;
+			matInd.index = i;
+			materIndex.push_back(matInd);
+
+			//LoadTextureWithName(pImgLoader, material.texture.name.c_str(), i);
+			
+			//for (int iu = 0; iu < g_materials.size(); iu++) {
+			//	if (g_materials[iu].name == material.texture.name) {
+			//		g_materials[iu].index = iu;
+			//	}
+			//}
+
 		}
 
 		for (uint32_t i = 0; i < clump->GetGeometryList()[index].vertices.size() / 3; i++) {
@@ -190,28 +211,42 @@ int LoadFileDFFWithId(ImgLoader *pImgLoader, GameRender *render, uint32_t fileId
 				? D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP
 				: D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 
-			GameModel *gameModel = new GameModel();
+			GameModel* gameModel = new GameModel();
+			
 			gameModel->Init(render, vertices, countVertices,
 				indices, countIndices,
-				D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
+				D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP, 
+				x, y, z
+			);
 
 			uint32_t materialIndex = clump->GetGeometryList()[index].splits[i].matIndex;
 
 			int index = -1;
-			for (int i = 0; i < g_materials.size(); i++) {
-				if (g_materials[i].index == materialIndex) {
-					index = i;
+
+			// получаем номер текстуры по его имени
+			for (int ib = 0; ib < materIndex.size(); ib++) {
+				for (int im = 0; im < g_Textures.size(); im++) {
+					if (g_Textures[im].name == materIndex[ib].materialName) {
+						index = im;
+						break;
+					}
 				}
 			}
 
 			if (index != -1) {
-				gameModel->SetDataDDS(render, 
-					g_materials[index].source, g_materials[index].size,
-					g_materials[index].width, g_materials[index].height,
-					g_materials[index].dxtCompression);
-			
-				g_Models.push_back(gameModel);
+				gameModel->SetDataDDS(
+					render, 
+					g_Textures[index].source,
+					g_Textures[index].size,
+					g_Textures[index].width,
+					g_Textures[index].height,
+					g_Textures[index].dxtCompression
+				);
 			}
+
+			g_Models.push_back(gameModel);
+
+			gameModel->SetPosition(x, y, z);
 		}
 	}
 
@@ -219,8 +254,21 @@ int LoadFileDFFWithId(ImgLoader *pImgLoader, GameRender *render, uint32_t fileId
 	delete clump;
 
 	free(fileBuffer);
+}
 
-	return 0;
+
+void LoadFileDFFWithName(ImgLoader* pImgLoader, GameRender* render, std::string name, float x, float y, float z)
+{
+	int index = pImgLoader->GetFileIndexByName(name.c_str());
+	if (index == -1) {
+		printf("Cannot find %s.dff in IMG archive\n", name);
+		return;
+	}
+	else {
+		printf("Finded dff file %s.dff in IMG archive\n", name);
+	}
+
+	LoadFileDFFWithId(pImgLoader, render, index, x, y, z);
 }
 
 void Render(GameRender *render, GameCamera *camera)
@@ -232,6 +280,152 @@ void Render(GameRender *render, GameCamera *camera)
 	}
 
 	render->RenderEnd();
+}
+
+// IDE файлы содержат название модели и её архива текстур (TXD)
+
+struct IDEFile {
+	int objectId;
+	std::string modelName;
+	std::string textureArchiveName;
+};
+
+std::vector<IDEFile> ideFile;
+
+void LoadIDEFile(const char* filepath)
+{
+	FILE* fp;
+	char str[512];
+	if ((fp = fopen(filepath, "r")) == NULL) {
+		printf("Cannot open file.\n");
+		return;
+	}
+
+	bool isObjs = false;
+
+	while (!feof(fp)) {
+		if (fgets(str, 512, fp)) {
+
+			if (strcmp(str, "objs\n") == 0) {
+				isObjs = true;
+			}
+
+			if (strcmp(str, "end") == 0) {
+				if (isObjs) {
+					isObjs = false;
+				}
+			}
+
+			int id = 0;
+			char modelName[64];
+			char textureArchiveName[64];
+			//std::string modelNameq;
+			int interior = 0;
+			float posX = 0, posY = 0, posZ = 0;
+			float scale[3];
+			float rot[4];
+
+			int values = sscanf(str, "%d, %64[^,], %64[^,]", &id, modelName, textureArchiveName);
+
+			printf("%s", str);
+			if (values == 3 && isObjs) {
+
+				// Добавляем .dff окончание, так как там указано без DFF формата
+				//modelNameq = modelNameq + ".dff";
+
+				std::string mName = modelName;
+				mName = mName + ".dff";
+
+				std::string taName = textureArchiveName;
+				//taName = taName + ".txd";
+
+				struct IDEFile idf;
+				idf.objectId = id;
+				idf.modelName = mName;
+				idf.textureArchiveName = taName;
+				
+				ideFile.push_back(idf);
+			}
+		}
+
+	}
+
+	fclose(fp);
+}
+
+struct IPLFile {
+	int id;
+	std::string modelName;
+	int interior;
+	float posX, posY, posZ;
+	float scale[3];
+	float rot[4];
+};
+
+std::vector<IPLFile> objects;
+
+// IPL файлы содержат местоположение модели
+void LoadIPLFile(const char *filepath)
+{
+	FILE* fp;
+	char str[512];
+	if ((fp = fopen(filepath, "r")) == NULL) {
+		printf("Cannot open file.\n");
+		return;
+	}
+
+	bool isObjs = false;
+
+	while (!feof(fp)) {
+		if (fgets(str, 512, fp)) {
+
+			if (strcmp(str, "inst\n") == 0) {
+				isObjs = true;
+			}
+
+			if (strcmp(str, "end") == 0) {
+				if (isObjs) {
+					isObjs = false;
+				}
+			}
+
+
+			int id = 0;
+			char modelName[64];
+			//std::string modelNameq;
+			int interior = 0;
+			float posX = 0, posY = 0, posZ = 0;
+			float scale[3];
+			float rot[4];
+
+			int values = sscanf(str, "%d, %64[^,], %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f", &id, modelName, &interior, &posX, &posY, &posZ,
+				&scale[0], &scale[1], &scale[2],
+				&rot[0], &rot[1], &rot[2], &rot[3]
+			);
+
+			printf("%s", str);
+			if (values == 13 && isObjs) {
+
+				// Добавляем .dff окончание, так как там указано без DFF формата
+				//modelNameq = modelNameq + ".dff";
+
+				std::string mName = modelName;
+				mName = mName + ".dff";
+
+				struct IPLFile iplfile;
+				iplfile.id = id;
+				iplfile.modelName = mName;
+				iplfile.interior = interior;
+				iplfile.posX = posX;
+				iplfile.posY = posY;
+				iplfile.posZ = posZ;
+				objects.push_back(iplfile);
+			}
+		}
+			
+	}
+
+	fclose(fp);
 }
 
 INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
@@ -255,7 +449,26 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 		"C:/Games/Grand Theft Auto Vice City/models/gta3.dir"
 	);
 
-	LoadFileDFFWithId(imgLoader, gameRender, 189);
+	// Загрузка сопоставление модели и её текстуры
+	LoadIDEFile("C:/Games/Grand Theft Auto Vice City/data/maps/bridge/bridge.ide");
+
+	for (int i = 0; i < ideFile.size(); i++) {
+		LoadAllTexturesFromTXDFile(imgLoader, ideFile[i].textureArchiveName.c_str());
+	}
+
+	// Загрузка местоположения модели
+	LoadIPLFile("C:/Games/Grand Theft Auto Vice City/data/maps/bridge/bridge.ipl");
+
+
+	for (int i = 0; i < objects.size(); i++) {
+		LoadFileDFFWithName(imgLoader, gameRender, objects[i].modelName.c_str(),
+			objects[i].posX, objects[i].posY, objects[i].posZ);
+	}
+
+	
+
+	//gm = LoadFileDFFWithId(imgLoader, gameRender, 189);
+	//gm->SetPosition(10, 10, 10);
 
 	float moveLeftRight = 0.0f;
 	float moveBackForward = 0.0f;
@@ -303,6 +516,18 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 				PostQuitMessage(-1);
 			}
 
+			if (gameInput->IsKey(DIK_LSHIFT)) {
+				speed *= 50;
+			}
+
+			if (gameInput->IsKey(DIK_F1)) {
+				gameRender->ChangeRasterizerStateToWireframe();
+			}
+
+			if (gameInput->IsKey(DIK_F2)) {
+				gameRender->ChangeRasterizerStateToSolid();
+			}
+
 			if (gameInput->IsKey(DIK_W)) {
 				moveBackForward += speed;
 			}
@@ -317,7 +542,7 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 
 			if (gameInput->IsKey(DIK_D)) {
 				moveLeftRight += speed;
-			}
+			}			
 
 			mouseCurrState.lX = gameInput->GetMouseSpeedX();
 			mouseCurrState.lY = gameInput->GetMouseSpeedY();

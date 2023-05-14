@@ -10,6 +10,23 @@ ID3D11DeviceContext *GameRender::GetDeviceContext()
 	return m_pDeviceContext;
 }
 
+HRESULT GameRender::ChangeRasterizerStateToWireframe()
+{
+	HRESULT hr;
+
+	D3D11_RASTERIZER_DESC wfdesc;
+	ZeroMemory(&wfdesc, sizeof(D3D11_RASTERIZER_DESC));
+	wfdesc.FillMode = D3D11_FILL_WIREFRAME;
+	wfdesc.CullMode = D3D11_CULL_BACK;
+
+	hr = m_pDevice->CreateRasterizerState(&wfdesc, &m_pWireframe);
+
+	// Включаем указанные настройки растеризации
+	m_pDeviceContext->RSSetState(m_pWireframe);
+
+	return hr;
+}
+
 void GameRender::InitViewport(HWND hWnd)
 {
 	RECT rc;
@@ -53,14 +70,14 @@ HRESULT GameRender::CreateBackBuffer()
 	return hr;
 }
 
-HRESULT GameRender::CreateWireframe()
+HRESULT GameRender::ChangeRasterizerStateToSolid()
 {
 	HRESULT hr;
 
 	D3D11_RASTERIZER_DESC wfdesc;
 	ZeroMemory(&wfdesc, sizeof(D3D11_RASTERIZER_DESC));
-	wfdesc.FillMode = D3D11_FILL_SOLID; // D3D11_FILL_WIREFRAME
-	wfdesc.CullMode = D3D11_CULL_BACK; // D3D11_CULL_BACK
+	wfdesc.FillMode = D3D11_FILL_SOLID;
+	wfdesc.CullMode = D3D11_CULL_BACK;
 
 	hr = m_pDevice->CreateRasterizerState(&wfdesc, &m_pWireframe);
 
@@ -180,7 +197,7 @@ HRESULT GameRender::Init(HWND hWnd)
 	m_pDeviceContext->OMSetRenderTargets(1, &m_pRenderTargetView, m_pDepthStencilView);
 
 	InitViewport(hWnd);
-	CreateWireframe();
+	ChangeRasterizerStateToSolid();
 
 	return hr;
 }
