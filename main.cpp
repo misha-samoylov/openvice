@@ -207,9 +207,17 @@ int LoadFileDFFWithId(ImgLoader *pImgLoader, GameRender *render, uint32_t fileId
 				float tx = gtexture[v * 2 + 0];
 				float ty = gtexture[v * 2 + 1];
 
-				vert.push_back(x);
+				/*
+				 * ћен€ем положение модели в пространстве так как наша камера
+				 * в Left Handed Coordinates, а движок GTA вообще в своей координатной системе:
+				 * X Ц east/west direction
+				 * Y Ц north/south direction
+				 * Z Ц up/down direction
+				 * @see https://gtamods.com/wiki/Map_system
+				*/
 				vert.push_back(y);
 				vert.push_back(z);
+				vert.push_back(x);
 
 				vert.push_back(tx);
 				vert.push_back(ty);
@@ -432,13 +440,21 @@ void LoadIPLFile(const char *filepath)
 				std::string mName = modelName;
 				mName = mName + ".dff";
 
+				/*
+				 * ћен€ем положение модели в пространстве так как наша камера
+				 * в Left Handed Coordinates, а движок GTA вообще в своей координатной системе:
+				 * X Ц east/west direction
+				 * Y Ц north/south direction
+				 * Z Ц up/down direction
+				 * @see https://gtamods.com/wiki/Map_system
+				*/
 				struct IPLFile iplfile;
 				iplfile.id = id;
 				iplfile.modelName = mName;
 				iplfile.interior = interior;
-				iplfile.posX = posX;
-				iplfile.posY = posY;
-				iplfile.posZ = posZ;
+				iplfile.posX = posY ;
+				iplfile.posY = posZ;
+				iplfile.posZ = posX;
 				objects.push_back(iplfile);
 			}
 		}

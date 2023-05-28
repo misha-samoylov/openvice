@@ -2,7 +2,7 @@
 
 #include <DirectXMath.h>
 
-using namespace DirectX; /* DirectXMath */
+using namespace DirectX;
 
 class GameCamera
 {
