@@ -532,6 +532,7 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 
 	// Загружаем общие данные (сопоставление модели и её текстуры)
 	LoadIDEFile("C:/Games/Grand Theft Auto Vice City/data/maps/bridge/bridge.ide");
+	LoadIDEFile("C:/Games/Grand Theft Auto Vice City/data/maps/bank/bank.ide");
 
 	// Загружаем из общих данные только данные текстур
 	std::vector<string> textures;
@@ -566,6 +567,7 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 
 	// Загрузка местоположения моделей
 	LoadIPLFile("C:/Games/Grand Theft Auto Vice City/data/maps/bridge/bridge.ipl");
+	LoadIPLFile("C:/Games/Grand Theft Auto Vice City/data/maps/bank/bank.ipl");
 	
 
 	float moveLeftRight = 0.0f;
