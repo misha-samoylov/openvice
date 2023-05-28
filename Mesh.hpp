@@ -30,24 +30,22 @@ struct objectConstBuffer
 	XMMATRIX WVP;
 };
 
-class GameModel
+class Mesh
 {
 public:
-	HRESULT Init(GameRender *pRender, float *vertices, int verticesCount, 
-		unsigned int *indices, int indicesCount, 
-		D3D_PRIMITIVE_TOPOLOGY topology, float x, float y, float z);
+	HRESULT Init(GameRender *pRender, float *vertices, int verticesCount, unsigned int *indices, int indicesCount, D3D_PRIMITIVE_TOPOLOGY topology);
 	void Cleanup();
 	void Render(GameRender *pRender, GameCamera *pCamera);
 	HRESULT SetDataDDS(GameRender* pRender, uint8_t* pSource, size_t size, uint32_t width, uint32_t height, uint32_t dxtCompression, uint32_t depth);
 	void SetPosition(float x, float y, float z,
 		float scaleX, float scaleY, float scaleZ,
 		float rotx, float roty, float rotz, float rotr);
-
-	// TODO method get set
-	std::string modelName;
+	void SetModelName(std::string name) { m_modelName = name; }
+	std::string GetModelName() { return m_modelName; }
+	void SetModelId(int id) { m_modelId = id; }
+	int GetModelId() { return m_modelId; }
 
 private:
-	void InitPosition(float x, float y, float z);
 	HRESULT CreateConstBuffer(GameRender *pRender);
 	HRESULT CreatePixelShader(GameRender *pRender);
 	HRESULT CreateVertexShader(GameRender *pRender);
@@ -79,5 +77,6 @@ private:
 	void* tgaFileSource;
 	size_t tgaFileSize;
 
-	
+	std::string m_modelName;
+	int m_modelId;
 };

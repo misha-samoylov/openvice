@@ -1,6 +1,7 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
+#include <algorithm>
 
 #include <windows.h>
 #include <DirectXMath.h>
@@ -9,7 +10,7 @@
 
 #include "loaders/ImgLoader.hpp"
 #include "loaders/Clump.h"
-#include "GameModel.hpp"
+#include "Mesh.hpp"
 #include "GameRender.hpp"
 #include "GameCamera.hpp"
 #include "GameInput.hpp"
@@ -20,13 +21,28 @@
 #define WINDOW_HEIGHT 1080
 #define WINDOW_TITLE L"openvice"
 
-using namespace DirectX; /* DirectXMath.h */
+using namespace DirectX;
 
-std::vector<GameModel*> g_Models;
+/* IPL file contains model position */
+struct IPLFile {
+	int id;
+	std::string modelName;
+	int interior;
+	float posX, posY, posZ;
+	float scale[3];
+	float rot[4];
+};
+
+/* IDE file contains model name and their texture name */
+struct IDEFile {
+	int objectId;
+	std::string modelName;
+	std::string textureArchiveName;
+};
 
 struct GameMaterial {
-	std::string name; // без .TXD
-	uint8_t *source;
+	std::string name; /* without extension ".TXD" */
+	uint8_t* source;
 	int size;
 	uint32_t width;
 	uint32_t height;
@@ -34,8 +50,23 @@ struct GameMaterial {
 	uint32_t depth;
 };
 
+struct ModelMaterial {
+	std::string materialName;
+	int index;
+};
 
+std::vector<IDEFile> g_ideFile;
+std::vector<IPLFile> g_MapObjects;
+std::vector<Mesh*> g_LoadedModels;
 std::vector<GameMaterial> g_Textures;
+
+
+template <typename T>
+void remove_duplicates(std::vector<T>& vec)
+{
+	std::sort(vec.begin(), vec.end());
+	vec.erase(std::unique(vec.begin(), vec.end()), vec.end());
+}
 
 void LoadAllTexturesFromTXDFile(ImgLoader *pImgLoader, const char *filename)
 {
@@ -46,40 +77,40 @@ void LoadAllTexturesFromTXDFile(ImgLoader *pImgLoader, const char *filename)
 	if (fileId == -1) {
 		printf("[ERROR] Cannot find file %s in IMG archive\n", textureName.c_str());
 		return;
-	} else {
-		printf("[OK] Finded file %s in IMG archive\n", textureName.c_str());
 	}
+
+	printf("[OK] Finded file %s in IMG archive\n", textureName.c_str());
 
 	char *fileBuffer = pImgLoader->GetFileById(fileId);
 
-	TextureDictionary txd;
 	size_t offset = 0;
+	TextureDictionary txd;
 	txd.read(fileBuffer, &offset);
 
-	// Loop for every texture in TXD file
+	/* Loop for every texture in TXD file */
 	for (uint32_t i = 0; i < txd.texList.size(); i++) {
+
+		/* TODO: Check for already loaded texture */
 
 		NativeTexture &t = txd.texList[i];
 		cout << i << " " << t.name << " " << t.maskName << " "
 			<< " " << t.width[0] << " " << t.height[0] << " "
 			<< " " << t.depth << " " << hex << t.rasterFormat << endl;
 
-		//if (txd.texList[i].dxtCompression)
-		//	txd.texList[i].decompressDxt();
-		//txd.texList[i].convertTo32Bit();
-
 		uint8_t* texelsToArray = txd.texList[i].texels[0];
 		size_t len = txd.texList[i].dataSizes[0];
 
 		struct GameMaterial m;
-		m.name = t.name; // без .TXD
+		m.name = t.name; /* without extension ".TXD" */
+
+		/* TODO: Replace copy to buffer to best solution */
 		m.source = (uint8_t *)malloc(len);
 		memcpy(m.source, texelsToArray, len);
-		// m.source = *txd.texList[i].texels.data();
+
 		m.size = txd.texList[i].dataSizes[0];
 		m.width = txd.texList[i].width[0];
 		m.height = txd.texList[i].height[0];
-		m.dxtCompression = txd.texList[i].dxtCompression; // DXT1, DXT3, DXT4
+		m.dxtCompression = txd.texList[i].dxtCompression; /* DXT1, DXT3, DXT4 */
 		m.depth = txd.texList[i].depth;
 
 		printf("[OK] Loaded texture name %s from TXD file %s\n", t.name.c_str(), textureName.c_str());
@@ -90,139 +121,107 @@ void LoadAllTexturesFromTXDFile(ImgLoader *pImgLoader, const char *filename)
 	free(fileBuffer);
 }
 
-struct materialAndHisIndex {
-	std::string materialName;
-	int index;
-};
-
-int LoadFileDFFWithId(ImgLoader *pImgLoader, GameRender *render, std::string fname, uint32_t fileId, float x , float y , float z ,
-	float rotx, float roty, float rotz, float rotr,
-	float scalex, float scaley, float scalez
-)
+int LoadFileDFFWithName(ImgLoader* pImgLoader, GameRender* render, std::string name, int modelId)
 {
-	char* name = pImgLoader->GetFilenameById(fileId);
-	if (strstr(name, ".dff") == NULL) {
-		printf("[ERROR] You want to load file: %s, but that file is not DFF file\n", name);
-		return 0;
+	int fileId = pImgLoader->GetFileIndexByName(name.c_str());
+	if (fileId == -1) {
+		printf("[ERROR] Cannot find %s.dff in IMG archive\n", name.c_str());
+		return 1;
 	}
 
-	if (strstr(name, "LOD")) {
-		printf("[NOTICE] Skip load LOD files %s\n", name);
-		return 0;
+	if (strstr(name.c_str(), "LOD")) {
+		printf("[NOTICE] Skip loading LOD file: %s\n", name.c_str());
+		return 1;
 	}
 
-	char *fileBuffer = pImgLoader->GetFileById(fileId);
-	
-	Clump *clump = new Clump();
+	char* fileBuffer = pImgLoader->GetFileById(fileId);
+
+	Clump* clump = new Clump();
 	clump->Read(fileBuffer);
-	// clump->Dump();
 
 	for (uint32_t index = 0; index < clump->GetGeometryList().size(); index++) {
 
-		std::vector<materialAndHisIndex> materIndex;
+		std::vector<ModelMaterial> materIndex;
 
-		std::vector<float> gvertices;
-		std::vector<float> gtexture;
+		std::vector<float> modelVertices;
+		std::vector<float> modelTextureCoord;
 
-		// «агружаем все материалы
+		/* Load all materials */
 		for (int i = 0; i < clump->GetGeometryList()[index].materialList.size(); i++) {
 			Material material = clump->GetGeometryList()[index].materialList[i];
 
-			// std::cout << "Model material texture " << material.texture.name << std::endl;
-
-			// —опоставл€ем текстуру и его номер
-			struct materialAndHisIndex matInd;
+			struct ModelMaterial matInd;
 			matInd.materialName = material.texture.name;
 			matInd.index = i;
 			materIndex.push_back(matInd);
-
-			//LoadTextureWithName(pImgLoader, material.texture.name.c_str(), i);
-			
-			//for (int iu = 0; iu < g_materials.size(); iu++) {
-			//	if (g_materials[iu].name == material.texture.name) {
-			//		g_materials[iu].index = iu;
-			//	}
-			//}
-
 		}
 
 		for (uint32_t i = 0; i < clump->GetGeometryList()[index].vertices.size() / 3; i++) {
 
 			float x = clump->GetGeometryList()[index].vertices[i * 3 + 0];
-			gvertices.push_back(x);
+			modelVertices.push_back(x);
 
 			float y = clump->GetGeometryList()[index].vertices[i * 3 + 1];
-			gvertices.push_back(y);
+			modelVertices.push_back(y);
 
 			float z = clump->GetGeometryList()[index].vertices[i * 3 + 2];
-			gvertices.push_back(z);
+			modelVertices.push_back(z);
 
-			// загружаем текстурные координаты
+			/* Load texture coordinates model */
 			if (clump->GetGeometryList()[index].flags & FLAGS_TEXTURED /*|| clump->GetGeometryList()[index].flags & FLAGS_TEXTURED2*/) {
-				for (uint32_t j = 0; j < 1 /* clump->GetGeometryList()[index].numUVs */; j++) { // вставл€ем пока только  FLAGS_TEXTURED
+				for (uint32_t j = 0; j < 1 /* clump->GetGeometryList()[index].numUVs */; j++) { /* insert now FLAGS_TEXTURED */
 
-					float tx = clump->GetGeometryList()[index].texCoords[j][i * 2 + 0]; /* index OR i ??? в последнем [] */
-					float ty = clump->GetGeometryList()[index].texCoords[j][i * 2 + 1]; /* index OR i ??? в последнем [] */
+					float tx = clump->GetGeometryList()[index].texCoords[j][i * 2 + 0];
+					float ty = clump->GetGeometryList()[index].texCoords[j][i * 2 + 1];
 
-					gtexture.push_back(tx);
-					gtexture.push_back(ty);
+					modelTextureCoord.push_back(tx);
+					modelTextureCoord.push_back(ty);
 				}
 			}
-			//else { // делаем загрушку на случай отсутви€ текстуры
-				//	gvertices.push_back(0.0);
-				//	gvertices.push_back(0.0);
-			//}
 		}
 
-		/* ѕробегаемс€ по каждой модели	*/
+		/* Loop for every mesh */
 		for (uint32_t i = 0; i < clump->GetGeometryList()[index].splits.size(); i++) {
 
-			std::vector<uint32_t> gindices;
+			std::vector<uint32_t> meshIndices;
 
-			/**
-			 * —охран€ем индексы
-			 */
+			/* Save indices */
 			for (uint32_t j = 0; j < clump->GetGeometryList()[index].splits[i].indices.size(); j++) {
 				uint32_t indices = clump->GetGeometryList()[index].splits[i].indices[j];
-				gindices.push_back(indices);
+				meshIndices.push_back(indices);
 			}
 
-			/**
-			 * —охран€ем в массив вершины и текстурные координаты,
-			 * чтобы создать валидный вершинный буфер
-			 */
-			std::vector<float> vert;
+			/* Save to data for create vertex buffer (x,y,z tx,ty) */
+			std::vector<float> meshVertexData;
 
-			for (int v = 0; v < gvertices.size() / 3; v++) {
-				float x = gvertices[v * 3 + 0];
-				float y = gvertices[v * 3 + 1];
-				float z = gvertices[v * 3 + 2];
+			for (int v = 0; v < modelVertices.size() / 3; v++) {
+				float x = modelVertices[v * 3 + 0];
+				float y = modelVertices[v * 3 + 1];
+				float z = modelVertices[v * 3 + 2];
 
-				float tx = gtexture[v * 2 + 0];
-				float ty = gtexture[v * 2 + 1];
+				float tx = modelTextureCoord[v * 2 + 0];
+				float ty = modelTextureCoord[v * 2 + 1];
 
 				/*
-				 * ћен€ем положение модели в пространстве так как наша камера
-				 * в Left Handed Coordinates, а движок GTA вообще в своей координатной системе:
+				 * Flip coordinates. We use Left Handed Coordinates,
+				 * but GTA engine use own coordinate system:
 				 * X Ц east/west direction
 				 * Y Ц north/south direction
 				 * Z Ц up/down direction
 				 * @see https://gtamods.com/wiki/Map_system
 				*/
-				vert.push_back(y);
-				vert.push_back(z);
-				vert.push_back(x);
+				meshVertexData.push_back(y);
+				meshVertexData.push_back(z);
+				meshVertexData.push_back(x);
 
-				vert.push_back(tx);
-				vert.push_back(ty);
+				meshVertexData.push_back(tx);
+				meshVertexData.push_back(ty);
 			}
 
-			//float *vertices = &gvertices[0]; /* convert to array float */
-			//int countVertices = gvertices.size();
-			float *vertices = &vert[0];
-			int countVertices = vert.size();
+			float* vertices = &meshVertexData[0];
+			int countVertices = meshVertexData.size();
 
-			unsigned int *indices = &gindices[0];  /* convert to array unsigned int */
+			unsigned int* indices = &meshIndices[0]; /* Convert to array unsigned int */
 			int countIndices = clump->GetGeometryList()[index].splits[i].indices.size();
 
 			D3D_PRIMITIVE_TOPOLOGY topology =
@@ -230,12 +229,11 @@ int LoadFileDFFWithId(ImgLoader *pImgLoader, GameRender *render, std::string fna
 				? D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP
 				: D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 
-			GameModel* gameModel = new GameModel();
-			
+			Mesh* gameModel = new Mesh();
+
 			gameModel->Init(render, vertices, countVertices,
 				indices, countIndices,
-				topology,
-				x, y, z
+				topology
 			);
 
 			uint32_t materialIndex = clump->GetGeometryList()[index].splits[i].matIndex;
@@ -255,28 +253,23 @@ int LoadFileDFFWithId(ImgLoader *pImgLoader, GameRender *render, std::string fna
 					}
 
 				}
-
 			}
 
 			if (index != -1) {
 				gameModel->SetDataDDS(
-					render, 
+					render,
 					g_Textures[index].source,
 					g_Textures[index].size,
 					g_Textures[index].width,
 					g_Textures[index].height,
 					g_Textures[index].dxtCompression,
-					g_Textures[index].depth // TODO depth is not working
+					g_Textures[index].depth /* TODO: depth is not working */
 				);
 			}
+			gameModel->SetModelName(name);
+			gameModel->SetModelId(modelId);
 
-			gameModel->modelName = fname;
-
-			g_Models.push_back(gameModel);
-
-			//gameModel->SetPosition(x, y, z,
-			//	scalex, scaley,scalez,
-			//	rotx,roty,rotz, rotr);
+			g_LoadedModels.push_back(gameModel);
 		}
 	}
 
@@ -284,77 +277,32 @@ int LoadFileDFFWithId(ImgLoader *pImgLoader, GameRender *render, std::string fna
 	delete clump;
 
 	free(fileBuffer);
+
+	return 0;
 }
-
-
-void LoadFileDFFWithName(ImgLoader* pImgLoader, GameRender* render, std::string name, float x, float y, float z,
-	float rotx, float roty, float rotz, float rotr,
-	float scalex, float scaley, float scalez)
-{
-	int index = pImgLoader->GetFileIndexByName(name.c_str());
-	if (index == -1) {
-		printf("[ERROR] Cannot find %s.dff in IMG archive\n", name.c_str());
-		return;
-	}
-
-	LoadFileDFFWithId(pImgLoader, render, name, index, x, y, z,
-		 rotx,  roty,  rotz,  rotr,
-		 scalex,  scaley,  scalez);
-}
-
-
-struct RenderModel {
-	GameModel *model;
-};
-
-std::vector<RenderModel> gRenderModels;
-
-
-
-struct IPLFile {
-	int id;
-	std::string modelName;
-	int interior;
-	float posX, posY, posZ;
-	float scale[3];
-	float rot[4];
-};
-
-std::vector<IPLFile> objects;
-
 
 void Render(GameRender *render, GameCamera *camera)
 {
 	render->RenderStart();
 
 	// ѕолучаем местоположени€ объектов на карте
-	for (int i = 0; i < objects.size(); i++) {
+	for (int i = 0; i < g_MapObjects.size(); i++) {
 		// ѕроходимс€ по загруженным модел€м
-		for (int m = 0; m < g_Models.size(); m++) {
+		for (int m = 0; m < g_LoadedModels.size(); m++) {
 			// ≈сли нашли модель, то ставим ей координаты и рисуем
-			if (objects[i].modelName == g_Models[m]->modelName) {
-				g_Models[m]->SetPosition(
-					objects[i].posX, objects[i].posY, objects[i].posZ,
-					objects[i].scale[0], objects[i].scale[1], objects[i].scale[2],
-					objects[i].rot[0], objects[i].rot[1], objects[i].rot[2], objects[i].rot[3]
+			if (g_MapObjects[i].id == g_LoadedModels[m]->GetModelId()) {
+				g_LoadedModels[m]->SetPosition(
+					g_MapObjects[i].posX, g_MapObjects[i].posY, g_MapObjects[i].posZ,
+					g_MapObjects[i].scale[0], g_MapObjects[i].scale[1], g_MapObjects[i].scale[2],
+					g_MapObjects[i].rot[0], g_MapObjects[i].rot[1], g_MapObjects[i].rot[2], g_MapObjects[i].rot[3]
 				);
-				g_Models[m]->Render(render, camera);
+				g_LoadedModels[m]->Render(render, camera);
 			}
 		}
 	}
 
 	render->RenderEnd();
 }
-
-// IDE файлы содержат название модели и еЄ архива текстур (TXD)
-
-struct IDEFile {
-	int objectId;
-	std::string modelName;
-	std::string textureArchiveName;
-};
-
-std::vector<IDEFile> ideFile;
 
 void LoadIDEFile(const char* filepath)
 {
@@ -408,7 +356,7 @@ void LoadIDEFile(const char* filepath)
 				idf.modelName = mName;
 				idf.textureArchiveName = taName;
 				
-				ideFile.push_back(idf);
+				g_ideFile.push_back(idf);
 			}
 		}
 
@@ -417,7 +365,6 @@ void LoadIDEFile(const char* filepath)
 	fclose(fp);
 }
 
-// IPL файлы содержат местоположение модели
 void LoadIPLFile(const char *filepath)
 {
 	FILE* fp;
@@ -491,22 +438,13 @@ void LoadIPLFile(const char *filepath)
 				iplfile.rot[2] = rot[2];
 				iplfile.rot[3] = rot[3];
 
-				objects.push_back(iplfile);
+				g_MapObjects.push_back(iplfile);
 			}
 		}
 			
 	}
 
 	fclose(fp);
-}
-
-#include <algorithm>
-
-template <typename T>
-void remove_duplicates(std::vector<T>& vec)
-{
-	std::sort(vec.begin(), vec.end());
-	vec.erase(std::unique(vec.begin(), vec.end()), vec.end());
 }
 
 INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
@@ -536,12 +474,12 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 
 	// «агружаем из общих данные только данные текстур
 	std::vector<string> textures;
-	for (int i = 0; i < ideFile.size(); i++) {
-		textures.push_back(ideFile[i].textureArchiveName);
+	for (int i = 0; i < g_ideFile.size(); i++) {
+		textures.push_back(g_ideFile[i].textureArchiveName);
 	}
 	// ”дал€ем дубликаты текстур
 	remove_duplicates(textures);
-	// «агружаем текстуры
+	// «агружаем архивы текстуры
 	for (int i = 0; i < textures.size(); i++) {
 		LoadAllTexturesFromTXDFile(imgLoader, textures[i].c_str());
 	}
@@ -549,18 +487,8 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 
 	// «агрузка моделей
 	std::vector<string> models;
-	for (int i = 0; i < ideFile.size(); i++) {
-		models.push_back(ideFile[i].modelName);
-	}
-	// ”дал€ем дубликаты моделей
-	remove_duplicates(models);
-	// ѕосле чего уже можно будет загрузить модели
-	for (int i = 0; i < models.size(); i++) {
-		LoadFileDFFWithName(imgLoader, gameRender, models[i].c_str(),
-			0, 0, 0,
-			0, 0, 0, 0,
-			0, 0, 0
-		);
+	for (int i = 0; i < g_ideFile.size(); i++) {
+		LoadFileDFFWithName(imgLoader, gameRender, g_ideFile[i].modelName.c_str(), g_ideFile[i].objectId);
 	}
 	// ¬ итоге у нас все модели загружены в g_Models
 
@@ -669,9 +597,9 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 	gameCamera->Cleanup();
 	gameInput->Cleanup();
 
-	for (int i = 0; i < g_Models.size(); i++) {
-		g_Models[i]->Cleanup();
-		delete g_Models[i];
+	for (int i = 0; i < g_LoadedModels.size(); i++) {
+		g_LoadedModels[i]->Cleanup();
+		delete g_LoadedModels[i];
 	}
 
 	delete gameCamera;

@@ -137,7 +137,7 @@
     <ClCompile Include="dffread.cpp" />
     <ClCompile Include="GameCamera.cpp" />
     <ClCompile Include="GameInput.cpp" />
-    <ClCompile Include="GameModel.cpp" />
+    <ClCompile Include="Mesh.cpp" />
     <ClCompile Include="GameRender.cpp" />
     <ClCompile Include="GameUtils.cpp" />
     <ClCompile Include="GameWindow.cpp" />
@@ -151,7 +151,7 @@
   <ItemGroup>
     <ClInclude Include="GameCamera.hpp" />
     <ClInclude Include="GameInput.hpp" />
-    <ClInclude Include="GameModel.hpp" />
+    <ClInclude Include="Mesh.hpp" />
     <ClInclude Include="GameRender.hpp" />
     <ClInclude Include="GameUtils.hpp" />
     <ClInclude Include="GameWindow.hpp" />

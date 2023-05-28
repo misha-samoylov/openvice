@@ -1,10 +1,10 @@
-﻿#include "GameModel.hpp"
+﻿#include "Mesh.hpp"
 
 #include <DirectXTex.h>
 
 using namespace DirectX;
 
-HRESULT GameModel::CreateConstBuffer(GameRender *pRender)
+HRESULT Mesh::CreateConstBuffer(GameRender *pRender)
 {
 	HRESULT hr;
 
@@ -22,7 +22,7 @@ HRESULT GameModel::CreateConstBuffer(GameRender *pRender)
 	return hr;
 }
 
-void GameModel::Cleanup()
+void Mesh::Cleanup()
 {
 	/* clear buffers */
 	if (m_pVertexBuffer)
@@ -43,7 +43,7 @@ void GameModel::Cleanup()
 		m_pPixelShader->Release();
 }
 
-void GameModel::Render(GameRender * pRender, GameCamera *pCamera)
+void Mesh::Render(GameRender * pRender, GameCamera *pCamera)
 {
 	pRender->GetDeviceContext()->IASetInputLayout(m_pVertexLayout);
 
@@ -80,25 +80,11 @@ void GameModel::Render(GameRender * pRender, GameCamera *pCamera)
 	pRender->GetDeviceContext()->DrawIndexed(m_countIndices, 0, 0);
 }
 
-void GameModel::InitPosition(float x, float y, float z)
-{
-	XMVECTOR vector = XMVectorSet(-1.0, 0.0, 0.0, 0.0);
-	XMMATRIX modelRotation = XMMatrixRotationAxis(vector, 0.0f);
-
-	XMMATRIX modelPosition = XMMatrixIdentity();
-	XMMATRIX modelScale = XMMatrixScaling(1.0f, 1.0f, 1.0f);
-	XMMATRIX modelTranslation = XMMatrixTranslation(x, y, z);
-
-	m_World = modelRotation * modelPosition * modelScale * modelTranslation;
-}
-
-
-void GameModel::SetPosition(float x, float y, float z,
+void Mesh::SetPosition(float x, float y, float z,
 	float scaleX, float scaleY, float scaleZ,
 	float rotx, float roty, float rotz, float rotr)
 {
 	XMVECTOR vector = XMVectorSet(0, 0, 0, 0);
-	// XMMATRIX modelRotation = XMMatrixRotationAxis(vector, 0.0f);
 	XMMATRIX modelRotation = XMMatrixRotationRollPitchYawFromVector(vector);
 
 	XMMATRIX modelPosition = XMMatrixIdentity();
@@ -112,7 +98,7 @@ void GameModel::SetPosition(float x, float y, float z,
 #include<iostream>
 #include<cstdlib>
 
-HRESULT GameModel::SetDataDDS(GameRender* pRender, uint8_t* source, size_t size, uint32_t width, uint32_t height, uint32_t dxtCompression, uint32_t depth)
+HRESULT Mesh::SetDataDDS(GameRender* pRender, uint8_t* source, size_t size, uint32_t width, uint32_t height, uint32_t dxtCompression, uint32_t depth)
 {
 	HRESULT hr;
 
@@ -135,8 +121,8 @@ HRESULT GameModel::SetDataDDS(GameRender* pRender, uint8_t* source, size_t size,
 	dds.header.mipMapCount = 0;
 	dds.header.ddspf.size = sizeof(struct DDS_PIXELFORMAT);
 	//ddsd.ddpfPixelFormat.dwSize = sizeof(ddsd.ddpfPixelFormat);
-	dds.header.ddspf.flags = DDS_FOURCC | DDS_HEADER_FLAGS_VOLUME; // DDS_PAL8; // TODO: use DDS_HEADER_FLAGS_VOLUME for depth
-	dds.header.depth = depth; // TODO: is working?
+	dds.header.ddspf.flags = DDS_FOURCC; // DDS_PAL8; // TODO: use DDS_HEADER_FLAGS_VOLUME for depth
+	//dds.header.depth = depth; // TODO: is working?
 	switch (dxtCompression) {
 	case 1:
 		dds.header.ddspf.fourCC = FOURCC_DXT1;
@@ -208,7 +194,7 @@ HRESULT GameModel::SetDataDDS(GameRender* pRender, uint8_t* source, size_t size,
 }
 
 
-HRESULT GameModel::CreatePixelShader(GameRender *pRender)
+HRESULT Mesh::CreatePixelShader(GameRender *pRender)
 {
 	HRESULT hr;
 
@@ -236,7 +222,7 @@ HRESULT GameModel::CreatePixelShader(GameRender *pRender)
 	return hr;
 }
 
-HRESULT GameModel::CreateVertexShader(GameRender *pRender)
+HRESULT Mesh::CreateVertexShader(GameRender *pRender)
 {
 	HRESULT hr;
 
@@ -258,7 +244,7 @@ HRESULT GameModel::CreateVertexShader(GameRender *pRender)
 	return hr;
 }
 
-HRESULT GameModel::CreateInputLayout(GameRender *pRender)
+HRESULT Mesh::CreateInputLayout(GameRender *pRender)
 {
 	// Указываем форму данных в вершинном шейдере
 	HRESULT hr;
@@ -294,7 +280,7 @@ HRESULT GameModel::CreateInputLayout(GameRender *pRender)
 	return hr;
 }
 
-HRESULT GameModel::CreateDataBuffer(GameRender * pRender,
+HRESULT Mesh::CreateDataBuffer(GameRender * pRender,
 	float *vertices, int verticesCount,	unsigned int *indices, int indicesCount)
 {
 	HRESULT hr;
@@ -328,7 +314,7 @@ HRESULT GameModel::CreateDataBuffer(GameRender * pRender,
 	/* indices: define the resource data */
 	D3D11_SUBRESOURCE_DATA datai;
 	ZeroMemory(&datai, sizeof(datai));
-	datai.pSysMem = indices;
+	datai.pSysMem = indices; /* pointer to data */
 
 	hr = pRender->GetDevice()->CreateBuffer(&bdi, &datai, &m_pIndexBuffer);
 
@@ -338,10 +324,7 @@ HRESULT GameModel::CreateDataBuffer(GameRender * pRender,
 	return hr;
 }
 
-HRESULT GameModel::Init(GameRender *pRender, float *pVertices, int verticesCount,
-	unsigned int *pIndices, int indicesCount, 
-	D3D_PRIMITIVE_TOPOLOGY topology, float x, float y, float z)
-{
+HRESULT Mesh::Init(GameRender *pRender, float *pVertices, int verticesCount, unsigned int *pIndices, int indicesCount, D3D_PRIMITIVE_TOPOLOGY topology) {
 	HRESULT hr;
 
 	m_pVSBlob = NULL;
@@ -349,7 +332,7 @@ HRESULT GameModel::Init(GameRender *pRender, float *pVertices, int verticesCount
 	m_countIndices = indicesCount;
 	m_primitiveTopology = topology;
 
-	InitPosition(x,y,z);
+	SetPosition(0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 
 	hr = CreateVertexShader(pRender);
 	if (FAILED(hr)) {
