@@ -484,6 +484,15 @@ void LoadIPLFile(const char *filepath)
 	fclose(fp);
 }
 
+#include <algorithm>
+
+template <typename T>
+void remove_duplicates(std::vector<T>& vec)
+{
+	std::sort(vec.begin(), vec.end());
+	vec.erase(std::unique(vec.begin(), vec.end()), vec.end());
+}
+
 INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 	PSTR lpCmdLine, INT nCmdShow)
 {
@@ -508,14 +517,24 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 	// «агрузка сопоставление модели и еЄ текстуры
 	LoadIDEFile("C:/Games/Grand Theft Auto Vice City/data/maps/bridge/bridge.ide");
 
+	// —перва загружаем из общих данные только данные текстур
+	std::vector<string> textures;
 	for (int i = 0; i < ideFile.size(); i++) {
-		LoadAllTexturesFromTXDFile(imgLoader, ideFile[i].textureArchiveName.c_str());
+		textures.push_back(ideFile[i].textureArchiveName);
 	}
+	// ”дал€ем дубликаты текстур
+	remove_duplicates(textures);
+	// «агружаем текстуры
+	for (int i = 0; i < textures.size(); i++) {
+		LoadAllTexturesFromTXDFile(imgLoader, textures[i].c_str());
+	}
+	// ¬ итоге у нас есть только по одной загруженной текстуры в пам€ти
 
+	
 	// «агрузка местоположени€ модели
 	LoadIPLFile("C:/Games/Grand Theft Auto Vice City/data/maps/bridge/bridge.ipl");
 
-
+	// ѕосле чего уже можно будет отрисовывать нужные модели
 	for (int i = 0; i < objects.size(); i++) {
 		LoadFileDFFWithName(imgLoader, gameRender, objects[i].modelName.c_str(),
 			objects[i].posX, objects[i].posY, objects[i].posZ,
