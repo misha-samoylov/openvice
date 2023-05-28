@@ -468,32 +468,31 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 		"C:/Games/Grand Theft Auto Vice City/models/gta3.dir"
 	);
 
-	// Загружаем общие данные (сопоставление модели и её текстуры)
+	/* Load map models and their textures */
 	LoadIDEFile("C:/Games/Grand Theft Auto Vice City/data/maps/bridge/bridge.ide");
 	LoadIDEFile("C:/Games/Grand Theft Auto Vice City/data/maps/bank/bank.ide");
 
-	// Загружаем из общих данные только данные текстур
+
+	/* Load from IDE file only archives textures */
 	std::vector<string> textures;
 	for (int i = 0; i < g_ideFile.size(); i++) {
 		textures.push_back(g_ideFile[i].textureArchiveName);
 	}
-	// Удаляем дубликаты текстур
+	/* Remove dublicate archive textures */
 	remove_duplicates(textures);
-	// Загружаем архивы текстуры
+	/* Load archive textures (TXD files) */
 	for (int i = 0; i < textures.size(); i++) {
 		LoadAllTexturesFromTXDFile(imgLoader, textures[i].c_str());
 	}
-	// В итоге у нас есть только по одной загруженной текстуры в памяти
 
-	// Загрузка моделей
-	std::vector<string> models;
+
+	/* Loading models. IDE file doesn'tcontain dublicate models */
 	for (int i = 0; i < g_ideFile.size(); i++) {
 		LoadFileDFFWithName(imgLoader, gameRender, g_ideFile[i].modelName.c_str(), g_ideFile[i].objectId);
 	}
-	// В итоге у нас все модели загружены в g_Models
 
 
-	// Загрузка местоположения моделей
+	/* Load model placement */
 	LoadIPLFile("C:/Games/Grand Theft Auto Vice City/data/maps/bridge/bridge.ipl");
 	LoadIPLFile("C:/Games/Grand Theft Auto Vice City/data/maps/bank/bank.ipl");
 	
