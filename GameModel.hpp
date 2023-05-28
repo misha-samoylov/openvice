@@ -1,5 +1,6 @@
 #pragma once
 
+#include <string>
 #include <stdio.h>
 
 #include <d3d11.h>
@@ -42,6 +43,9 @@ public:
 		float scaleX, float scaleY, float scaleZ,
 		float rotx, float roty, float rotz, float rotr);
 
+	// TODO method get set
+	std::string modelName;
+
 private:
 	void InitPosition(float x, float y, float z);
 	HRESULT CreateConstBuffer(GameRender *pRender);
@@ -74,4 +78,6 @@ private:
 	ID3D11SamplerState* m_pTextureSampler;
 	void* tgaFileSource;
 	size_t tgaFileSize;
+
+	
 };

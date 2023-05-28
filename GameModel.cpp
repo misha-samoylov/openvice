@@ -92,6 +92,22 @@ void GameModel::InitPosition(float x, float y, float z)
 	m_World = modelRotation * modelPosition * modelScale * modelTranslation;
 }
 
+
+void GameModel::SetPosition(float x, float y, float z,
+	float scaleX, float scaleY, float scaleZ,
+	float rotx, float roty, float rotz, float rotr)
+{
+	XMVECTOR vector = XMVectorSet(0, 0, 0, 0);
+	// XMMATRIX modelRotation = XMMatrixRotationAxis(vector, 0.0f);
+	XMMATRIX modelRotation = XMMatrixRotationRollPitchYawFromVector(vector);
+
+	XMMATRIX modelPosition = XMMatrixIdentity();
+	XMMATRIX modelScale = XMMatrixScaling(scaleX, scaleY, scaleZ);
+	XMMATRIX modelTranslation = XMMatrixTranslation(x, y, z);
+
+	m_World = modelRotation * modelPosition * modelScale * modelTranslation;
+}
+
 #include <stdlib.h>
 #include<iostream>
 #include<cstdlib>
@@ -190,20 +206,6 @@ HRESULT GameModel::SetDataDDS(GameRender* pRender, uint8_t* source, size_t size,
 	return hr;
 }
 
-void GameModel::SetPosition(float x, float y, float z,
-	float scaleX, float scaleY, float scaleZ,
-	float rotx, float roty, float rotz, float rotr)
-{
-	XMVECTOR vector = XMVectorSet(0,  0,  0,  0);
-	// XMMATRIX modelRotation = XMMatrixRotationAxis(vector, 0.0f);
-	XMMATRIX modelRotation = XMMatrixRotationRollPitchYawFromVector(vector);
-
-	XMMATRIX modelPosition = XMMatrixIdentity();
-	XMMATRIX modelScale = XMMatrixScaling(scaleX, scaleY, scaleZ);
-	XMMATRIX modelTranslation = XMMatrixTranslation(x,y,z);
-
-	m_World = modelRotation * modelPosition * modelScale * modelTranslation;
-}
 
 HRESULT GameModel::CreatePixelShader(GameRender *pRender)
 {

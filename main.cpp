@@ -33,7 +33,6 @@ struct GameMaterial {
 	uint32_t dxtCompression;
 };
 
-std::vector<std::string> g_loaded_txdFile;
 
 std::vector<GameMaterial> g_Textures;
 
@@ -55,16 +54,6 @@ void LoadAllTexturesFromTXDFile(ImgLoader *pImgLoader, const char *filename)
 	TextureDictionary txd;
 	size_t offset = 0;
 	txd.read(fileBuffer, &offset);
-
-
-	for (int i = 0; i < g_loaded_txdFile.size(); i++) {
-		if (g_loaded_txdFile.at(i) == filename) {
-			printf("[NOTICE] Skip already loaded txd file %s\n", filename);
-			return;
-		}
-	}
-
-	g_loaded_txdFile.push_back(filename);
 
 	// Loop for every texture in TXD file
 	for (uint32_t i = 0; i < txd.texList.size(); i++) {
@@ -91,7 +80,7 @@ void LoadAllTexturesFromTXDFile(ImgLoader *pImgLoader, const char *filename)
 		m.height = txd.texList[i].height[0];
 		m.dxtCompression = txd.texList[i].dxtCompression; // DXT1, DXT3, DXT4
 
-		printf("[OK] Loaded texture name %s from TXD file %s\n", t.name, textureName.c_str());
+		printf("[OK] Loaded texture name %s from TXD file %s\n", t.name.c_str(), textureName.c_str());
 
 		g_Textures.push_back(m);
 	}
@@ -104,7 +93,7 @@ struct materialAndHisIndex {
 	int index;
 };
 
-int LoadFileDFFWithId(ImgLoader *pImgLoader, GameRender *render, uint32_t fileId, float x , float y , float z ,
+int LoadFileDFFWithId(ImgLoader *pImgLoader, GameRender *render, std::string fname, uint32_t fileId, float x , float y , float z ,
 	float rotx, float roty, float rotz, float rotr,
 	float scalex, float scaley, float scalez
 )
@@ -278,11 +267,13 @@ int LoadFileDFFWithId(ImgLoader *pImgLoader, GameRender *render, uint32_t fileId
 				);
 			}
 
+			gameModel->modelName = fname;
+
 			g_Models.push_back(gameModel);
 
-			gameModel->SetPosition(x, y, z,
-				scalex, scaley,scalez,
-				rotx,roty,rotz, rotr);
+			//gameModel->SetPosition(x, y, z,
+			//	scalex, scaley,scalez,
+			//	rotx,roty,rotz, rotr);
 		}
 	}
 
@@ -303,17 +294,50 @@ void LoadFileDFFWithName(ImgLoader* pImgLoader, GameRender* render, std::string 
 		return;
 	}
 
-	LoadFileDFFWithId(pImgLoader, render, index, x, y, z,
+	LoadFileDFFWithId(pImgLoader, render, name, index, x, y, z,
 		 rotx,  roty,  rotz,  rotr,
 		 scalex,  scaley,  scalez);
 }
+
+
+struct RenderModel {
+	GameModel *model;
+};
+
+std::vector<RenderModel> gRenderModels;
+
+
+
+struct IPLFile {
+	int id;
+	std::string modelName;
+	int interior;
+	float posX, posY, posZ;
+	float scale[3];
+	float rot[4];
+};
+
+std::vector<IPLFile> objects;
+
 
 void Render(GameRender *render, GameCamera *camera)
 {
 	render->RenderStart();
 
-	for (int i = 0; i < g_Models.size(); i++) {
-		g_Models[i]->Render(render, camera);
+	// Получаем местоположения объектов на карте
+	for (int i = 0; i < objects.size(); i++) {
+		// Проходимся по загруженным моделям
+		for (int m = 0; m < g_Models.size(); m++) {
+			// Если нашли модель, то ставим ей координаты и рисуем
+			if (objects[i].modelName == g_Models[m]->modelName) {
+				g_Models[m]->SetPosition(
+					objects[i].posX, objects[i].posY, objects[i].posZ,
+					objects[i].scale[0], objects[i].scale[1], objects[i].scale[2],
+					objects[i].rot[0], objects[i].rot[1], objects[i].rot[2], objects[i].rot[3]
+				);
+				g_Models[m]->Render(render, camera);
+			}
+		}
 	}
 
 	render->RenderEnd();
@@ -389,17 +413,6 @@ void LoadIDEFile(const char* filepath)
 
 	fclose(fp);
 }
-
-struct IPLFile {
-	int id;
-	std::string modelName;
-	int interior;
-	float posX, posY, posZ;
-	float scale[3];
-	float rot[4];
-};
-
-std::vector<IPLFile> objects;
 
 // IPL файлы содержат местоположение модели
 void LoadIPLFile(const char *filepath)
@@ -514,10 +527,10 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 		"C:/Games/Grand Theft Auto Vice City/models/gta3.dir"
 	);
 
-	// Загрузка сопоставление модели и её текстуры
+	// Загружаем общие данные (сопоставление модели и её текстуры)
 	LoadIDEFile("C:/Games/Grand Theft Auto Vice City/data/maps/bridge/bridge.ide");
 
-	// Сперва загружаем из общих данные только данные текстур
+	// Загружаем из общих данные только данные текстур
 	std::vector<string> textures;
 	for (int i = 0; i < ideFile.size(); i++) {
 		textures.push_back(ideFile[i].textureArchiveName);
@@ -530,24 +543,27 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 	}
 	// В итоге у нас есть только по одной загруженной текстуры в памяти
 
-	
-	// Загрузка местоположения модели
-	LoadIPLFile("C:/Games/Grand Theft Auto Vice City/data/maps/bridge/bridge.ipl");
-
-	// После чего уже можно будет отрисовывать нужные модели
-	for (int i = 0; i < objects.size(); i++) {
-		LoadFileDFFWithName(imgLoader, gameRender, objects[i].modelName.c_str(),
-			objects[i].posX, objects[i].posY, objects[i].posZ,
-			
-			objects[i].rot[0], objects[i].rot[1], objects[i].rot[2], objects[i].rot[3],
-			objects[i].scale[0], objects[i].scale[1], objects[i].scale[2]
-			);
+	// Загрузка моделей
+	std::vector<string> models;
+	for (int i = 0; i < ideFile.size(); i++) {
+		models.push_back(ideFile[i].modelName);
 	}
+	// Удаляем дубликаты моделей
+	remove_duplicates(models);
+	// После чего уже можно будет загрузить модели
+	for (int i = 0; i < models.size(); i++) {
+		LoadFileDFFWithName(imgLoader, gameRender, models[i].c_str(),
+			0, 0, 0,
+			0, 0, 0, 0,
+			0, 0, 0
+		);
+	}
+	// В итоге у нас все модели загружены в g_Models
 
+
+	// Загрузка местоположения моделей
+	LoadIPLFile("C:/Games/Grand Theft Auto Vice City/data/maps/bridge/bridge.ipl");
 	
-
-	//gm = LoadFileDFFWithId(imgLoader, gameRender, 189);
-	//gm->SetPosition(10, 10, 10);
 
 	float moveLeftRight = 0.0f;
 	float moveBackForward = 0.0f;
