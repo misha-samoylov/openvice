@@ -23,7 +23,7 @@ struct DDS_File {
 #define FOURCC_DXT4 (MAKEFOURCC('D','X','T','4'))
 #define FOURCC_DXT5 (MAKEFOURCC('D','X','T','5'))
 
-using namespace DirectX; /* DirectXMath */
+using namespace DirectX;
 
 struct objectConstBuffer
 {
@@ -40,10 +40,12 @@ public:
 	void SetPosition(float x, float y, float z,
 		float scaleX, float scaleY, float scaleZ,
 		float rotx, float roty, float rotz, float rotr);
-	void SetModelName(std::string name) { m_modelName = name; }
-	std::string GetModelName() { return m_modelName; }
-	void SetModelId(int id) { m_modelId = id; }
-	int GetModelId() { return m_modelId; }
+
+	void SetName(std::string name) { m_name = name; }
+	std::string GetName() { return m_name; }
+
+	void SetId(int id) { m_id = id; }
+	int GetId() { return m_id; }
 
 private:
 	HRESULT CreateConstBuffer(GameRender *pRender);
@@ -77,6 +79,6 @@ private:
 	void* tgaFileSource;
 	size_t tgaFileSize;
 
-	std::string m_modelName;
-	int m_modelId;
+	std::string m_name;
+	int m_id;
 };

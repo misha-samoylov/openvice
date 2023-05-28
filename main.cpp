@@ -57,7 +57,7 @@ struct ModelMaterial {
 
 std::vector<IDEFile> g_ideFile;
 std::vector<IPLFile> g_MapObjects;
-std::vector<Mesh*> g_LoadedModels;
+std::vector<Mesh*> g_LoadedMeshes;
 std::vector<GameMaterial> g_Textures;
 
 
@@ -229,12 +229,14 @@ int LoadFileDFFWithName(ImgLoader* pImgLoader, GameRender* render, std::string n
 				? D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP
 				: D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 
-			Mesh* gameModel = new Mesh();
+			Mesh* mesh = new Mesh();
 
-			gameModel->Init(render, vertices, countVertices,
+			printf("Loading mesh\n");
+			mesh->Init(render, vertices, countVertices,
 				indices, countIndices,
 				topology
 			);
+			printf("Loaded mesh\n");
 
 			uint32_t materialIndex = clump->GetGeometryList()[index].splits[i].matIndex;
 
@@ -256,7 +258,7 @@ int LoadFileDFFWithName(ImgLoader* pImgLoader, GameRender* render, std::string n
 			}
 
 			if (index != -1) {
-				gameModel->SetDataDDS(
+				mesh->SetDataDDS(
 					render,
 					g_Textures[index].source,
 					g_Textures[index].size,
@@ -266,10 +268,10 @@ int LoadFileDFFWithName(ImgLoader* pImgLoader, GameRender* render, std::string n
 					g_Textures[index].depth /* TODO: depth is not working */
 				);
 			}
-			gameModel->SetModelName(name);
-			gameModel->SetModelId(modelId);
+			mesh->SetName(name);
+			mesh->SetId(modelId);
 
-			g_LoadedModels.push_back(gameModel);
+			g_LoadedMeshes.push_back(mesh);
 		}
 	}
 
@@ -288,15 +290,15 @@ void Render(GameRender *render, GameCamera *camera)
 	// Получаем местоположения объектов на карте
 	for (int i = 0; i < g_MapObjects.size(); i++) {
 		// Проходимся по загруженным моделям
-		for (int m = 0; m < g_LoadedModels.size(); m++) {
+		for (int m = 0; m < g_LoadedMeshes.size(); m++) {
 			// Если нашли модель, то ставим ей координаты и рисуем
-			if (g_MapObjects[i].id == g_LoadedModels[m]->GetModelId()) {
-				g_LoadedModels[m]->SetPosition(
+			if (g_MapObjects[i].id == g_LoadedMeshes[m]->GetId()) {
+				g_LoadedMeshes[m]->SetPosition(
 					g_MapObjects[i].posX, g_MapObjects[i].posY, g_MapObjects[i].posZ,
 					g_MapObjects[i].scale[0], g_MapObjects[i].scale[1], g_MapObjects[i].scale[2],
 					g_MapObjects[i].rot[0], g_MapObjects[i].rot[1], g_MapObjects[i].rot[2], g_MapObjects[i].rot[3]
 				);
-				g_LoadedModels[m]->Render(render, camera);
+				g_LoadedMeshes[m]->Render(render, camera);
 			}
 		}
 	}
@@ -596,9 +598,9 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 	gameCamera->Cleanup();
 	gameInput->Cleanup();
 
-	for (int i = 0; i < g_LoadedModels.size(); i++) {
-		g_LoadedModels[i]->Cleanup();
-		delete g_LoadedModels[i];
+	for (int i = 0; i < g_LoadedMeshes.size(); i++) {
+		g_LoadedMeshes[i]->Cleanup();
+		delete g_LoadedMeshes[i];
 	}
 
 	delete gameCamera;
