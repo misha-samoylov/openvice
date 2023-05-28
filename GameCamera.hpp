@@ -2,17 +2,18 @@
 
 #include <DirectXMath.h>
 
-using namespace DirectX; /* DirectXMath */
+using namespace DirectX;
 
 class GameCamera
 {
 public:
 	void Init(float width, float height);
 	void Cleanup();
-	void Update(float camPitch, float camYaw, float moveLeftRight, float moveBackForward);
+	void Update(float camPitch, float camYaw,
+		float moveLeftRight, float moveBackForward);
 
-	XMMATRIX getView();
-	XMMATRIX getProjection();
+	XMMATRIX GetView();
+	XMMATRIX GetProjection();
 
 private:
 	XMVECTOR m_cameraPosition;
@@ -29,4 +30,3 @@ private:
 
 	XMMATRIX m_cameraRotationMatrix;
 };
-

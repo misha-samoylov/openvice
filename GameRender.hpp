@@ -17,13 +17,17 @@ public:
 	void RenderStart();
 	void RenderEnd();
 
-	ID3D11Device *getDevice();
-	ID3D11DeviceContext *getDeviceContext();
+	ID3D11Device *GetDevice();
+	ID3D11DeviceContext *GetDeviceContext();
+
+	HRESULT ChangeRasterizerStateToWireframe();
+	HRESULT ChangeRasterizerStateToSolid();
 
 private:
 	void InitViewport(HWND hWnd);
 	HRESULT CreateBackBuffer();
-	HRESULT CreateWireframe();
+	
+	HRESULT CreateDepthStencil();
 
 	ID3D11Device *m_pDevice;
 	ID3D11DeviceContext *m_pDeviceContext;
@@ -32,4 +36,9 @@ private:
 	ID3D11RenderTargetView *m_pRenderTargetView;
 
 	ID3D11RasterizerState *m_pWireframe;
+
+	ID3D11Texture2D* m_pDepthStencil; // Текстура буфера глубин
+	ID3D11DepthStencilView* m_pDepthStencilView; // Объект вида, буфер глубин
+
+	HWND m_hWnd;
 };

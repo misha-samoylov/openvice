@@ -1,92 +1,114 @@
 #include "Clump.h"
 
-std::vector<Geometry> Clump::getGeometryList() 
+std::vector<Geometry> Clump::GetGeometryList() 
 { 
 	return m_geometryList; 
 }
 
-std::vector<Light> Clump::getLightList() 
+std::vector<Light> Clump::GetLightList() 
 { 
 	return m_lightList;
 }
 
-std::vector<Frame> Clump::getFrameList() 
+std::vector<Frame> Clump::GetFrameList() 
 { 
 	return m_frameList; 
 }
 
-std::vector<Atomic> Clump::getAtomicList() 
+std::vector<Atomic> Clump::GetAtomicList() 
 { 
 	return m_atomicList; 
 }
 
-void Clump::Read(istream& rw)
+void Clump::Read(char *bytes)
 {
-	HeaderInfo header;
-	header.read(rw);
+	size_t offset = 0;
 
-	READ_HEADER(CHUNK_STRUCT);
-	uint32_t numAtomics = readUInt32(rw);
+	HeaderInfo header;
+	header.read(bytes, &offset);
+
+	//READ_HEADER(CHUNK_STRUCT);
+	header.read(bytes, &offset);
+
+	uint32_t numAtomics = readUInt32(bytes, &offset);
 	uint32_t numLights = 0;
 	if (header.length == 0xC) {
-		numLights = readUInt32(rw);
-		rw.seekg(4, ios::cur); /* camera count, unused in gta */
+		numLights = readUInt32(bytes, &offset);
+		//rw.seekg(4, ios::cur); /* camera count, unused in gta */
+		offset += 4;
+		
 	}
+
+
 	m_atomicList.resize(numAtomics);
 
-	READ_HEADER(CHUNK_FRAMELIST);
 
-	READ_HEADER(CHUNK_STRUCT);
-	uint32_t numFrames = readUInt32(rw);
+	//READ_HEADER(CHUNK_FRAMELIST);
+	header.read(bytes, &offset);
+
+	//READ_HEADER(CHUNK_STRUCT);
+	header.read(bytes, &offset);
+	uint32_t numFrames = readUInt32(bytes, &offset);
 	m_frameList.resize(numFrames);
 	for (uint32_t i = 0; i < numFrames; i++)
-		m_frameList[i].readStruct(rw);
+		m_frameList[i].readStruct(bytes, &offset);
 	for (uint32_t i = 0; i < numFrames; i++)
-		m_frameList[i].readExtension(rw);
+		m_frameList[i].readExtension(bytes, &offset);
 
-	READ_HEADER(CHUNK_GEOMETRYLIST);
+	//READ_HEADER(CHUNK_GEOMETRYLIST);
+	header.read(bytes, &offset);
 
-	READ_HEADER(CHUNK_STRUCT);
-	uint32_t numGeometries = readUInt32(rw);
+	//READ_HEADER(CHUNK_STRUCT);
+	header.read(bytes, &offset);
+
+	uint32_t numGeometries = readUInt32(bytes, &offset);
 	m_geometryList.resize(numGeometries);
 	for (uint32_t i = 0; i < numGeometries; i++)
-		m_geometryList[i].read(rw);
+		m_geometryList[i].read(bytes, &offset);
 
 	/* read atomics */
 	for (uint32_t i = 0; i < numAtomics; i++)
-		m_atomicList[i].read(rw);
+		m_atomicList[i].read(bytes, &offset);
 
 	/* read lights */
 	m_lightList.resize(numLights);
 	for (uint32_t i = 0; i < numLights; i++) {
-		READ_HEADER(CHUNK_STRUCT);
-		m_lightList[i].frameIndex = readInt32(rw);
-		m_lightList[i].read(rw);
+		//READ_HEADER(CHUNK_STRUCT);
+		header.read(bytes, &offset);
+
+		m_lightList[i].frameIndex = readInt32(bytes, &offset);
+		m_lightList[i].read(bytes, &offset);
 	}
 	m_hasCollision = false;
 
-	ReadExtension(rw);
+	ReadExtension(bytes, &offset);
 }
 
-void Clump::ReadExtension(istream &rw)
+void Clump::ReadExtension(char *bytes, size_t *offset)
 {
 	HeaderInfo header;
 
-	READ_HEADER(CHUNK_EXTENSION);
+	//READ_HEADER(CHUNK_EXTENSION);
+	header.read(bytes, offset);
 
-	streampos end = rw.tellg();
+	streampos end = *offset;
 	end += header.length;
 
-	while (rw.tellg() < end) {
-		header.read(rw);
+	while (*offset < end) {
+		header.read(bytes, offset);
 		switch (header.type) {
 		case CHUNK_COLLISIONMODEL:
 			m_hasCollision = true;
 			m_colData.resize(header.length);
-			rw.read((char*)&m_colData[0], header.length);
+			//rw.read((char*)&m_colData[0], header.length);
+			memcpy((char*)&m_colData[0],
+				&bytes[*offset],
+				header.length);
+			*offset += header.length;
 			break;
 		default:
-			rw.seekg(header.length, ios::cur);
+			//rw.seekg(header.length, ios::cur);
+			*offset += header.length;
 			break;
 		}
 	}

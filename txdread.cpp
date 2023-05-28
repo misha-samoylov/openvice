@@ -4,43 +4,57 @@
 
 #include "renderware.h"
 
-void TextureDictionary::read(istream &rw)
+void TextureDictionary::read(char *bytes, size_t *offset)
 {
 	HeaderInfo header;
 
-	header.read(rw);
+	header.read(bytes, offset);
 	if (header.type != CHUNK_TEXDICTIONARY)
 		return;
 
-	READ_HEADER(CHUNK_STRUCT);
-	uint32_t textureCount = readUInt16(rw);
-	rw.seekg(2, ios::cur);
+	//READ_HEADER(CHUNK_STRUCT);
+	header.read(bytes, offset);
+
+	uint32_t textureCount = readUInt16(bytes, offset);
+	// rw.seekg(2, ios::cur);
+	*offset += 2;
+
 	texList.resize(textureCount);
 
 	for (uint32_t i = 0; i < textureCount; i++) {
-		READ_HEADER(CHUNK_TEXTURENATIVE);
-		rw.seekg(0x0c, ios::cur);
-		texList[i].platform = readUInt32(rw);
-		rw.seekg(-0x10, ios::cur);
+		//READ_HEADER(CHUNK_TEXTURENATIVE);
+		header.read(bytes, offset);
+
+		// rw.seekg(0x0c, ios::cur);
+		*offset += 0x0c;
+
+		texList[i].platform = readUInt32(bytes, offset);
+		//rw.seekg(-0x10, ios::cur);
+		//*offset -= -0x10;
+		*offset -= 0x10;
 
 		if (texList[i].platform == PLATFORM_D3D8 ||
 		           texList[i].platform == PLATFORM_D3D9) {
-			texList[i].readD3d(rw);
+			texList[i].readD3d(bytes, offset);
 		} else {
 			printf("Cannot identify platform\n");
 		}
 
-		READ_HEADER(CHUNK_EXTENSION);
-		uint32_t end = header.length;
-		end += rw.tellg();
-		while (rw.tellg() < end) {
-			header.read(rw);
+		// READ_HEADER(CHUNK_EXTENSION);
+		header.read(bytes, offset);
+
+		uint32_t end = header.length + *offset;
+
+		while (*offset < end) {
+			header.read(bytes, offset);
 			switch (header.type) {
 			case CHUNK_SKYMIPMAP:
-				rw.seekg(4, ios::cur);
+				*offset += 4;
+				// rw.seekg(4, ios::cur);
 				break;
 			default:
-				rw.seekg(header.length, ios::cur);
+				*offset += header.length;
+				// rw.seekg(header.length, ios::cur);
 				break;
 			}
 		}
@@ -61,47 +75,60 @@ TextureDictionary::~TextureDictionary(void)
  * Native Texture
  */
 
-void NativeTexture::readD3d(istream &rw)
+void NativeTexture::readD3d(char *bytes, size_t *offset)
 {
 	HeaderInfo header;
 
-	READ_HEADER(CHUNK_STRUCT);
-	uint32_t end = rw.tellg();
+	//READ_HEADER(CHUNK_STRUCT);
+	header.read(bytes, offset);
+
+	uint32_t end = *offset;
 	end += header.length;
 
-	uint32_t platform = readUInt32(rw);
+	uint32_t platform = readUInt32(bytes, offset);
 	// improve error handling
 	if (platform != PLATFORM_D3D8 && platform != PLATFORM_D3D9)
 		return;
 
-	filterFlags = readUInt32(rw);
+	filterFlags = readUInt32(bytes, offset);
 
 	char buffer[32];
-	rw.read(buffer, 32);
+	// rw.read(buffer, 32);
+	memcpy(buffer, &bytes[*offset], sizeof(buffer));
+	*offset += sizeof(buffer);
+
 	name = buffer;
-	rw.read(buffer, 32);
+	//rw.read(buffer, 32);
+	memcpy(buffer, &bytes[*offset], sizeof(buffer));
+	*offset += sizeof(buffer);
+
 	maskName = buffer;
 
-	rasterFormat = readUInt32(rw);
+	rasterFormat = readUInt32(bytes, offset);
 //cout << hex << rasterFormat << " ";
 
 	hasAlpha = false;
 	char fourcc[5];
 	fourcc[4] = 0;
 	if (platform == PLATFORM_D3D9) {
-		rw.read(fourcc, 4*sizeof(char));
+		//rw.read(fourcc, 4*sizeof(char));
+		memcpy(fourcc, &bytes[*offset], 4 * sizeof(char));
+		*offset += 4 * sizeof(char);
 	} else {
-		hasAlpha = readUInt32(rw);
+		hasAlpha = readUInt32(bytes, offset);
 //cout << hasAlpha << " ";
 	}
 
-	width.push_back(readUInt16(rw));
-	height.push_back(readUInt16(rw));
-	depth = readUInt8(rw);
-	mipmapCount = readUInt8(rw);
+	width.push_back(readUInt16(bytes, offset));
+	height.push_back(readUInt16(bytes, offset));
+	depth = readUInt8(bytes, offset);
+	mipmapCount = readUInt8(bytes, offset);
 //cout << dec << mipmapCount << " ";
-	rw.seekg(sizeof(int8_t), ios::cur); // raster type (always 4)
-	dxtCompression = readUInt8(rw);
+
+	//rw.seekg(sizeof(int8_t), ios::cur); // raster type (always 4)
+	*offset += sizeof(int8_t);
+
+	dxtCompression = readUInt8(bytes, offset);
 //cout << dxtCompression << " ";
 
 	if (platform == PLATFORM_D3D9) {
@@ -118,8 +145,12 @@ void NativeTexture::readD3d(istream &rw)
 	if (rasterFormat & RASTER_PAL8 || rasterFormat & RASTER_PAL4) {
 		paletteSize = (rasterFormat & RASTER_PAL8) ? 0x100 : 0x10;
 		palette = new uint8_t[paletteSize*4*sizeof(uint8_t)];
-		rw.read(reinterpret_cast <char *> (palette),
-			paletteSize*4*sizeof(uint8_t));
+		//rw.read(reinterpret_cast <char *> (palette),
+		//	paletteSize*4*sizeof(uint8_t));
+		memcpy(reinterpret_cast<char *> (palette),
+			&bytes[*offset],
+			paletteSize * 4 * sizeof(uint8_t));
+		*offset += paletteSize * 4 * sizeof(uint8_t);
 	}
 
 	for (uint32_t i = 0; i < mipmapCount; i++) {
@@ -136,7 +167,7 @@ void NativeTexture::readD3d(istream &rw)
 			}
 		}
 
-		uint32_t dataSize = readUInt32(rw);
+		uint32_t dataSize = readUInt32(bytes, offset);
 
 		// There is no way to predict, when the size is going to be zero
 		if (dataSize == 0)
@@ -144,13 +175,17 @@ void NativeTexture::readD3d(istream &rw)
 
 		dataSizes.push_back(dataSize);
 		texels.push_back(new uint8_t[dataSize]);
-		rw.read(reinterpret_cast <char *> (&texels[i][0]),
-		        dataSize*sizeof(uint8_t));
+		//rw.read(reinterpret_cast <char *> (&texels[i][0]),
+		//        dataSize*sizeof(uint8_t));
+		memcpy(reinterpret_cast<char *> (&texels[i][0]),
+			&bytes[*offset],
+			dataSize * sizeof(uint8_t));
+		*offset += dataSize * sizeof(uint8_t);
 	}
 //cout << endl;
 }
 
-void NativeTexture::convertTo32Bit(void)
+void NativeTexture::convertTo32Bit()
 {
 	// depth is always 8 (even if the palette is 4 bit)
 	if (rasterFormat & RASTER_PAL8 || rasterFormat & RASTER_PAL4) {
@@ -228,7 +263,7 @@ void NativeTexture::convertTo32Bit(void)
 	// no support for other raster formats yet
 }
 
-void NativeTexture::decompressDxt4(void)
+void NativeTexture::decompressDxt4()
 {
 	for (uint32_t i = 0; i < mipmapCount; i++) {
 		/* j loops through old texels
@@ -316,7 +351,7 @@ void NativeTexture::decompressDxt4(void)
 	dxtCompression = 0;
 }
 
-void NativeTexture::decompressDxt3(void)
+void NativeTexture::decompressDxt3()
 {
 	for (uint32_t i = 0; i < mipmapCount; i++) {
 		/* j loops through old texels
@@ -384,7 +419,7 @@ void NativeTexture::decompressDxt3(void)
 	dxtCompression = 0;
 }
 
-void NativeTexture::decompressDxt1(void)
+void NativeTexture::decompressDxt1()
 {
 	for (uint32_t i = 0; i < mipmapCount; i++) {
 		/* j loops through old texels
@@ -464,7 +499,7 @@ void NativeTexture::decompressDxt1(void)
 	dxtCompression = 0;
 }
 
-void NativeTexture::decompressDxt(void)
+void NativeTexture::decompressDxt()
 {
 	if (dxtCompression == 0)
 		return;
@@ -479,7 +514,7 @@ void NativeTexture::decompressDxt(void)
 		cout << "dxt" << dxtCompression << " not supported\n";
 }
 
-NativeTexture::NativeTexture(void)
+NativeTexture::NativeTexture()
 : platform(0), name(""), maskName(""), filterFlags(0), rasterFormat(0),
   depth(0), palette(0), paletteSize(0), hasAlpha(false), mipmapCount(0),
   alphaDistribution(0), dxtCompression(0)
@@ -561,7 +596,7 @@ NativeTexture &NativeTexture::operator=(const NativeTexture &that)
 	return *this;
 }
 
-NativeTexture::~NativeTexture(void)
+NativeTexture::~NativeTexture()
 {
 	delete[] palette;
 	palette = 0;

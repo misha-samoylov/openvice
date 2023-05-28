@@ -51,7 +51,7 @@
     <ClCompile Include="GameRender.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="GameModel.cpp">
+    <ClCompile Include="Mesh.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="GameWindow.cpp">
@@ -77,7 +77,7 @@
     <ClInclude Include="GameRender.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="GameModel.hpp">
+    <ClInclude Include="Mesh.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="GameInput.hpp">
@@ -103,5 +103,10 @@
     <FxCompile Include="shaders\vertex_shader.hlsl">
       <Filter>Source Files\shaders</Filter>
     </FxCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="README.md">
+      <Filter>Source Files</Filter>
+    </None>
   </ItemGroup>
 </Project>

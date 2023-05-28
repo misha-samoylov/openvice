@@ -19,18 +19,23 @@ public:
 	int Open(const char *filepathImg, const char *filepathDir);
 	void Cleanup();
 
-	char *FileGetById(uint32_t id);
-	int FileSaveById(uint32_t id);
-	int FileSave(int32_t offset, int32_t size, const char *name);
+	char* GetFilenameById(uint32_t id);
+	char *GetFileById(uint32_t id);
+	int GetFileIndexByName(const char *name);
+	int SaveFileById(uint32_t id);
+	int SaveFile(int32_t offset, int32_t size, const char *name);
+	int32_t GetFileSize(uint32_t id);
 
 private:
-	int DirFileOpen(const char *filepathDir);
-	void DirFileDump();
-	int ImgFileOpen(const char *filepathImg);
-	void DirFileCleanup();
-	void ImgFileCleanup();
+	int OpenFileDir(const char *filepathDir);
+	void DumpFileDir();
+	int OpenFileImg(const char *filepathImg);
+	void CleanupFileDir();
+	void CleanupFileImg();
 
 	struct dirEntry *m_pFilesDir;
 	FILE *m_pFileImg;
 	FILE *m_pFileDir;
+
+	int m_countFiles;
 };
