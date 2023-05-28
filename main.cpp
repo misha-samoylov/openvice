@@ -31,6 +31,7 @@ struct GameMaterial {
 	uint32_t width;
 	uint32_t height;
 	uint32_t dxtCompression;
+	uint32_t depth;
 };
 
 
@@ -79,6 +80,7 @@ void LoadAllTexturesFromTXDFile(ImgLoader *pImgLoader, const char *filename)
 		m.width = txd.texList[i].width[0];
 		m.height = txd.texList[i].height[0];
 		m.dxtCompression = txd.texList[i].dxtCompression; // DXT1, DXT3, DXT4
+		m.depth = txd.texList[i].depth;
 
 		printf("[OK] Loaded texture name %s from TXD file %s\n", t.name.c_str(), textureName.c_str());
 
@@ -263,7 +265,8 @@ int LoadFileDFFWithId(ImgLoader *pImgLoader, GameRender *render, std::string fna
 					g_Textures[index].size,
 					g_Textures[index].width,
 					g_Textures[index].height,
-					g_Textures[index].dxtCompression
+					g_Textures[index].dxtCompression,
+					g_Textures[index].depth // TODO depth is not working
 				);
 			}
 

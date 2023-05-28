@@ -38,7 +38,7 @@ public:
 		D3D_PRIMITIVE_TOPOLOGY topology, float x, float y, float z);
 	void Cleanup();
 	void Render(GameRender *pRender, GameCamera *pCamera);
-	HRESULT SetDataDDS(GameRender* pRender, uint8_t* pSource, size_t size, uint32_t width, uint32_t height, uint32_t dxtCompression);
+	HRESULT SetDataDDS(GameRender* pRender, uint8_t* pSource, size_t size, uint32_t width, uint32_t height, uint32_t dxtCompression, uint32_t depth);
 	void SetPosition(float x, float y, float z,
 		float scaleX, float scaleY, float scaleZ,
 		float rotx, float roty, float rotz, float rotr);

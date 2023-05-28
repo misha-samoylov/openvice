@@ -112,7 +112,7 @@ void GameModel::SetPosition(float x, float y, float z,
 #include<iostream>
 #include<cstdlib>
 
-HRESULT GameModel::SetDataDDS(GameRender* pRender, uint8_t* source, size_t size, uint32_t width, uint32_t height, uint32_t dxtCompression)
+HRESULT GameModel::SetDataDDS(GameRender* pRender, uint8_t* source, size_t size, uint32_t width, uint32_t height, uint32_t dxtCompression, uint32_t depth)
 {
 	HRESULT hr;
 
@@ -135,7 +135,8 @@ HRESULT GameModel::SetDataDDS(GameRender* pRender, uint8_t* source, size_t size,
 	dds.header.mipMapCount = 0;
 	dds.header.ddspf.size = sizeof(struct DDS_PIXELFORMAT);
 	//ddsd.ddpfPixelFormat.dwSize = sizeof(ddsd.ddpfPixelFormat);
-	dds.header.ddspf.flags = DDS_FOURCC; // DDS_PAL8;
+	dds.header.ddspf.flags = DDS_FOURCC | DDS_HEADER_FLAGS_VOLUME; // DDS_PAL8; // TODO: use DDS_HEADER_FLAGS_VOLUME for depth
+	dds.header.depth = depth; // TODO: is working?
 	switch (dxtCompression) {
 	case 1:
 		dds.header.ddspf.fourCC = FOURCC_DXT1;
