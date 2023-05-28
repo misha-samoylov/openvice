@@ -104,7 +104,10 @@ struct materialAndHisIndex {
 	int index;
 };
 
-int LoadFileDFFWithId(ImgLoader *pImgLoader, GameRender *render, uint32_t fileId, float x = 0, float y = 0, float z = 0)
+int LoadFileDFFWithId(ImgLoader *pImgLoader, GameRender *render, uint32_t fileId, float x , float y , float z ,
+	float rotx, float roty, float rotz, float rotr,
+	float scalex, float scaley, float scalez
+)
 {
 	char* name = pImgLoader->GetFilenameById(fileId);
 	if (strstr(name, ".dff") == NULL) {
@@ -277,7 +280,9 @@ int LoadFileDFFWithId(ImgLoader *pImgLoader, GameRender *render, uint32_t fileId
 
 			g_Models.push_back(gameModel);
 
-			gameModel->SetPosition(x, y, z);
+			gameModel->SetPosition(x, y, z,
+				scalex, scaley,scalez,
+				rotx,roty,rotz, rotr);
 		}
 	}
 
@@ -288,7 +293,9 @@ int LoadFileDFFWithId(ImgLoader *pImgLoader, GameRender *render, uint32_t fileId
 }
 
 
-void LoadFileDFFWithName(ImgLoader* pImgLoader, GameRender* render, std::string name, float x, float y, float z)
+void LoadFileDFFWithName(ImgLoader* pImgLoader, GameRender* render, std::string name, float x, float y, float z,
+	float rotx, float roty, float rotz, float rotr,
+	float scalex, float scaley, float scalez)
 {
 	int index = pImgLoader->GetFileIndexByName(name.c_str());
 	if (index == -1) {
@@ -296,7 +303,9 @@ void LoadFileDFFWithName(ImgLoader* pImgLoader, GameRender* render, std::string 
 		return;
 	}
 
-	LoadFileDFFWithId(pImgLoader, render, index, x, y, z);
+	LoadFileDFFWithId(pImgLoader, render, index, x, y, z,
+		 rotx,  roty,  rotz,  rotr,
+		 scalex,  scaley,  scalez);
 }
 
 void Render(GameRender *render, GameCamera *camera)
@@ -439,22 +448,33 @@ void LoadIPLFile(const char *filepath)
 
 				std::string mName = modelName;
 				mName = mName + ".dff";
+								
+				struct IPLFile iplfile;
+				iplfile.id = id;
+				iplfile.modelName = mName;
+				iplfile.interior = interior;
 
 				/*
 				 * ћен€ем положение модели в пространстве так как наша камера
-				 * в Left Handed Coordinates, а движок GTA вообще в своей координатной системе:
+				 * в Left Handed Coordinates, а движок GTA в своей координатной системе:
 				 * X Ц east/west direction
 				 * Y Ц north/south direction
 				 * Z Ц up/down direction
 				 * @see https://gtamods.com/wiki/Map_system
 				*/
-				struct IPLFile iplfile;
-				iplfile.id = id;
-				iplfile.modelName = mName;
-				iplfile.interior = interior;
-				iplfile.posX = posY ;
+				iplfile.posX = posY;
 				iplfile.posY = posZ;
 				iplfile.posZ = posX;
+
+				iplfile.scale[0] = scale[1]; // y 
+				iplfile.scale[1] = scale[2]; // z
+				iplfile.scale[2] = scale[0]; // x
+
+				iplfile.rot[0] = rot[0];
+				iplfile.rot[1] = rot[1];
+				iplfile.rot[2] = rot[2];
+				iplfile.rot[3] = rot[3];
+
 				objects.push_back(iplfile);
 			}
 		}
@@ -498,7 +518,11 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 
 	for (int i = 0; i < objects.size(); i++) {
 		LoadFileDFFWithName(imgLoader, gameRender, objects[i].modelName.c_str(),
-			objects[i].posX, objects[i].posY, objects[i].posZ);
+			objects[i].posX, objects[i].posY, objects[i].posZ,
+			
+			objects[i].rot[0], objects[i].rot[1], objects[i].rot[2], objects[i].rot[3],
+			objects[i].scale[0], objects[i].scale[1], objects[i].scale[2]
+			);
 	}
 
 	
