@@ -5,6 +5,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <windows.h>
+
 #define IMG_BLOCK_SIZE 2048
 
 struct dirEntry {
@@ -16,7 +18,7 @@ struct dirEntry {
 class ImgLoader
 {
 public:
-	int Open(const char *filepathImg, const char *filepathDir);
+	int Open(TCHAR* filepath, TCHAR* filepathDir);
 	void Cleanup();
 
 	char* GetFilenameById(uint32_t id);
@@ -27,15 +29,17 @@ public:
 	int32_t GetFileSize(uint32_t id);
 
 private:
-	int OpenFileDir(const char *filepathDir);
+	int OpenFileDir(TCHAR* filepath);
 	void DumpFileDir();
-	int OpenFileImg(const char *filepathImg);
+	int OpenFileImg(TCHAR* filepath);
 	void CleanupFileDir();
 	void CleanupFileImg();
 
 	struct dirEntry *m_pFilesDir;
-	FILE *m_pFileImg;
+	HANDLE m_pFileImg;
 	FILE *m_pFileDir;
 
 	int m_countFiles;
+
+	char* _dataPtrImg;
 };

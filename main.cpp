@@ -118,7 +118,7 @@ void LoadAllTexturesFromTXDFile(ImgLoader *pImgLoader, const char *filename)
 		g_Textures.push_back(m);
 	}
 
-	free(fileBuffer);
+	//free(fileBuffer);
 }
 
 int LoadFileDFFWithName(ImgLoader* pImgLoader, GameRender* render, std::string name, int modelId)
@@ -278,7 +278,7 @@ int LoadFileDFFWithName(ImgLoader* pImgLoader, GameRender* render, std::string n
 	clump->Clear();
 	delete clump;
 
-	free(fileBuffer);
+	//free(fileBuffer);
 
 	return 0;
 }
@@ -464,10 +464,13 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 	GameRender *gameRender = new GameRender();
 	gameRender->Init(gameWindow->GetHandleWindow());
 
+	TCHAR imgPath[] = L"C:/Games/Grand Theft Auto Vice City/models/gta3.img";
+	TCHAR dirPath[] = L"C:/Games/Grand Theft Auto Vice City/models/gta3.dir";
+
 	ImgLoader* imgLoader = new ImgLoader();
 	imgLoader->Open(
-		"C:/Games/Grand Theft Auto Vice City/models/gta3.img",
-		"C:/Games/Grand Theft Auto Vice City/models/gta3.dir"
+		imgPath,
+		dirPath
 	);
 
 	/* Load map models and their textures */
