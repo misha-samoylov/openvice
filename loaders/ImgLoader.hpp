@@ -28,6 +28,8 @@ public:
 	int SaveFile(int32_t offset, int32_t size, const char *name);
 	int32_t GetFileSize(uint32_t id);
 
+	//void FreeFile();
+
 private:
 	int OpenFileDir(TCHAR* filepath);
 	void DumpFileDir();

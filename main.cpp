@@ -81,7 +81,7 @@ void LoadAllTexturesFromTXDFile(ImgLoader *pImgLoader, const char *filename)
 
 	printf("[OK] Finded file %s in IMG archive\n", textureName.c_str());
 
-	char *fileBuffer = pImgLoader->GetFileById(fileId);
+	char *fileBuffer = (char*)pImgLoader->GetFileById(fileId);
 
 	size_t offset = 0;
 	TextureDictionary txd;
@@ -134,7 +134,7 @@ int LoadFileDFFWithName(ImgLoader* pImgLoader, GameRender* render, std::string n
 		return 1;
 	}
 
-	char* fileBuffer = pImgLoader->GetFileById(fileId);
+	char* fileBuffer = (char*)pImgLoader->GetFileById(fileId);
 
 	Clump* clump = new Clump();
 	clump->Read(fileBuffer);

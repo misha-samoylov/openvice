@@ -63,10 +63,6 @@ int ImgLoader::OpenFileImg(TCHAR* filepath)
 		0,
 		dwFileSize);
 
-
-
-
-
 	m_pFileImg = hMapping;
 
 	return 0;
@@ -114,10 +110,16 @@ char *ImgLoader::GetFileById(uint32_t id)
 	//return &_dataPtrImg[fileOffset] + fileSize; // [fileOffset];// +fileSize;
 
 	buff = (char*)malloc(fileSize);
-	if (buff == NULL) {
-		printf("Error: cannot allocate memory variable buff\n");
-		return NULL;
-	}
+	//if (buff == NULL) {
+	//	printf("Error: cannot allocate memory variable buff\n");
+	//	return NULL;
+	//}
+
+	/* try to use cast to (unsigned char*), not (char*) */
+
+	/* нужно сделать чтобы конкретно MapViewOfFile выделял тот участок файла который нужен */
+	/* и другим методом типо FreeFile освобождал */
+	//return &_dataPtrImg[fileOffset] + fileSize;
 
 	memcpy(buff, &_dataPtrImg[fileOffset], fileSize);
 
@@ -133,6 +135,11 @@ int32_t ImgLoader::GetFileSize(uint32_t id)
 {
 	return m_pFilesDir[id].size * IMG_BLOCK_SIZE;
 }
+
+/*void ImgLoader::FreeFile()
+{
+	UnmapViewOfFile(_dataPtrImg);
+}*/
 
 int ImgLoader::GetFileIndexByName(const char *name)
 {
