@@ -4,17 +4,27 @@
 
 int ImgLoader::OpenFileDir(TCHAR *filepath)
 {
-	int fileSize;
-
 	HANDLE m_hFileDir = CreateFile(filepath, GENERIC_READ, 0, nullptr,
 		OPEN_EXISTING,
 		FILE_ATTRIBUTE_NORMAL, nullptr);
+	if (m_hFileDir == INVALID_HANDLE_VALUE) {
+		printf("fileMappingCreate - CreateFile failed, fname = %s\n", filepath);
+		return 1;
+	}
 
 	DWORD dwFileSize = ::GetFileSize(m_hFileDir, nullptr);
+	if (dwFileSize == INVALID_FILE_SIZE) {
+		printf("fileMappingCreate - GetFileSize failed, fname = %s\n", filepath);
+		CloseHandle(m_hFileDir);
+		return 1;
+	}
 
 	HANDLE m_hMappingDir = CreateFileMapping(m_hFileDir, nullptr, PAGE_READONLY, 0, 0, nullptr);
-
-	// TODO: Check on errors
+	if (m_hMappingDir == nullptr) {
+		printf("fileMappingCreate - CreateFileMapping failed, fname = %s\n", filepath);
+		CloseHandle(m_hFileDir);
+		return 1;
+	}
 
 	m_dataPtrDir = (unsigned char*)MapViewOfFile(m_hMappingDir,
 		FILE_MAP_READ,
@@ -22,10 +32,14 @@ int ImgLoader::OpenFileDir(TCHAR *filepath)
 		0,
 		dwFileSize
 	);
+	if (m_dataPtrDir == nullptr) {
+		printf("fileMappingCreate - MapViewOfFile failed, fname = %s\n", filepath);
+		CloseHandle(m_hMappingDir);
+		CloseHandle(m_hFileDir);
+		return 1;
+	}
 
-    fileSize = dwFileSize;
-	m_countFiles = fileSize / 32;
-
+	m_countFiles = dwFileSize / 32;
 	m_pFilesDir = (struct dirEntry*)m_dataPtrDir;
 
     return 0;
@@ -41,18 +55,36 @@ int ImgLoader::OpenFileImg(TCHAR* filepath)
 	HANDLE m_hFileImg = CreateFile(filepath, GENERIC_READ, 0, nullptr,
 		OPEN_EXISTING,
 		FILE_ATTRIBUTE_NORMAL, nullptr);
+	if (m_hFileImg == INVALID_HANDLE_VALUE) {
+		printf("fileMappingCreate - CreateFile failed, fname = %s\n", filepath);
+		return 1;
+	}
 
 	DWORD dwFileSize = ::GetFileSize(m_hFileImg, nullptr);
+	if (dwFileSize == INVALID_FILE_SIZE) {
+		printf("fileMappingCreate - GetFileSize failed, fname = %s\n", filepath);
+		CloseHandle(m_hFileDir);
+		return 1;
+	}
 
 	HANDLE m_hMappingImg = CreateFileMapping(m_hFileImg, nullptr, PAGE_READONLY, 0, 0, nullptr);
-
-	// TODO: Check on errors
+	if (m_hMappingImg == nullptr) {
+		printf("fileMappingCreate - CreateFileMapping failed, fname = %s\n", filepath);
+		CloseHandle(m_hFileDir);
+		return 1;
+	}
 
 	m_dataPtrImg = (char*)MapViewOfFile(m_hMappingImg,
 		FILE_MAP_READ,
 		0,
 		0,
 		dwFileSize);
+	if (m_dataPtrImg == nullptr) {
+		printf("fileMappingCreate - MapViewOfFile failed, fname = %s\n", filepath);
+		CloseHandle(m_hMappingDir);
+		CloseHandle(m_hFileDir);
+		return 1;
+	}
 
 	return 0;
 }
@@ -122,9 +154,8 @@ int ImgLoader::GetFileIndexByName(const char *name)
 
 int ImgLoader::SaveFile(int32_t offset, int32_t size, const char *name)
 {
-    /*
 	FILE* pFile;
-    char *buff;
+
     int32_t fileSize;
     int32_t fileOffset;
 
@@ -137,23 +168,9 @@ int ImgLoader::SaveFile(int32_t offset, int32_t size, const char *name)
 		return -1;
     }
 
-    buff = (char*)malloc(fileSize);
-    if (buff == NULL) {
-		printf("Error: cannot allocate memory variable buff\n");
-		return -1;
-    }
-
-    // read from img_file to buff
-    fseek(m_pFileImg, fileOffset, SEEK_SET);
-    fread(buff, fileSize, 1, m_pFileImg);
-    fseek(m_pFileImg, 0, SEEK_CUR);
-
-    // write buff to file
-    fwrite(buff, fileSize, 1, pFile);
-
-    free(buff);
+    // write from buffer to file
+    fwrite(&m_dataPtrImg[fileOffset], fileSize, 1, pFile);
     fclose(pFile);
-	*/
 
     return 0;
 }
