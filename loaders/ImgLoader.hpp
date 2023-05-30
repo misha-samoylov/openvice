@@ -28,8 +28,6 @@ public:
 	int SaveFile(int32_t offset, int32_t size, const char *name);
 	int32_t GetFileSize(uint32_t id);
 
-	//void FreeFile();
-
 private:
 	int OpenFileDir(TCHAR* filepath);
 	void DumpFileDir();
@@ -37,11 +35,16 @@ private:
 	void CleanupFileDir();
 	void CleanupFileImg();
 
+	// dir
+	HANDLE m_hFileDir;
+	HANDLE m_hMappingDir;
+	unsigned char* m_dataPtrDir;
+
 	struct dirEntry *m_pFilesDir;
-	HANDLE m_pFileImg;
-	FILE *m_pFileDir;
-
 	int m_countFiles;
-
-	char* _dataPtrImg;
+	
+	// img
+	HANDLE m_hFileImg;
+	HANDLE m_hMappingImg;
+	char* m_dataPtrImg;
 };
