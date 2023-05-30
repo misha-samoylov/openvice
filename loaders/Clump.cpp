@@ -10,7 +10,7 @@ std::vector<Light> Clump::GetLightList()
 	return m_lightList;
 }
 
-std::vector<Frame> Clump::GetFrameList() 
+FrameList **Clump::GetFrameList()
 { 
 	return m_frameList; 
 }
@@ -25,6 +25,7 @@ void Clump::Read(char *bytes)
 	size_t offset = 0;
 
 	HeaderInfo header;
+	// CHUNK_CLUMP
 	header.read(bytes, &offset);
 
 	//READ_HEADER(CHUNK_STRUCT);
@@ -39,32 +40,24 @@ void Clump::Read(char *bytes)
 		
 	}
 
+	// Frame list
+	FrameList frameList;
+	frameList.read(bytes, &offset);
 
-	m_atomicList.resize(numAtomics);
 
-
-	//READ_HEADER(CHUNK_FRAMELIST);
+	// CHUNK_GEOMETRYLIST
 	header.read(bytes, &offset);
 
-	//READ_HEADER(CHUNK_STRUCT);
-	header.read(bytes, &offset);
-	uint32_t numFrames = readUInt32(bytes, &offset);
-	m_frameList.resize(numFrames);
-	for (uint32_t i = 0; i < numFrames; i++)
-		m_frameList[i].readStruct(bytes, &offset);
-	for (uint32_t i = 0; i < numFrames; i++)
-		m_frameList[i].readExtension(bytes, &offset);
-
-	//READ_HEADER(CHUNK_GEOMETRYLIST);
-	header.read(bytes, &offset);
-
-	//READ_HEADER(CHUNK_STRUCT);
+	// CHUNK_STRUCT
 	header.read(bytes, &offset);
 
 	uint32_t numGeometries = readUInt32(bytes, &offset);
 	m_geometryList.resize(numGeometries);
+
 	for (uint32_t i = 0; i < numGeometries; i++)
 		m_geometryList[i].read(bytes, &offset);
+
+	m_atomicList.resize(numAtomics);
 
 	/* read atomics */
 	for (uint32_t i = 0; i < numAtomics; i++)
@@ -121,13 +114,13 @@ void Clump::Dump(bool detailed)
 	ind += "  ";
 	cout << ind << "numAtomics: " << m_atomicList.size() << endl;
 
-	cout << endl << ind << "FrameList {\n";
-	ind += "  ";
-	cout << ind << "numFrames: " << m_frameList.size() << endl;
-	for (uint32_t i = 0; i < m_frameList.size(); i++)
-		m_frameList[i].dump(i, ind);
-	ind = ind.substr(0, ind.size() - 2);
-	cout << ind << "}\n";
+	//cout << endl << ind << "FrameList {\n";
+	//ind += "  ";
+	//cout << ind << "numFrames: " << m_frameList.size() << endl;
+	//for (uint32_t i = 0; i < m_frameList.size(); i++)
+	//	m_frameList[i].dump(i, ind);
+	//ind = ind.substr(0, ind.size() - 2);
+	//cout << ind << "}\n";
 
 	cout << endl << ind << "GeometryList {\n";
 	ind += "  ";
@@ -149,7 +142,7 @@ void Clump::Clear(void)
 {
 	m_atomicList.clear();
 	m_geometryList.clear();
-	m_frameList.clear();
+	//m_frameList.clear(); TODO: free FrameList
 	m_lightList.clear();
 	m_colData.clear();
 }

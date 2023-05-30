@@ -182,35 +182,6 @@ int32_t readInt32(char *bytes, size_t *offset);
 uint32_t readUInt32(char *bytes, size_t *offset);
 float readFloat32(char *bytes, size_t *offset);
 
-struct Frame {
-	float rotationMatrix[9];
-	float position[3];
-	int32_t parent;
-
-	/* Extensions */
-
-	/* node name */
-	std::string name;
-
-	/* hanim */
-	bool hasHAnim;
-	uint32_t hAnimUnknown1;
-	int32_t hAnimBoneId;
-	uint32_t hAnimBoneCount;
-	uint32_t hAnimUnknown2;
-	uint32_t hAnimUnknown3;
-	std::vector<int32_t> hAnimBoneIds;
-	std::vector<uint32_t> hAnimBoneNumbers;
-	std::vector<uint32_t> hAnimBoneTypes;
-
-	/* functions */
-	void readStruct(char *bytes, size_t *offset);
-	void readExtension(char *bytes, size_t *offset);
-
-	void dump(uint32_t index, std::string ind = "");
-
-	Frame(void);
-};
 
 struct Atomic {
 	int32_t frameIndex;

@@ -66,6 +66,9 @@
     <ClCompile Include="loaders\Clump.cpp">
       <Filter>Source Files\loaders</Filter>
     </ClCompile>
+    <ClCompile Include="loaders\FrameList.cpp">
+      <Filter>Source Files\loaders</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="renderware.h">
@@ -93,6 +96,9 @@
       <Filter>Header Files\loaders</Filter>
     </ClInclude>
     <ClInclude Include="loaders\ImgLoader.hpp">
+      <Filter>Header Files\loaders</Filter>
+    </ClInclude>
+    <ClInclude Include="loaders\FrameList.h">
       <Filter>Header Files\loaders</Filter>
     </ClInclude>
   </ItemGroup>

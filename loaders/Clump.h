@@ -4,6 +4,7 @@
 #include <istream>
 
 #include "../renderware.h"
+#include "FrameList.h"
 
 using namespace std;
 
@@ -11,7 +12,7 @@ class Clump
 {
 private:
 	std::vector<Atomic> m_atomicList;
-	std::vector<Frame> m_frameList;
+	FrameList **m_frameList;
 	std::vector<Geometry> m_geometryList;
 	std::vector<Light> m_lightList;
 
@@ -28,6 +29,6 @@ public:
 
 	std::vector<Geometry> GetGeometryList();
 	std::vector<Light> GetLightList();
-	std::vector<Frame> GetFrameList();
+	FrameList **GetFrameList();
 	std::vector<Atomic> GetAtomicList();
 };
