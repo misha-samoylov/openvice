@@ -278,8 +278,6 @@ int LoadFileDFFWithName(ImgLoader* pImgLoader, GameRender* render, std::string n
 	clump->Clear();
 	delete clump;
 
-	//free(fileBuffer);
-
 	return 0;
 }
 
