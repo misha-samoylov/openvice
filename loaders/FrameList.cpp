@@ -1,6 +1,6 @@
 #include "FrameList.h"
 
-// Only reads part of the frame struct
+/* Only reads part of the frame struct */
 void Frame::ReadStruct(char* bytes, size_t* offset)
 {
 	memcpy((char*)m_rotationMatrix, &bytes[*offset], 9 * sizeof(float));
@@ -11,13 +11,13 @@ void Frame::ReadStruct(char* bytes, size_t* offset)
 
 	m_parent = readInt32(bytes, offset);
 
-	*offset += 4; // Matrix creation flag, unused
+	*offset += 4; /* Matrix creation flag, unused */
 }
 
 void Frame::ReadExtension(char* bytes, size_t* offset)
 {
 	HeaderInfo header;
-	header.read(bytes, offset); // CHUNK_EXTENSION
+	header.read(bytes, offset); /* CHUNK_EXTENSION */
 
 	streampos end = *offset;
 	end += header.length;
@@ -70,8 +70,6 @@ void Frame::ReadExtension(char* bytes, size_t* offset)
 			break;
 		}
 	}
-	//	if(hasHAnim)
-	//		cout << hAnimBoneId << " " << name << endl;
 }
 
 void Frame::Dump(uint32_t index)
@@ -127,8 +125,8 @@ void FrameList::Read(char *bytes, size_t *offset)
 {
 	HeaderInfo header;
 
-	header.read(bytes, offset); // CHUNK_FRAMELIST
-	header.read(bytes, offset); // CHUNK_STRUCT
+	header.read(bytes, offset); /* CHUNK_FRAMELIST */
+	header.read(bytes, offset); /* CHUNK_STRUCT */
 
 	m_numFrames = readUInt32(bytes, offset);
 
@@ -156,4 +154,14 @@ void FrameList::Cleanup()
 	}
 
 	delete[] m_frames;
+}
+
+int FrameList::GetNumFrames()
+{
+	return m_numFrames;
+}
+
+Frame* FrameList::GetFrame(int id)
+{
+	return m_frames[id];
 }

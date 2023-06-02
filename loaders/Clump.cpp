@@ -115,9 +115,9 @@ void Clump::Dump(bool detailed)
 	cout << ind << "numAtomics: " << m_atomicList.size() << endl;
 
 	printf("FrameList\n");
-	printf("numFrames: %d\n", m_frameList->m_numFrames);
-	for (uint32_t i = 0; i < m_frameList->m_numFrames; i++)
-		m_frameList->m_frames[i]->Dump(i);
+	printf("numFrames: %d\n", m_frameList->GetNumFrames());
+	for (uint32_t i = 0; i < m_frameList->GetNumFrames(); i++)
+		m_frameList->GetFrame(i)->Dump(i);
 
 	cout << endl << ind << "GeometryList {\n";
 	ind += "  ";
