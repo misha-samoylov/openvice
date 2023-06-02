@@ -2,12 +2,11 @@
 
 #include "../renderware.h"
 
-class Frame
+struct Frame
 {
-public:
-	float rotationMatrix[9];
-	float position[3];
-	int32_t parent;
+	float m_rotationMatrix[9];
+	float m_position[3];
+	int32_t m_parent;
 
 	/* Extensions */
 
@@ -15,31 +14,30 @@ public:
 	char *m_name;
 
 	/* hanim */
-	bool hasHAnim;
-	uint32_t hAnimUnknown1;
-	int32_t hAnimBoneId;
-	uint32_t hAnimBoneCount;
-	uint32_t hAnimUnknown2;
-	uint32_t hAnimUnknown3;
-	int32_t *hAnimBoneIds; // Array
-	uint32_t *hAnimBoneNumbers; // Array
-	uint32_t *hAnimBoneTypes; // Array
+	bool m_hasHAnim;
+	uint32_t m_hAnimUnknown1;
+	int32_t m_hAnimBoneId;
+	uint32_t m_AnimBoneCount;
+	uint32_t m_hAnimUnknown2;
+	uint32_t m_hAnimUnknown3;
+	int32_t *m_hAnimBoneIds; // Array
+	uint32_t *m_hAnimBoneNumbers; // Array
+	uint32_t *m_hAnimBoneTypes; // Array
 
-	Frame();
-	~Frame();
+	void Init();
+	void Cleanup();
 
-	void readStruct(char* bytes, size_t* offset);
-	void readExtension(char* bytes, size_t* offset);
-
-	void dump(uint32_t index, std::string ind = "");
+	void ReadStruct(char* bytes, size_t* offset);
+	void ReadExtension(char* bytes, size_t* offset);
+	void Dump(uint32_t index);
 };
 
 class FrameList
 {
 public:
 	int m_numFrames;
-	Frame** m_frames;
+	Frame** m_frames; // Array of classes
 
-	void read(char* bytes, size_t* offset);
-	~FrameList();
+	void Read(char* bytes, size_t* offset);
+	void Cleanup();
 };

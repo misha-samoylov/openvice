@@ -1,20 +1,20 @@
 #include "FrameList.h"
 
 // Only reads part of the frame struct
-void Frame::readStruct(char* bytes, size_t* offset)
+void Frame::ReadStruct(char* bytes, size_t* offset)
 {
-	memcpy((char*)rotationMatrix, &bytes[*offset], 9 * sizeof(float));
+	memcpy((char*)m_rotationMatrix, &bytes[*offset], 9 * sizeof(float));
 	*offset += 9 * sizeof(float);
 
-	memcpy((char*)position, &bytes[*offset], 3 * sizeof(float));
+	memcpy((char*)m_position, &bytes[*offset], 3 * sizeof(float));
 	*offset += 3 * sizeof(float);
 
-	parent = readInt32(bytes, offset);
+	m_parent = readInt32(bytes, offset);
 
 	*offset += 4; // Matrix creation flag, unused
 }
 
-void Frame::readExtension(char* bytes, size_t* offset)
+void Frame::ReadExtension(char* bytes, size_t* offset)
 {
 	HeaderInfo header;
 	header.read(bytes, offset); // CHUNK_EXTENSION
@@ -36,31 +36,33 @@ void Frame::readExtension(char* bytes, size_t* offset)
 			break;
 		}
 		case CHUNK_HANIM:
-			hasHAnim = true;
+			m_hasHAnim = true;
 
-			hAnimUnknown1 = readUInt32(bytes, offset);
-			hAnimBoneId = readInt32(bytes, offset);;
-			hAnimBoneCount = readUInt32(bytes, offset);
+			m_hAnimUnknown1 = readUInt32(bytes, offset);
+			m_hAnimBoneId = readInt32(bytes, offset);;
+			m_AnimBoneCount = readUInt32(bytes, offset);
 
-			if (hAnimBoneCount != 0) {
-				hAnimUnknown2 = readUInt32(bytes, offset);;
-				hAnimUnknown3 = readUInt32(bytes, offset);;
+			if (m_AnimBoneCount != 0) {
+				m_hAnimUnknown2 = readUInt32(bytes, offset);;
+				m_hAnimUnknown3 = readUInt32(bytes, offset);;
 			}
 
-			hAnimBoneIds = (int32_t*)malloc(hAnimBoneCount * sizeof(int32_t));
-			hAnimBoneNumbers = (uint32_t*)malloc(hAnimBoneCount * sizeof(uint32_t));
-			hAnimBoneTypes = (uint32_t*)malloc(hAnimBoneCount * sizeof(uint32_t));
+			if (m_AnimBoneCount > 0) {
+				m_hAnimBoneIds = (int32_t*)malloc(m_AnimBoneCount * sizeof(int32_t));
+				m_hAnimBoneNumbers = (uint32_t*)malloc(m_AnimBoneCount * sizeof(uint32_t));
+				m_hAnimBoneTypes = (uint32_t*)malloc(m_AnimBoneCount * sizeof(uint32_t));
 
-			for (uint32_t i = 0; i < hAnimBoneCount; i++) {
-				hAnimBoneIds[i] = readInt32(bytes, offset);
-				hAnimBoneNumbers[i] = readUInt32(bytes, offset);
+				for (uint32_t i = 0; i < m_AnimBoneCount; i++) {
+					m_hAnimBoneIds[i] = readInt32(bytes, offset);
+					m_hAnimBoneNumbers[i] = readUInt32(bytes, offset);
 
-				uint32_t flag = readUInt32(bytes, offset);
+					uint32_t flag = readUInt32(bytes, offset);
 
-				if ((flag & ~0x3) != 0)
-					cout << flag << endl;
+					if ((flag & ~0x3) != 0)
+						cout << flag << endl;
 
-				hAnimBoneTypes[i] = flag;
+					m_hAnimBoneTypes[i] = flag;
+				}
 			}
 			break;
 		default:
@@ -72,89 +74,83 @@ void Frame::readExtension(char* bytes, size_t* offset)
 	//		cout << hAnimBoneId << " " << name << endl;
 }
 
-void Frame::dump(uint32_t index, string ind)
+void Frame::Dump(uint32_t index)
 {
-	cout << ind << "Frame " << index << " {\n";
-	ind += "  ";
+	printf("Frame %d\n", index);
+	printf("rotationMatrix:\n");
 
-	cout << ind << "rotationMatrix: ";
 	for (uint32_t i = 0; i < 9; i++)
-		cout << rotationMatrix[i] << " ";
-	cout << endl;
+		printf("%f\n", m_rotationMatrix[i]);
 
-	cout << ind << "position: ";
+	printf("position:\n");
 	for (uint32_t i = 0; i < 3; i++)
-		cout << position[i] << " ";
-	cout << endl;
-	cout << ind << "parent: " << parent << endl;
-
-	cout << ind << "name: " << m_name << endl;
-
-	// TODO: HANIM
-
-	ind = ind.substr(0, ind.size() - 2);
-	cout << ind << "}\n";
+		printf("%f\n", m_position[i]);
+	
+	printf("parent: %d\n", m_parent);
+	printf("name: %s\n", m_name);
 }
 
-Frame::Frame()
+void Frame::Init()
 {
-	parent = -1;
-	hasHAnim = false;
-	hAnimUnknown1 = 0;
-	hAnimBoneId = -1;
-	hAnimBoneCount = 0;
-	hAnimUnknown2 = 0;
-	hAnimUnknown3 = 0;
+	m_parent = -1;
+	m_hasHAnim = false;
+	m_hAnimUnknown1 = 0;
+	m_hAnimBoneId = -1;
+	m_AnimBoneCount = 0;
+	m_hAnimUnknown2 = 0;
+	m_hAnimUnknown3 = 0;
 
 	m_name = NULL;
-	hAnimBoneIds = NULL;
-	hAnimBoneNumbers = NULL;
-	hAnimBoneTypes = NULL;
+	m_hAnimBoneIds = NULL;
+	m_hAnimBoneNumbers = NULL;
+	m_hAnimBoneTypes = NULL;
 
 	for (int i = 0; i < 3; i++) {
-		position[i] = 0.0f;
+		m_position[i] = 0.0f;
 
 		for (int j = 0; j < 3; j++) {
-			rotationMatrix[i * 3 + j] = (i == j) ? 1.0f : 0.0f;
+			m_rotationMatrix[i * 3 + j] = (i == j) ? 1.0f : 0.0f;
 		}
 	}
 }
 
-Frame::~Frame()
+void Frame::Cleanup()
 {
-	free(hAnimBoneIds);
-	free(hAnimBoneNumbers);
-	free(hAnimBoneTypes);
+	free(m_hAnimBoneIds);
+	free(m_hAnimBoneNumbers);
+	free(m_hAnimBoneTypes);
 }
 
-void FrameList::read(char *bytes, size_t *offset)
+void FrameList::Read(char *bytes, size_t *offset)
 {
 	HeaderInfo header;
 
 	header.read(bytes, offset); // CHUNK_FRAMELIST
 	header.read(bytes, offset); // CHUNK_STRUCT
 
-	uint32_t m_numFrames = readUInt32(bytes, offset);
+	m_numFrames = readUInt32(bytes, offset);
 
-	Frame **m_frames = new Frame * [m_numFrames];
-	
-	for (uint32_t i = 0; i < m_numFrames; i++) { // Init dynamic array of classes
+	m_frames = new Frame * [m_numFrames];
+
+	for (uint32_t i = 0; i < m_numFrames; i++) {
 		m_frames[i] = new Frame();
+		m_frames[i]->Init();
 	}
 
 	for (uint32_t i = 0; i < m_numFrames; i++) {
-		m_frames[i]->readStruct(bytes, offset);
+		m_frames[i]->ReadStruct(bytes, offset);
 	}
 
 	for (uint32_t i = 0; i < m_numFrames; i++) {
-		m_frames[i]->readExtension(bytes, offset);
+		m_frames[i]->ReadExtension(bytes, offset);
 	}
 }
 
-FrameList::~FrameList()
+void FrameList::Cleanup()
 {
-	for (int i = 0; i < m_numFrames; ++i) {
-		delete[] m_frames[i];
+	for (int i = 0; i < m_numFrames; i++) {
+		m_frames[i]->Cleanup();
+		delete m_frames[i];
 	}
 
 	delete[] m_frames;
