@@ -1,16 +1,16 @@
-#include "GameRender.hpp"
+#include "DXRender.hpp"
 
-ID3D11Device *GameRender::GetDevice()
+ID3D11Device *DXRender::GetDevice()
 {
 	return m_pDevice;
 }
 
-ID3D11DeviceContext *GameRender::GetDeviceContext()
+ID3D11DeviceContext * DXRender::GetDeviceContext()
 {
 	return m_pDeviceContext;
 }
 
-HRESULT GameRender::ChangeRasterizerStateToWireframe()
+HRESULT DXRender::ChangeRasterizerStateToWireframe()
 {
 	HRESULT hr;
 
@@ -27,7 +27,7 @@ HRESULT GameRender::ChangeRasterizerStateToWireframe()
 	return hr;
 }
 
-void GameRender::InitViewport(HWND hWnd)
+void DXRender::InitViewport(HWND hWnd)
 {
 	RECT rc;
 	GetClientRect(hWnd, &rc);
@@ -47,7 +47,7 @@ void GameRender::InitViewport(HWND hWnd)
 	m_pDeviceContext->RSSetViewports(countViewports, &vp);
 }
 
-HRESULT GameRender::CreateBackBuffer()
+HRESULT DXRender::CreateBackBuffer()
 {
 	/* front buffer - RenderTargetOutput */
 	/* back buffer - RenderTargetView */
@@ -70,7 +70,7 @@ HRESULT GameRender::CreateBackBuffer()
 	return hr;
 }
 
-HRESULT GameRender::ChangeRasterizerStateToSolid()
+HRESULT DXRender::ChangeRasterizerStateToSolid()
 {
 	HRESULT hr;
 
@@ -87,7 +87,7 @@ HRESULT GameRender::ChangeRasterizerStateToSolid()
 	return hr;
 }
 
-HRESULT GameRender::CreateDepthStencil()
+HRESULT DXRender::CreateDepthStencil()
 {
 	HRESULT hr;
 
@@ -129,7 +129,7 @@ HRESULT GameRender::CreateDepthStencil()
 	return hr;
 }
 
-HRESULT GameRender::Init(HWND hWnd)
+HRESULT DXRender::Init(HWND hWnd)
 {
 	m_hWnd = hWnd;
 
@@ -202,7 +202,7 @@ HRESULT GameRender::Init(HWND hWnd)
 	return hr;
 }
 
-void GameRender::Cleanup()
+void DXRender::Cleanup()
 {
 	// Сначала отключим контекст устройства
 	if (m_pDeviceContext) 
@@ -225,7 +225,7 @@ void GameRender::Cleanup()
 		m_pDevice->Release();
 }
 
-void GameRender::RenderStart()
+void DXRender::RenderStart()
 {
 	// Очищаем задний буфер
 	float clearColor[4] = { 0.21, 0.25, 0.31, 1.0f };
@@ -235,7 +235,7 @@ void GameRender::RenderStart()
 	m_pDeviceContext->ClearDepthStencilView(m_pDepthStencilView, D3D11_CLEAR_DEPTH, 1.0f, 0);
 }
 
-void GameRender::RenderEnd()
+void DXRender::RenderEnd()
 {
 	// Показываем задний буфер на экран
 	m_pSwapChain->Present(0, 0);

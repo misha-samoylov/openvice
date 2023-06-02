@@ -5,7 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <windows.h>
+#include <Windows.h>
 
 #define IMG_BLOCK_SIZE 2048
 
@@ -35,15 +35,12 @@ private:
 	void CleanupFileDir();
 	void CleanupFileImg();
 
-	// dir
 	HANDLE m_hFileDir;
 	HANDLE m_hMappingDir;
 	unsigned char* m_dataPtrDir;
-
 	struct dirEntry *m_pFilesDir;
 	int m_countFiles;
 	
-	// img
 	HANDLE m_hFileImg;
 	HANDLE m_hMappingImg;
 	char* m_dataPtrImg;

@@ -1,32 +1,6 @@
-#include <cmath>
-
 #include "renderware.h"
 
-void Light::read(char *bytes, size_t *offset)
-{
-	HeaderInfo header;
 
-	// READ_HEADER(CHUNK_LIGHT);
-	header.read(bytes, offset);
-
-	// READ_HEADER(CHUNK_STRUCT);
-	header.read(bytes, offset);
-
-	radius = readFloat32(bytes, offset);
-	//rw.read((char*)&color[0], 12);
-	memcpy((char*)&color[0], &bytes[*offset], 12);
-	*offset += 12;
-
-	minusCosAngle = readFloat32(bytes, offset);
-	flags = readUInt16(bytes, offset);
-	type = readUInt16(bytes, offset);
-
-	// READ_HEADER(CHUNK_EXTENSION);
-	header.read(bytes, offset);
-
-	// rw.seekg(header.length, ios::cur);
-	*offset += header.length;
-}
 
 /*
  * Atomic

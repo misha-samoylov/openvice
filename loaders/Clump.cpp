@@ -5,7 +5,7 @@ std::vector<Geometry> Clump::GetGeometryList()
 	return m_geometryList; 
 }
 
-std::vector<Light> Clump::GetLightList() 
+Light **Clump::GetLightList() 
 { 
 	return m_lightList;
 }
@@ -32,7 +32,7 @@ void Clump::Read(char *bytes)
 	header.read(bytes, &offset);
 
 	uint32_t numAtomics = readUInt32(bytes, &offset);
-	uint32_t numLights = 0;
+	numLights = 0;
 	if (header.length == 0xC) {
 		numLights = readUInt32(bytes, &offset);
 		//rw.seekg(4, ios::cur); /* camera count, unused in gta */
@@ -63,15 +63,19 @@ void Clump::Read(char *bytes)
 	for (uint32_t i = 0; i < numAtomics; i++)
 		m_atomicList[i].read(bytes, &offset);
 
-	/* read lights */
-	m_lightList.resize(numLights);
-	for (uint32_t i = 0; i < numLights; i++) {
-		//READ_HEADER(CHUNK_STRUCT);
-		header.read(bytes, &offset);
+	/* Lights */
+	m_lightList = new Light * [numLights];
 
-		m_lightList[i].frameIndex = readInt32(bytes, &offset);
-		m_lightList[i].read(bytes, &offset);
+	for (uint32_t i = 0; i < numLights; i++) {
+		m_lightList[i] = new Light();
 	}
+
+	for (uint32_t i = 0; i < numLights; i++) {
+		header.read(bytes, &offset); /* CHUNK_STRUCT */
+		m_lightList[i]->frameIndex = readInt32(bytes, &offset);
+		m_lightList[i]->read(bytes, &offset);
+	}
+
 	m_hasCollision = false;
 
 	ReadExtension(bytes, &offset);
@@ -143,6 +147,11 @@ void Clump::Clear(void)
 	m_frameList->Cleanup();
 	delete m_frameList;
 
-	m_lightList.clear();
+	// light
+	for (int i = 0; i < numLights; i++) {
+		delete m_lightList[i];
+	}
+	delete[] m_lightList;
+
 	m_colData.clear();
 }

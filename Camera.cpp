@@ -1,6 +1,6 @@
-#include "GameCamera.hpp"
+#include "Camera.hpp"
 
-void GameCamera::Init(float width, float height)
+void Camera::Init(float width, float height)
 {
 	m_cameraPosition = XMVectorSet(0.0f, 0.0f, -3.0f, 0.0f);
 	m_cameraTarget = XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f);
@@ -15,11 +15,11 @@ void GameCamera::Init(float width, float height)
 	m_cameraRight = XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f);
 }
 
-void GameCamera::Cleanup()
+void Camera::Cleanup()
 {
 }
 
-void GameCamera::Update(float camPitch, float camYaw, float moveLeftRight, float moveBackForward)
+void Camera::Update(float camPitch, float camYaw, float moveLeftRight, float moveBackForward)
 {
 	m_cameraRotationMatrix = XMMatrixRotationRollPitchYaw(camPitch, camYaw, 0);
 	m_cameraTarget = XMVector3TransformCoord(m_defaultForward, m_cameraRotationMatrix);
@@ -37,12 +37,12 @@ void GameCamera::Update(float camPitch, float camYaw, float moveLeftRight, float
 	m_cameraView = XMMatrixLookAtLH(m_cameraPosition, m_cameraTarget, m_cameraUp);
 }
 
-XMMATRIX GameCamera::GetView()
+XMMATRIX Camera::GetView()
 {
 	return m_cameraView;
 }
 
-XMMATRIX GameCamera::GetProjection()
+XMMATRIX Camera::GetProjection()
 {
 	return m_cameraProjection;
 }

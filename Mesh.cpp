@@ -1,10 +1,6 @@
 ﻿#include "Mesh.hpp"
 
-#include <DirectXTex.h>
-
-using namespace DirectX;
-
-HRESULT Mesh::CreateConstBuffer(GameRender *pRender)
+HRESULT Mesh::CreateConstBuffer(DXRender *pRender)
 {
 	HRESULT hr;
 
@@ -43,7 +39,7 @@ void Mesh::Cleanup()
 		m_pPixelShader->Release();
 }
 
-void Mesh::Render(GameRender * pRender, GameCamera *pCamera)
+void Mesh::Render(DXRender* pRender, Camera *pCamera)
 {
 	pRender->GetDeviceContext()->IASetInputLayout(m_pVertexLayout);
 
@@ -98,7 +94,7 @@ void Mesh::SetPosition(float x, float y, float z,
 #include<iostream>
 #include<cstdlib>
 
-HRESULT Mesh::SetDataDDS(GameRender* pRender, uint8_t* source, size_t size, uint32_t width, uint32_t height, uint32_t dxtCompression, uint32_t depth)
+HRESULT Mesh::SetDataDDS(DXRender* pRender, uint8_t* source, size_t size, uint32_t width, uint32_t height, uint32_t dxtCompression, uint32_t depth)
 {
 	HRESULT hr;
 
@@ -194,7 +190,7 @@ HRESULT Mesh::SetDataDDS(GameRender* pRender, uint8_t* source, size_t size, uint
 }
 
 
-HRESULT Mesh::CreatePixelShader(GameRender *pRender)
+HRESULT Mesh::CreatePixelShader(DXRender*pRender)
 {
 	HRESULT hr;
 
@@ -222,7 +218,7 @@ HRESULT Mesh::CreatePixelShader(GameRender *pRender)
 	return hr;
 }
 
-HRESULT Mesh::CreateVertexShader(GameRender *pRender)
+HRESULT Mesh::CreateVertexShader(DXRender*pRender)
 {
 	HRESULT hr;
 
@@ -244,7 +240,7 @@ HRESULT Mesh::CreateVertexShader(GameRender *pRender)
 	return hr;
 }
 
-HRESULT Mesh::CreateInputLayout(GameRender *pRender)
+HRESULT Mesh::CreateInputLayout(DXRender*pRender)
 {
 	// Указываем форму данных в вершинном шейдере
 	HRESULT hr;
@@ -280,7 +276,7 @@ HRESULT Mesh::CreateInputLayout(GameRender *pRender)
 	return hr;
 }
 
-HRESULT Mesh::CreateDataBuffer(GameRender * pRender,
+HRESULT Mesh::CreateDataBuffer(DXRender* pRender,
 	float *vertices, int verticesCount,	unsigned int *indices, int indicesCount)
 {
 	HRESULT hr;
@@ -324,7 +320,7 @@ HRESULT Mesh::CreateDataBuffer(GameRender * pRender,
 	return hr;
 }
 
-HRESULT Mesh::Init(GameRender *pRender, float *pVertices, int verticesCount, unsigned int *pIndices, int indicesCount, D3D_PRIMITIVE_TOPOLOGY topology) {
+HRESULT Mesh::Init(DXRender*pRender, float *pVertices, int verticesCount, unsigned int *pIndices, int indicesCount, D3D_PRIMITIVE_TOPOLOGY topology) {
 	HRESULT hr;
 
 	m_pVSBlob = NULL;

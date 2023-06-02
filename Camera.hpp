@@ -4,7 +4,7 @@
 
 using namespace DirectX;
 
-class GameCamera
+class Camera
 {
 public:
 	void Init(float width, float height);

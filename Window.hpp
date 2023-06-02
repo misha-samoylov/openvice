@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <windows.h>
 
-class GameWindow
+class Window
 {
 public:
 	HRESULT Init(HINSTANCE hInstance, int nCmdShow,

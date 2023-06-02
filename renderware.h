@@ -1,13 +1,15 @@
 #pragma once
 
-#ifdef _WIN32
-  #include <windows.h>
-#endif
-
 #include <stdint.h>
 #include <iostream>
 #include <vector>
 #include <string>
+#include <cstring>
+#include <cmath>
+#include <cstdlib>
+#include <fstream>
+
+#include <windows.h>
 
 using namespace std;
 
@@ -390,17 +392,6 @@ private:
 	void generateFaces(void);
 
 	uint32_t addTempVertexIfNew(uint32_t index);
-};
-
-struct Light {
-	int32_t frameIndex;
-	float radius;
-	float color[3];
-	float minusCosAngle;
-	uint32_t type;
-	uint32_t flags;
-
-	void read(char *bytes, size_t *offset);
 };
 
 /*

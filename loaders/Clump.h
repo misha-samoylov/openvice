@@ -5,6 +5,7 @@
 
 #include "../renderware.h"
 #include "FrameList.h"
+#include "Light.h"
 
 using namespace std;
 
@@ -13,8 +14,10 @@ class Clump
 private:
 	std::vector<Atomic> m_atomicList;
 	FrameList *m_frameList;
+	Light **m_lightList;
 	std::vector<Geometry> m_geometryList;
-	std::vector<Light> m_lightList;
+
+	uint32_t numLights;
 
 	/* Extensions */
 	/* collision file */
@@ -28,7 +31,7 @@ public:
 	void Clear();
 
 	std::vector<Geometry> GetGeometryList();
-	std::vector<Light> GetLightList();
-	FrameList *GetFrameList();
+	FrameList* GetFrameList();
 	std::vector<Atomic> GetAtomicList();
+	Light** GetLightList();
 };

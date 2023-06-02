@@ -12,7 +12,7 @@ static double g_countsPerSecond;
 static __int64 g_counterStart;
 static __int64 g_frameTimeOld;
 
-class GameUtils
+class Utils
 {
 public:
 	static void StartTimer();

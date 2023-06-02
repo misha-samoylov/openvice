@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -11,11 +12,11 @@
 #include "loaders/ImgLoader.hpp"
 #include "loaders/Clump.h"
 #include "Mesh.hpp"
-#include "GameRender.hpp"
-#include "GameCamera.hpp"
-#include "GameInput.hpp"
-#include "GameWindow.hpp"
-#include "GameUtils.hpp"
+#include "DXRender.hpp"
+#include "Camera.hpp"
+#include "Input.hpp"
+#include "Window.hpp"
+#include "Utils.hpp"
 
 #define WINDOW_WIDTH 1920
 #define WINDOW_HEIGHT 1080
@@ -121,7 +122,7 @@ void LoadAllTexturesFromTXDFile(ImgLoader *pImgLoader, const char *filename)
 	//free(fileBuffer);
 }
 
-int LoadFileDFFWithName(ImgLoader* pImgLoader, GameRender* render, std::string name, int modelId)
+int LoadFileDFFWithName(ImgLoader* pImgLoader, DXRender* render, std::string name, int modelId)
 {
 	int fileId = pImgLoader->GetFileIndexByName(name.c_str());
 	if (fileId == -1) {
@@ -285,7 +286,7 @@ int LoadFileDFFWithName(ImgLoader* pImgLoader, GameRender* render, std::string n
 	return 0;
 }
 
-void Render(GameRender *render, GameCamera *camera)
+void RenderScene(DXRender *render, Camera *camera)
 {
 	render->RenderStart();
 
@@ -454,16 +455,16 @@ void LoadIPLFile(const char *filepath)
 INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 	PSTR lpCmdLine, INT nCmdShow)
 {
-	GameWindow *gameWindow = new GameWindow();
+	Window *gameWindow = new Window();
 	gameWindow->Init(hInstance, nCmdShow, WINDOW_WIDTH, WINDOW_HEIGHT, WINDOW_TITLE);
 
-	GameInput *gameInput = new GameInput();
+	Input *gameInput = new Input();
 	gameInput->Init(hInstance, gameWindow->GetHandleWindow());
 	
-	GameCamera *gameCamera = new GameCamera();
+	Camera *gameCamera = new Camera();
 	gameCamera->Init(WINDOW_WIDTH, WINDOW_HEIGHT);
 	
-	GameRender *gameRender = new GameRender();
+	DXRender *gameRender = new DXRender();
 	gameRender->Init(gameWindow->GetHandleWindow());
 
 	TCHAR imgPath[] = L"C:/Games/Grand Theft Auto Vice City/models/gta3.img";
@@ -504,7 +505,7 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 	LoadIPLFile("C:/Games/Grand Theft Auto Vice City/data/maps/bridge/bridge.ipl");
 	LoadIPLFile("C:/Games/Grand Theft Auto Vice City/data/maps/bank/bank.ipl");
 	
-	printf("%s Loaded\n", WINDOW_TITLE);
+	printf("[OK] %s Loaded\n", WINDOW_TITLE);
 
 	float moveLeftRight = 0.0f;
 	float moveBackForward = 0.0f;
@@ -536,13 +537,13 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 		} else { /* if have not messages */
 			frameCount++;
 
-			if (GameUtils::GetTime() > 1.0f) {
+			if (Utils::GetTime() > 1.0f) {
 				fps = frameCount;
 				frameCount = 0;
-				GameUtils::StartTimer();
+				Utils::StartTimer();
 			}
 
-			frameTime = GameUtils::GetFrameTime();
+			frameTime = Utils::GetFrameTime();
 
 			gameInput->Detect();
 
@@ -596,7 +597,7 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 
 			gameCamera->Update(camPitch, camYaw, moveLeftRight, moveBackForward);
 
-			Render(gameRender, gameCamera);
+			RenderScene(gameRender, gameCamera);
 
 			moveLeftRight = 0.0f;
 			moveBackForward = 0.0f;

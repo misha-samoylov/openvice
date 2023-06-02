@@ -1,5 +1,3 @@
-#include <cstdlib>
-
 #include "renderware.h"
 
 bool HeaderInfo::read(char *bytes, size_t *offset)

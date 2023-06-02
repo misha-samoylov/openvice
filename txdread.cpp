@@ -1,7 +1,3 @@
-#include <cstring>
-#include <cstdlib>
-#include <fstream>
-
 #include "renderware.h"
 
 void TextureDictionary::read(char *bytes, size_t *offset)

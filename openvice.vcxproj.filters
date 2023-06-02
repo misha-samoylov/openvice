@@ -42,22 +42,22 @@
     <ClCompile Include="uvanim.cpp">
       <Filter>Source Files\renderware</Filter>
     </ClCompile>
-    <ClCompile Include="GameInput.cpp">
+    <ClCompile Include="Input.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="GameCamera.cpp">
+    <ClCompile Include="Camera.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="GameRender.cpp">
+    <ClCompile Include="DXRender.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="Mesh.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="GameWindow.cpp">
+    <ClCompile Include="Window.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="GameUtils.cpp">
+    <ClCompile Include="Utils.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="loaders\ImgLoader.cpp">
@@ -69,27 +69,27 @@
     <ClCompile Include="loaders\FrameList.cpp">
       <Filter>Source Files\loaders</Filter>
     </ClCompile>
+    <ClCompile Include="loaders\Light.cpp">
+      <Filter>Source Files\loaders</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="renderware.h">
-      <Filter>Source Files\renderware</Filter>
-    </ClInclude>
-    <ClInclude Include="GameUtils.hpp">
+    <ClInclude Include="Utils.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="GameRender.hpp">
+    <ClInclude Include="DXRender.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Mesh.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="GameInput.hpp">
+    <ClInclude Include="Input.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="GameCamera.hpp">
+    <ClInclude Include="Camera.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="GameWindow.hpp">
+    <ClInclude Include="Window.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="loaders\Clump.h">
@@ -99,6 +99,12 @@
       <Filter>Header Files\loaders</Filter>
     </ClInclude>
     <ClInclude Include="loaders\FrameList.h">
+      <Filter>Header Files\loaders</Filter>
+    </ClInclude>
+    <ClInclude Include="renderware.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="loaders\Light.h">
       <Filter>Header Files\loaders</Filter>
     </ClInclude>
   </ItemGroup>

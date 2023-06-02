@@ -1,7 +1,5 @@
 #include "ImgLoader.hpp"
 
-#include <Windows.h>
-
 int ImgLoader::OpenFileDir(TCHAR *filepath)
 {
 	HANDLE m_hFileDir = CreateFile(filepath, GENERIC_READ, 0, nullptr,
