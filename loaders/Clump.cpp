@@ -6,7 +6,7 @@ std::vector<Geometry> Clump::GetGeometryList()
 }
 
 Light **Clump::GetLightList() 
-{ 
+{
 	return m_lightList;
 }
 
@@ -22,54 +22,50 @@ std::vector<Atomic> Clump::GetAtomicList()
 
 void Clump::Read(char *bytes)
 {
-	size_t offset = 0;
-
+	size_t offset;
 	HeaderInfo header;
-	// CHUNK_CLUMP
-	header.read(bytes, &offset);
+	uint32_t numAtomics;
+	uint32_t numGeometries;
 
-	//READ_HEADER(CHUNK_STRUCT);
-	header.read(bytes, &offset);
+	offset = 0;
 
-	uint32_t numAtomics = readUInt32(bytes, &offset);
+	header.read(bytes, &offset);// CHUNK_CLUMP
+	header.read(bytes, &offset); //READ_HEADER(CHUNK_STRUCT);
+
+	numAtomics = readUInt32(bytes, &offset);
 	numLights = 0;
 	if (header.length == 0xC) {
 		numLights = readUInt32(bytes, &offset);
-		//rw.seekg(4, ios::cur); /* camera count, unused in gta */
-		offset += 4;
-		
+		offset += 4;  /* Camera count, unused in GTA */
 	}
 
-	// Frame list
+	/* Frame list */
 	m_frameList = new FrameList();
 	m_frameList->Read(bytes, &offset);
 
+	header.read(bytes, &offset); // CHUNK_GEOMETRYLIST
+	header.read(bytes, &offset); // CHUNK_STRUCT
 
-	// CHUNK_GEOMETRYLIST
-	header.read(bytes, &offset);
-
-	// CHUNK_STRUCT
-	header.read(bytes, &offset);
-
-	uint32_t numGeometries = readUInt32(bytes, &offset);
+	/* Geometries */
+	numGeometries = readUInt32(bytes, &offset);
 	m_geometryList.resize(numGeometries);
 
 	for (uint32_t i = 0; i < numGeometries; i++)
 		m_geometryList[i].read(bytes, &offset);
 
-	m_atomicList.resize(numAtomics);
 
-	/* read atomics */
-	for (uint32_t i = 0; i < numAtomics; i++)
+	/* Atomics */
+	m_atomicList.resize(numAtomics);
+	for (uint32_t i = 0; i < numAtomics; i++) {
 		m_atomicList[i].read(bytes, &offset);
+	}
 
 	/* Lights */
+	/* TODO: Move to class LightsList */
 	m_lightList = new Light * [numLights];
-
 	for (uint32_t i = 0; i < numLights; i++) {
 		m_lightList[i] = new Light();
 	}
-
 	for (uint32_t i = 0; i < numLights; i++) {
 		header.read(bytes, &offset); /* CHUNK_STRUCT */
 		m_lightList[i]->frameIndex = readInt32(bytes, &offset);
@@ -84,9 +80,7 @@ void Clump::Read(char *bytes)
 void Clump::ReadExtension(char *bytes, size_t *offset)
 {
 	HeaderInfo header;
-
-	//READ_HEADER(CHUNK_EXTENSION);
-	header.read(bytes, offset);
+	header.read(bytes, offset); //READ_HEADER(CHUNK_EXTENSION);
 
 	streampos end = *offset;
 	end += header.length;
@@ -147,7 +141,7 @@ void Clump::Clear(void)
 	m_frameList->Cleanup();
 	delete m_frameList;
 
-	// light
+	/* Lights */
 	for (int i = 0; i < numLights; i++) {
 		delete m_lightList[i];
 	}
