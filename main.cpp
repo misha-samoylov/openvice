@@ -199,8 +199,12 @@ int LoadFileDFFWithName(ImgLoader* pImgLoader, GameRender* render, std::string n
 				float y = modelVertices[v * 3 + 1];
 				float z = modelVertices[v * 3 + 2];
 
-				float tx = modelTextureCoord[v * 2 + 0];
-				float ty = modelTextureCoord[v * 2 + 1];
+				float tx = 0.0f;
+				float ty = 0.0f;
+				if (clump->GetGeometryList()[index].flags & FLAGS_TEXTURED) {
+					tx = modelTextureCoord[v * 2 + 0];
+					ty = modelTextureCoord[v * 2 + 1];
+				}
 
 				/*
 				 * Flip coordinates. We use Left Handed Coordinates,
@@ -472,6 +476,7 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 	);
 
 	/* Load map models and their textures */
+	LoadIDEFile("C:/Games/Grand Theft Auto Vice City/data/maps/generic.ide");
 	LoadIDEFile("C:/Games/Grand Theft Auto Vice City/data/maps/bridge/bridge.ide");
 	LoadIDEFile("C:/Games/Grand Theft Auto Vice City/data/maps/bank/bank.ide");
 
@@ -489,7 +494,7 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 	}
 
 
-	/* Loading models. IDE file doesn'tcontain dublicate models */
+	/* Loading models. IDE file doesn't contain dublicate models */
 	for (int i = 0; i < g_ideFile.size(); i++) {
 		LoadFileDFFWithName(imgLoader, gameRender, g_ideFile[i].modelName.c_str(), g_ideFile[i].objectId);
 	}
@@ -499,6 +504,7 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 	LoadIPLFile("C:/Games/Grand Theft Auto Vice City/data/maps/bridge/bridge.ipl");
 	LoadIPLFile("C:/Games/Grand Theft Auto Vice City/data/maps/bank/bank.ipl");
 	
+	printf("%s Loaded\n", WINDOW_TITLE);
 
 	float moveLeftRight = 0.0f;
 	float moveBackForward = 0.0f;
@@ -552,10 +558,12 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 
 			if (gameInput->IsKey(DIK_F1)) {
 				gameRender->ChangeRasterizerStateToWireframe();
+				printf("Changed render to wireframe\n");
 			}
 
 			if (gameInput->IsKey(DIK_F2)) {
 				gameRender->ChangeRasterizerStateToSolid();
+				printf("Changed render to solid\n");
 			}
 
 			if (gameInput->IsKey(DIK_W)) {

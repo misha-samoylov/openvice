@@ -39,7 +39,7 @@ int ImgLoader::OpenFileDir(TCHAR *filepath)
 		return 1;
 	}
 
-	m_countFiles = dwFileSize / 32;
+	m_countFiles = dwFileSize / sizeof(struct dirEntry);
 	m_pFilesDir = (struct dirEntry*)m_dataPtrDir;
 
     return 0;
