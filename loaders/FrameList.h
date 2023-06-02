@@ -2,8 +2,17 @@
 
 #include "../renderware.h"
 
-struct Frame
+class Frame
 {
+public:
+	void Init();
+	void Cleanup();
+
+	void ReadStruct(char* bytes, size_t* offset);
+	void ReadExtension(char* bytes, size_t* offset);
+	void Dump(uint32_t index);
+
+private:
 	float m_rotationMatrix[9];
 	float m_position[3];
 	int32_t m_parent;
@@ -23,13 +32,6 @@ struct Frame
 	int32_t *m_hAnimBoneIds; // Array
 	uint32_t *m_hAnimBoneNumbers; // Array
 	uint32_t *m_hAnimBoneTypes; // Array
-
-	void Init();
-	void Cleanup();
-
-	void ReadStruct(char* bytes, size_t* offset);
-	void ReadExtension(char* bytes, size_t* offset);
-	void Dump(uint32_t index);
 };
 
 class FrameList
