@@ -77,17 +77,19 @@ void Frame::ReadExtension(char* bytes, size_t* offset)
 void Frame::Dump(uint32_t index)
 {
 	printf("Frame %d\n", index);
-	printf("rotationMatrix:\n");
+
+	printf("name: %s\n", m_name);
+	printf("parent: %d\n", m_parent);
+	printf("rotation matrix: ");
 
 	for (uint32_t i = 0; i < 9; i++)
-		printf("%f\n", m_rotationMatrix[i]);
+		printf("%f ", m_rotationMatrix[i]);
+	printf("\n");
 
-	printf("position:\n");
+	printf("position: ");
 	for (uint32_t i = 0; i < 3; i++)
-		printf("%f\n", m_position[i]);
-	
-	printf("parent: %d\n", m_parent);
-	printf("name: %s\n", m_name);
+		printf("%f ", m_position[i]);
+	printf("\n");
 }
 
 void Frame::Init()
