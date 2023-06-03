@@ -35,7 +35,7 @@ private:
 	IDXGISwapChain *m_pSwapChain;
 	ID3D11RenderTargetView *m_pRenderTargetView;
 
-	ID3D11RasterizerState *m_pWireframe;
+	ID3D11RasterizerState *m_pRasterizerState;
 
 	ID3D11Texture2D* m_pDepthStencil; // Текстура буфера глубин
 	ID3D11DepthStencilView* m_pDepthStencilView; // Объект вида, буфер глубин

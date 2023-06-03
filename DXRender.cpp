@@ -19,10 +19,11 @@ HRESULT DXRender::ChangeRasterizerStateToWireframe()
 	wfdesc.FillMode = D3D11_FILL_WIREFRAME;
 	wfdesc.CullMode = D3D11_CULL_BACK;
 
-	hr = m_pDevice->CreateRasterizerState(&wfdesc, &m_pWireframe);
+	// Создаем растеризатор с данными настройками
+	hr = m_pDevice->CreateRasterizerState(&wfdesc, &m_pRasterizerState);
 
 	// Включаем указанные настройки растеризации
-	m_pDeviceContext->RSSetState(m_pWireframe);
+	m_pDeviceContext->RSSetState(m_pRasterizerState);
 
 	return hr;
 }
@@ -74,15 +75,16 @@ HRESULT DXRender::ChangeRasterizerStateToSolid()
 {
 	HRESULT hr;
 
-	D3D11_RASTERIZER_DESC wfdesc;
-	ZeroMemory(&wfdesc, sizeof(D3D11_RASTERIZER_DESC));
-	wfdesc.FillMode = D3D11_FILL_SOLID;
-	wfdesc.CullMode = D3D11_CULL_BACK;
+	D3D11_RASTERIZER_DESC solidDesc;
+	ZeroMemory(&solidDesc, sizeof(D3D11_RASTERIZER_DESC));
+	solidDesc.FillMode = D3D11_FILL_SOLID;
+	solidDesc.CullMode = D3D11_CULL_BACK;
 
-	hr = m_pDevice->CreateRasterizerState(&wfdesc, &m_pWireframe);
+	// Создаем растеризатор с данными настройками
+	hr = m_pDevice->CreateRasterizerState(&solidDesc, &m_pRasterizerState);
 
 	// Включаем указанные настройки растеризации
-	m_pDeviceContext->RSSetState(m_pWireframe);
+	m_pDeviceContext->RSSetState(m_pRasterizerState);
 
 	return hr;
 }
@@ -216,8 +218,8 @@ void DXRender::Cleanup()
 	if (m_pSwapChain) 
 		m_pSwapChain->Release();
 
-	if (m_pWireframe)
-		m_pWireframe->Release();
+	if (m_pRasterizerState)
+		m_pRasterizerState->Release();
 
 	if (m_pDeviceContext) 
 		m_pDeviceContext->Release();
