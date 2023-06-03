@@ -18,6 +18,7 @@
 #include "Window.hpp"
 #include "Utils.hpp"
 
+#define PROJECT_NAME "openvice"
 #define WINDOW_WIDTH 1920
 #define WINDOW_HEIGHT 1080
 #define WINDOW_TITLE L"openvice"
@@ -505,7 +506,7 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 	LoadIPLFile("C:/Games/Grand Theft Auto Vice City/data/maps/bridge/bridge.ipl");
 	LoadIPLFile("C:/Games/Grand Theft Auto Vice City/data/maps/bank/bank.ipl");
 	
-	printf("[OK] %s Loaded\n", WINDOW_TITLE);
+	printf("[OK] %s Loaded\n", PROJECT_NAME);
 
 	float moveLeftRight = 0.0f;
 	float moveBackForward = 0.0f;

@@ -69,7 +69,10 @@
     <ClCompile Include="loaders\FrameList.cpp">
       <Filter>Source Files\loaders</Filter>
     </ClCompile>
-    <ClCompile Include="loaders\Light.cpp">
+    <ClCompile Include="loaders\LightList.cpp">
+      <Filter>Source Files\loaders</Filter>
+    </ClCompile>
+    <ClCompile Include="loaders\AtomicList.cpp">
       <Filter>Source Files\loaders</Filter>
     </ClCompile>
   </ItemGroup>
@@ -104,7 +107,10 @@
     <ClInclude Include="renderware.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="loaders\Light.h">
+    <ClInclude Include="loaders\LightList.h">
+      <Filter>Header Files\loaders</Filter>
+    </ClInclude>
+    <ClInclude Include="loaders\AtomicList.h">
       <Filter>Header Files\loaders</Filter>
     </ClInclude>
   </ItemGroup>

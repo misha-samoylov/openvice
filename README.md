@@ -10,6 +10,7 @@ Open `openvice.sln` solution in **Microsoft Visual Studio 2019** and click **Bui
 
 ## Dependencies
 * [DirectXTex](https://github.com/microsoft/DirectXTex)
+* [DirectXMath](https://github.com/microsoft/DirectXMath)
 
 ## Tested
 * Windows 10 (version 21H2)

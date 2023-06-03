@@ -185,36 +185,6 @@ uint32_t readUInt32(char *bytes, size_t *offset);
 float readFloat32(char *bytes, size_t *offset);
 
 
-struct Atomic {
-	int32_t frameIndex;
-	int32_t geometryIndex;
-
-	/* Extensions */
-
-	/* right to render */
-	bool hasRightToRender;
-	uint32_t rightToRenderVal1;
-	uint32_t rightToRenderVal2;
-
-	/* particles */
-	bool hasParticles;
-	uint32_t particlesVal;
-
-	/* pipelineset */
-	bool hasPipelineSet;
-	uint32_t pipelineSetVal;
-
-	/* material fx */
-	bool hasMaterialFx;
-	uint32_t materialFxVal;
-
-	/* functions */
-	void read(char *bytes, size_t *offset);
-	void readExtension(char *bytes, size_t *offset);
-	void dump(uint32_t index, std::string ind = "");
-
-	Atomic(void);
-};
 
 struct Texture {
 	uint32_t filterFlags;
