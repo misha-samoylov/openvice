@@ -131,6 +131,42 @@ HRESULT DXRender::CreateDepthStencil()
 	return hr;
 }
 
+HRESULT DXRender::CreateBlendState()
+{
+	HRESULT hr;
+
+	D3D11_BLEND_DESC blendDesc;
+	ZeroMemory(&blendDesc, sizeof(blendDesc));
+
+	D3D11_RENDER_TARGET_BLEND_DESC rtbd;
+	ZeroMemory(&rtbd, sizeof(rtbd));
+
+	rtbd.BlendEnable = true;
+	rtbd.SrcBlend = D3D11_BLEND_SRC_ALPHA;
+	rtbd.DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
+	rtbd.BlendOp = D3D11_BLEND_OP_ADD;
+	rtbd.SrcBlendAlpha = D3D11_BLEND_ONE;
+	rtbd.DestBlendAlpha = D3D11_BLEND_ZERO;
+	rtbd.BlendOpAlpha = D3D11_BLEND_OP_ADD;
+	rtbd.RenderTargetWriteMask = D3D10_COLOR_WRITE_ENABLE_ALL;
+
+	// blendDesc.AlphaToCoverageEnable = false;
+	blendDesc.RenderTarget[0] = rtbd;
+
+	hr = m_pDevice->CreateBlendState(&blendDesc, &Transparency);
+	
+
+	/*D3D11_BLEND_DESC BlendState;
+	ZeroMemory(&BlendState, sizeof(D3D11_BLEND_DESC));
+	BlendState.RenderTarget[0].BlendEnable = FALSE;
+	BlendState.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+	
+	hr = m_pDevice->CreateBlendState(&BlendState, &Transparency);*/
+
+	
+	return hr;
+}
+
 HRESULT DXRender::Init(HWND hWnd)
 {
 	m_hWnd = hWnd;
@@ -195,6 +231,13 @@ HRESULT DXRender::Init(HWND hWnd)
 		return hr;
 	}
 
+	hr = CreateBlendState();
+
+	if (FAILED(hr)) {
+		printf("Error: cannot CreateBlendState\n");
+		return hr;
+	}
+
 	/* connect back buffer to device context */
 	m_pDeviceContext->OMSetRenderTargets(1, &m_pRenderTargetView, m_pDepthStencilView);
 
@@ -221,6 +264,8 @@ void DXRender::Cleanup()
 	if (m_pRasterizerState)
 		m_pRasterizerState->Release();
 
+	Transparency->Release();
+
 	if (m_pDeviceContext) 
 		m_pDeviceContext->Release();
 	if (m_pDevice) 
@@ -235,6 +280,25 @@ void DXRender::RenderStart()
 
 	// Очищаем буфер глубин до едицины (максимальная глубина)
 	m_pDeviceContext->ClearDepthStencilView(m_pDepthStencilView, D3D11_CLEAR_DEPTH, 1.0f, 0);
+
+
+	///////////////**************new**************////////////////////
+	//"fine-tune" the blending equation
+	//float blendFactor[] = { 0.75f, 0.75f, 0.75f, 1.0f };
+
+	//Set the default blend state (no blending) for opaque objects
+	//m_pDeviceContext->OMSetBlendState(0, 0, 0xffffffff);
+
+	//Render opaque objects//
+
+	//Set the blend state for transparent objects
+	//m_pDeviceContext->OMSetBlendState(Transparency, 0, 0xffffffff);
+
+	float blendFactor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+	UINT sampleMask = 0xffffffff;
+
+	//m_pDeviceContext->OMSetBlendState(Transparency, blendFactor, sampleMask);
+	m_pDeviceContext->OMSetBlendState(Transparency, NULL, sampleMask);
 }
 
 void DXRender::RenderEnd()

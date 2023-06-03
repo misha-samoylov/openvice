@@ -28,6 +28,7 @@ private:
 	HRESULT CreateBackBuffer();
 	
 	HRESULT CreateDepthStencil();
+	HRESULT CreateBlendState();
 
 	ID3D11Device *m_pDevice;
 	ID3D11DeviceContext *m_pDeviceContext;
@@ -39,6 +40,8 @@ private:
 
 	ID3D11Texture2D* m_pDepthStencil; // Текстура буфера глубин
 	ID3D11DepthStencilView* m_pDepthStencilView; // Объект вида, буфер глубин
+
+	ID3D11BlendState* Transparency;
 
 	HWND m_hWnd;
 };
