@@ -3,8 +3,6 @@
 #include <string>
 #include <stdio.h>
 #include <stdlib.h>
-#include <iostream>
-#include <cstdlib>
 
 #include <d3d11.h>
 #include <DirectXMath.h>
@@ -13,8 +11,8 @@
 
 #pragma comment(lib, "d3d11.lib")
 
-#include "Camera.hpp"
 #include "DXRender.hpp"
+#include "Camera.hpp"
 
 using namespace DirectX;
 
@@ -37,25 +35,46 @@ struct objectConstBuffer
 class Mesh
 {
 public:
-	HRESULT Init(DXRender*pRender, float *vertices, int verticesCount, unsigned int *indices, int indicesCount, D3D_PRIMITIVE_TOPOLOGY topology);
+	HRESULT Init(
+		DXRender*pRender, 
+		float *vertices, 
+		int verticesCount, 
+		unsigned int *indices, 
+		int indicesCount, 
+		D3D_PRIMITIVE_TOPOLOGY topology
+	);
 	void Cleanup();
-	void Render(DXRender*pRender, Camera *pCamera);
-	HRESULT SetDataDDS(DXRender* pRender, uint8_t* pSource, size_t size, uint32_t width, uint32_t height, uint32_t dxtCompression, uint32_t depth);
-	void SetPosition(float x, float y, float z,
+	void Render(DXRender *pRender, Camera *pCamera);
+	HRESULT SetDataDDS(
+		DXRender *pRender,
+		uint8_t *pDataSource,
+		size_t size, 
+		uint32_t width, 
+		uint32_t height, 
+		uint32_t dxtCompression, 
+		uint32_t depth
+	);
+	void SetPosition(
+		float x, float y, float z,
 		float scaleX, float scaleY, float scaleZ,
-		float rotx, float roty, float rotz, float rotr);
+		float rotx, float roty, float rotz, float rotr
+	);
 
-	void SetId(int id) { m_id = id; }
-	int GetId() { return m_id; }
+	void SetId(int id) { m_meshId = id; }
+	int GetId() { return m_meshId; }
 
 private:
-	HRESULT CreateConstBuffer(DXRender*pRender);
-	HRESULT CreatePixelShader(DXRender*pRender);
-	HRESULT CreateVertexShader(DXRender*pRender);
-	HRESULT CreateInputLayout(DXRender*pRender);
-	HRESULT CreateDataBuffer(DXRender*pRender,
-		float *pVertices, int verticesCount,
-		unsigned int *pIndices, int indicesCount);
+	HRESULT CreateConstBuffer(DXRender *pRender);
+	HRESULT CreatePixelShader(DXRender *pRender);
+	HRESULT CreateVertexShader(DXRender *pRender);
+	HRESULT CreateInputLayout(DXRender *pRender);
+	HRESULT CreateDataBuffer(
+		DXRender *pRender,
+		float *pVerticesData,
+		int verticesCount,
+		unsigned int *pIndicesData,
+		int indicesCount
+	);
 
 	ID3D11VertexShader *m_pVertexShader;
 	ID3D11PixelShader *m_pPixelShader;
@@ -77,9 +96,9 @@ private:
 
 	ID3D11ShaderResourceView* m_pTexture;
 	ID3D11SamplerState* m_pTextureSampler;
-	void* tgaFileSource;
-	size_t tgaFileSize;
 
-	std::string m_name;
-	int m_id;
+	void* m_pDataSourceDDS;
+	size_t m_FileSizeDDS;
+
+	int m_meshId;
 };

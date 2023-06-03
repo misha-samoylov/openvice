@@ -89,7 +89,7 @@ void Mesh::SetPosition(float x, float y, float z,
 }
 
 
-HRESULT Mesh::SetDataDDS(DXRender* pRender, uint8_t* source, size_t size, uint32_t width, uint32_t height, uint32_t dxtCompression, uint32_t depth)
+HRESULT Mesh::SetDataDDS(DXRender* pRender, uint8_t* pDataSourceDDS, size_t fileSizeDDS, uint32_t width, uint32_t height, uint32_t dxtCompression, uint32_t depth)
 {
 	HRESULT hr;
 
@@ -107,6 +107,7 @@ HRESULT Mesh::SetDataDDS(DXRender* pRender, uint8_t* source, size_t size, uint32
 	dds.header.ddspf.flags = DDS_FOURCC; // DDS_PAL8; // TODO: use DDS_HEADER_FLAGS_VOLUME for depth
 	//dds.header.depth = depth; // TODO: is working?
 	switch (dxtCompression) {
+	default:
 	case 1:
 		dds.header.ddspf.fourCC = FOURCC_DXT1;
 		break;
@@ -116,16 +117,17 @@ HRESULT Mesh::SetDataDDS(DXRender* pRender, uint8_t* source, size_t size, uint32
 	case 4:
 		dds.header.ddspf.fourCC = FOURCC_DXT4;
 		break;
-	default:
-		dds.header.ddspf.fourCC = FOURCC_DXT1;
-		break;
 	}
 	// ddsd.ddpfPixelFormat.dwFourCC = bpp == 24 ? FOURCC_DXT1 : FOURCC_DXT5;
 
-	size_t len = sizeof(dds) + size;
+	size_t len = sizeof(dds) + fileSizeDDS;
 	uint8_t* buf = (uint8_t*)malloc(len);
 	memcpy(buf, &dds, sizeof(dds));
-	memcpy(buf + 1*sizeof(dds), source , size);
+	memcpy(
+		buf + (1 * sizeof(dds)), // buf + offset
+		pDataSourceDDS,
+		fileSizeDDS
+	);
 
 	// Providing a seed value
 	/*srand((unsigned)time(NULL));
@@ -146,15 +148,17 @@ HRESULT Mesh::SetDataDDS(DXRender* pRender, uint8_t* source, size_t size, uint32
 	hr = LoadFromDDSMemory(buf, len, DDS_FLAGS_NONE, nullptr, image);
 	//hr = LoadFromDDSFile(L"test.dds", DDS_FLAGS_FORCE_DX9_LEGACY, nullptr, image);
 	if (FAILED(hr)) {
-		printf("Error: cannot load tga file\n");
+		printf("Error: cannot load dds file\n");
 	}
-
-	free(buf);
 
 	//ID3D11ShaderResourceView* pSRV = nullptr;
 	hr = CreateShaderResourceView(pRender->GetDevice(),
 		image.GetImages(), image.GetImageCount(),
 		image.GetMetadata(), &m_pTexture);
+
+	free(buf); /* After created texture we can free memory */
+
+	// TODO: Free m_pTexture
 
 	if (FAILED(hr)) {
 		printf("Error: cannot CreateShaderResourceView dds file\n");
