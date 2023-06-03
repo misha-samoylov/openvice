@@ -20,7 +20,7 @@ void Atomic::ReadExtension(char* bytes, size_t* offset)
 
 	header.read(bytes, offset); /* CHUNK_EXTENSION */
 
-	streampos end = *offset;
+	size_t end = *offset;
 	end += header.length;
 
 	while (*offset < end) {

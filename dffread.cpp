@@ -133,7 +133,7 @@ void Geometry::readExtension(char *bytes, size_t *offset)
 	// READ_HEADER(CHUNK_EXTENSION);
 	header.read(bytes, offset);
 
-	streampos end = *offset;
+	size_t end = *offset;
 	end += header.length;
 
 	while(*offset < end){
@@ -164,7 +164,7 @@ void Geometry::readExtension(char *bytes, size_t *offset)
 			}
 			break;
 		} case CHUNK_NATIVEDATA: {
-			streampos beg = *offset;
+			size_t beg = *offset;
 			uint32_t size = header.length;
 			uint32_t build = header.build;
 			header.read(bytes, offset);
@@ -223,7 +223,7 @@ void Geometry::readExtension(char *bytes, size_t *offset)
 			break;
 		} case CHUNK_SKIN: {
 			if(hasNativeGeometry){
-				streampos beg = *offset;
+				size_t beg = *offset;
 				//rw.seekg(0x0c, ios::cur);
 				*offset += 0x0c;
 
@@ -927,7 +927,7 @@ void Material::readExtension(char *bytes, size_t *offset)
 	//READ_HEADER(CHUNK_EXTENSION);
 	header.read(bytes, offset);
 
-	streampos end = *offset + header.length;
+	size_t end = *offset + header.length;
 
 	while (*offset < end) {
 		header.read(bytes, offset);
@@ -1302,7 +1302,7 @@ void Texture::readExtension(char *bytes, size_t *offset)
 	// READ_HEADER(CHUNK_EXTENSION);
 	header.read(bytes, offset);
 
-	streampos end = *offset + header.length;
+	size_t end = *offset + header.length;
 
 	while (*offset < end) {
 		header.read(bytes, offset);
