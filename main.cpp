@@ -137,7 +137,7 @@ int LoadFileDFFWithName(ImgLoader* pImgLoader, DXRender* render, char *name, int
 		return 1;
 	}
 
-	if (strstr(result_name, "LOD")) {
+	if (strstr(result_name, "LOD") != NULL) {
 		printf("[NOTICE] Skip loading LOD file: %s\n", result_name);
 		return 1;
 	}
@@ -485,8 +485,9 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 	);
 
 	/* Load map models and their textures */
-	//LoadIDEFile("C:/Games/Grand Theft Auto Vice City/data/maps/generic.ide");
-	LoadIDEFile("C:/Games/Grand Theft Auto Vice City/data/maps/bank/bank.ide");
+	LoadIDEFile("C:/Games/Grand Theft Auto Vice City/data/maps/generic.ide");
+	//LoadIDEFile("C:/Games/Grand Theft Auto Vice City/data/maps/bank/bank.ide");
+	LoadIDEFile("C:/Games/Grand Theft Auto Vice City/data/maps/downtown/downtown.ide");
 
 
 	/* Load from IDE file only archives textures */
@@ -509,7 +510,8 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 
 
 	/* Load model placement */
-	LoadIPLFile("C:/Games/Grand Theft Auto Vice City/data/maps/bank/bank.ipl");
+	//LoadIPLFile("C:/Games/Grand Theft Auto Vice City/data/maps/bank/bank.ipl");
+	LoadIPLFile("C:/Games/Grand Theft Auto Vice City/data/maps/downtown/downtown.ipl");
 	
 	printf("[OK] %s Loaded\n", PROJECT_NAME);
 

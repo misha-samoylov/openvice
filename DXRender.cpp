@@ -242,7 +242,13 @@ HRESULT DXRender::Init(HWND hWnd)
 	m_pDeviceContext->OMSetRenderTargets(1, &m_pRenderTargetView, m_pDepthStencilView);
 
 	InitViewport(hWnd);
-	ChangeRasterizerStateToSolid();
+
+	hr = ChangeRasterizerStateToSolid();
+
+	if (FAILED(hr)) {
+		printf("Error: cannot ChangeRasterizerStateToSolid\n");
+		return hr;
+	}
 
 	return hr;
 }
