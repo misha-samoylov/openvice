@@ -30,9 +30,6 @@
     <ClCompile Include="main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="dffread.cpp">
-      <Filter>Source Files\renderware</Filter>
-    </ClCompile>
     <ClCompile Include="renderware.cpp">
       <Filter>Source Files\renderware</Filter>
     </ClCompile>
@@ -75,6 +72,9 @@
     <ClCompile Include="loaders\AtomicList.cpp">
       <Filter>Source Files\loaders</Filter>
     </ClCompile>
+    <ClCompile Include="loaders\Geometry.cpp">
+      <Filter>Source Files\loaders</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Utils.hpp">
@@ -111,6 +111,9 @@
       <Filter>Header Files\loaders</Filter>
     </ClInclude>
     <ClInclude Include="loaders\AtomicList.h">
+      <Filter>Header Files\loaders</Filter>
+    </ClInclude>
+    <ClInclude Include="loaders\Geometry.h">
       <Filter>Header Files\loaders</Filter>
     </ClInclude>
   </ItemGroup>

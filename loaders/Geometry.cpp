@@ -1,14 +1,10 @@
-#include "renderware.h"
-
-
-
-
+#include "Geometry.h"
 
 /*
  * Geometry
  */
 
-void Geometry::read(char *bytes, size_t *offset)
+void Geometry::read(char* bytes, size_t* offset)
 {
 	HeaderInfo header;
 
@@ -35,19 +31,19 @@ void Geometry::read(char *bytes, size_t *offset)
 
 	if (!hasNativeGeometry) {
 		if (flags & FLAGS_PRELIT) {
-			vertexColors.resize(4*vertexCount);
+			vertexColors.resize(4 * vertexCount);
 			//rw.read((char *) (&vertexColors[0]),
 			//         4*vertexCount*sizeof(uint8_t));
-			memcpy((char *)(&vertexColors[0]),
+			memcpy((char*)(&vertexColors[0]),
 				&bytes[*offset],
 				4 * vertexCount * sizeof(uint8_t));
 			*offset += 4 * vertexCount * sizeof(uint8_t);
 		}
 		if (flags & FLAGS_TEXTURED) {
-			texCoords[0].resize(2*vertexCount);
+			texCoords[0].resize(2 * vertexCount);
 			//rw.read((char *) (&texCoords[0][0]),
 			//         2*vertexCount*sizeof(float));
-			memcpy((char *)(&texCoords[0][0]),
+			memcpy((char*)(&texCoords[0][0]),
 				&bytes[*offset],
 				2 * vertexCount * sizeof(float));
 			*offset += 2 * vertexCount * sizeof(float);
@@ -55,19 +51,19 @@ void Geometry::read(char *bytes, size_t *offset)
 		}
 		if (flags & FLAGS_TEXTURED2) {
 			for (uint32_t i = 0; i < numUVs; i++) {
-				texCoords[i].resize(2*vertexCount);
+				texCoords[i].resize(2 * vertexCount);
 				//rw.read((char *) (&texCoords[i][0]),
 				//	 2*vertexCount*sizeof(float));
 
-				memcpy((char *)(&texCoords[i][0]),
+				memcpy((char*)(&texCoords[i][0]),
 					&bytes[*offset],
 					2 * vertexCount * sizeof(float));
 				*offset += 2 * vertexCount * sizeof(float);
 			}
 		}
-		faces.resize(4*triangleCount);
+		faces.resize(4 * triangleCount);
 		//rw.read((char *) (&faces[0]), 4*triangleCount*sizeof(uint16_t));
-		memcpy((char *)(&faces[0]),
+		memcpy((char*)(&faces[0]),
 			&bytes[*offset],
 			4 * triangleCount * sizeof(uint16_t));
 		*offset += 4 * triangleCount * sizeof(uint16_t);
@@ -75,7 +71,7 @@ void Geometry::read(char *bytes, size_t *offset)
 
 	/* morph targets, only 1 in gta */
 	//rw.read((char *)(boundingSphere), 4*sizeof(float));
-	memcpy((char *)(boundingSphere),
+	memcpy((char*)(boundingSphere),
 		&bytes[*offset],
 		4 * sizeof(float));
 	*offset += 4 * sizeof(float);
@@ -88,19 +84,19 @@ void Geometry::read(char *bytes, size_t *offset)
 	hasNormals = (flags & FLAGS_NORMALS) ? 1 : 0;
 
 	if (!hasNativeGeometry) {
-		vertices.resize(3*vertexCount);
+		vertices.resize(3 * vertexCount);
 		//rw.read((char *) (&vertices[0]), 3*vertexCount*sizeof(float));
-		memcpy((char *)(&vertices[0]),
+		memcpy((char*)(&vertices[0]),
 			&bytes[*offset],
 			3 * vertexCount * sizeof(float));
 		*offset += 3 * vertexCount * sizeof(float);
 
 
 		if (flags & FLAGS_NORMALS) {
-			normals.resize(3*vertexCount);
+			normals.resize(3 * vertexCount);
 			//rw.read((char *) (&normals[0]),
 			//	 3*vertexCount*sizeof(float));
-			memcpy((char *)(&normals[0]),
+			memcpy((char*)(&normals[0]),
 				&bytes[*offset],
 				3 * vertexCount * sizeof(float));
 			*offset += 3 * vertexCount * sizeof(float);
@@ -126,7 +122,7 @@ void Geometry::read(char *bytes, size_t *offset)
 	readExtension(bytes, offset);
 }
 
-void Geometry::readExtension(char *bytes, size_t *offset)
+void Geometry::readExtension(char* bytes, size_t* offset)
 {
 	HeaderInfo header;
 
@@ -136,30 +132,30 @@ void Geometry::readExtension(char *bytes, size_t *offset)
 	size_t end = *offset;
 	end += header.length;
 
-	while(*offset < end){
+	while (*offset < end) {
 		header.read(bytes, offset);
 
-		switch(header.type){
+		switch (header.type) {
 		case CHUNK_BINMESH: {
 			faceType = readUInt32(bytes, offset);
 			uint32_t numSplits = readUInt32(bytes, offset);
 			numIndices = readUInt32(bytes, offset);
 			splits.resize(numSplits);
-			bool hasData = header.length > 12+numSplits*8;
-			for(uint32_t i = 0; i < numSplits; i++){
+			bool hasData = header.length > 12 + numSplits * 8;
+			for (uint32_t i = 0; i < numSplits; i++) {
 				uint32_t numIndices = readUInt32(bytes, offset);
 				splits[i].matIndex = readUInt32(bytes, offset);
 				splits[i].indices.resize(numIndices);
-				if(hasData){
+				if (hasData) {
 					/* OpenGL Data */
-					if(hasNativeGeometry)
-					for(uint32_t j = 0; j < numIndices; j++)
-						splits[i].indices[j] = 
-						  readUInt16(bytes, offset);
+					if (hasNativeGeometry)
+						for (uint32_t j = 0; j < numIndices; j++)
+							splits[i].indices[j] =
+							readUInt16(bytes, offset);
 					else
-					for(uint32_t j = 0; j < numIndices; j++)
-						splits[i].indices[j] = 
-						  readUInt32(bytes, offset);
+						for (uint32_t j = 0; j < numIndices; j++)
+							splits[i].indices[j] =
+							readUInt32(bytes, offset);
 				}
 			}
 			break;
@@ -169,7 +165,7 @@ void Geometry::readExtension(char *bytes, size_t *offset)
 			uint32_t build = header.build;
 			header.read(bytes, offset);
 
-			if(header.build==build && header.type==CHUNK_STRUCT){
+			if (header.build == build && header.type == CHUNK_STRUCT) {
 				uint32_t platform = readUInt32(bytes, offset);
 				//rw.seekg(beg, ios::beg);
 				*offset += beg;
@@ -179,9 +175,10 @@ void Geometry::readExtension(char *bytes, size_t *offset)
 				//else if(platform == PLATFORM_XBOX)
 				//	readXboxNativeData(rw);
 				//else
-					std::cout << "unknown platform " <<
-					        platform << std::endl;
-			}else{
+				std::cout << "unknown platform " <<
+					platform << std::endl;
+			}
+			else {
 				//rw.seekg(beg, ios::beg);
 				*offset += beg;
 				//readOglNativeData(rw, size);
@@ -197,18 +194,19 @@ void Geometry::readExtension(char *bytes, size_t *offset)
 		} case CHUNK_NIGHTVERTEXCOLOR: {
 			hasNightColors = true;
 			nightColorsUnknown = readUInt32(bytes, offset);
-			if(nightColors.size() != 0){
+			if (nightColors.size() != 0) {
 				// native data also has them, so skip
 				//rw.seekg(header.length - sizeof(uint32_t),
 				//          ios::cur);
 				*offset += header.length - sizeof(uint32_t);
-			}else{
-				if(nightColorsUnknown != 0){
-				/* TODO: could be better */
-					nightColors.resize(header.length-4);
+			}
+			else {
+				if (nightColorsUnknown != 0) {
+					/* TODO: could be better */
+					nightColors.resize(header.length - 4);
 					//rw.read((char *)
 					//   (&nightColors[0]), header.length-4);
-					memcpy((char *)(&nightColors[0]),
+					memcpy((char*)(&nightColors[0]),
 						&bytes[*offset],
 						header.length - 4);
 					*offset += header.length - 4;
@@ -222,7 +220,7 @@ void Geometry::readExtension(char *bytes, size_t *offset)
 			readUInt32(bytes, offset);
 			break;
 		} case CHUNK_SKIN: {
-			if(hasNativeGeometry){
+			if (hasNativeGeometry) {
 				size_t beg = *offset;
 				//rw.seekg(0x0c, ios::cur);
 				*offset += 0x0c;
@@ -231,21 +229,23 @@ void Geometry::readExtension(char *bytes, size_t *offset)
 				//rw.seekg(beg, ios::beg);
 				*offset += beg;
 
-//				streampos end = beg+header.length;
-				if(platform == PLATFORM_OGL ||
-				   platform == PLATFORM_PS2){
+				//				streampos end = beg+header.length;
+				if (platform == PLATFORM_OGL ||
+					platform == PLATFORM_PS2) {
 					hasSkin = true;
 					readNativeSkinMatrices(bytes, offset);
-				//}else if(platform == PLATFORM_XBOX){
-				//	hasSkin = true;
-				//	readXboxNativeSkin(rw);
-				}else{
+					//}else if(platform == PLATFORM_XBOX){
+					//	hasSkin = true;
+					//	readXboxNativeSkin(rw);
+				}
+				else {
 					std::cout << "skin: unknown platform "
-					     << platform << std::endl;
+						<< platform << std::endl;
 					//rw.seekg(header.length, ios::cur);
 					*offset = header.length;
 				}
-			}else{
+			}
+			else {
 				hasSkin = true;
 				boneCount = readUInt8(bytes, offset);
 				specialIndexCount = readUInt8(bytes, offset);
@@ -256,7 +256,7 @@ void Geometry::readExtension(char *bytes, size_t *offset)
 					specialIndices.resize(specialIndexCount);
 					//rw.read((char *)(&specialIndices[0]),
 					//	specialIndexCount * sizeof(uint8_t));
-					memcpy((char *)(&specialIndices[0]),
+					memcpy((char*)(&specialIndices[0]),
 						&bytes[*offset],
 						specialIndexCount * sizeof(uint8_t));
 					*offset += specialIndexCount * sizeof(uint8_t);
@@ -265,21 +265,21 @@ void Geometry::readExtension(char *bytes, size_t *offset)
 				vertexBoneIndices.resize(vertexCount);
 				//rw.read((char *) (&vertexBoneIndices[0]),
 				//	 vertexCount*sizeof(uint32_t));
-				memcpy((char *)(&vertexBoneIndices[0]),
+				memcpy((char*)(&vertexBoneIndices[0]),
 					&bytes[*offset],
 					vertexCount * sizeof(uint32_t));
 				*offset += vertexCount * sizeof(uint32_t);
 
-				vertexBoneWeights.resize(vertexCount*4);
+				vertexBoneWeights.resize(vertexCount * 4);
 				//rw.read((char *) (&vertexBoneWeights[0]),
 				//	 vertexCount*4*sizeof(float));
-				memcpy((char *)(&vertexBoneWeights[0]),
+				memcpy((char*)(&vertexBoneWeights[0]),
 					&bytes[*offset],
 					vertexCount * 4 * sizeof(float));
 				*offset += vertexCount * 4 * sizeof(float);
 
-				inverseMatrices.resize(boneCount*16);
-				for(uint32_t i = 0; i < boneCount; i++){
+				inverseMatrices.resize(boneCount * 16);
+				for (uint32_t i = 0; i < boneCount; i++) {
 					// skip 0xdeaddead
 					if (specialIndexCount == 0)
 						//rw.seekg(4, ios::cur);
@@ -287,7 +287,7 @@ void Geometry::readExtension(char *bytes, size_t *offset)
 
 					//rw.read((char *)(&inverseMatrices[i*0x10]),
 					//	 0x10*sizeof(float));
-					memcpy((char *)(&inverseMatrices[i * 0x10]),
+					memcpy((char*)(&inverseMatrices[i * 0x10]),
 						&bytes[*offset],
 						0x10 * sizeof(float));
 					*offset += 0x10 * sizeof(float);
@@ -322,7 +322,7 @@ void Geometry::readExtension(char *bytes, size_t *offset)
 	}
 }
 
-void Geometry::readNativeSkinMatrices(char *bytes, size_t *offset)
+void Geometry::readNativeSkinMatrices(char* bytes, size_t* offset)
 {
 	HeaderInfo header;
 
@@ -343,16 +343,16 @@ void Geometry::readNativeSkinMatrices(char *bytes, size_t *offset)
 	specialIndices.resize(specialIndexCount);
 	//rw.read((char *) (&specialIndices[0]),
 	//		specialIndexCount*sizeof(uint8_t));
-	memcpy((char *)(&specialIndices[0]),
+	memcpy((char*)(&specialIndices[0]),
 		&bytes[*offset],
 		specialIndexCount * sizeof(uint8_t));
 	*offset += specialIndexCount * sizeof(uint8_t);
 
 	inverseMatrices.resize(boneCount * 0x10);
 	for (uint32_t i = 0; i < boneCount; i++) {
-	//rw.read((char *) (&inverseMatrices[i*0x10]),
-	//        0x10*sizeof(float));
-		memcpy((char *)(&inverseMatrices[i * 0x10]),
+		//rw.read((char *) (&inverseMatrices[i*0x10]),
+		//        0x10*sizeof(float));
+		memcpy((char*)(&inverseMatrices[i * 0x10]),
 			&bytes[*offset],
 			0x10 * sizeof(float));
 		*offset += 0x10 * sizeof(float);
@@ -364,14 +364,14 @@ void Geometry::readNativeSkinMatrices(char *bytes, size_t *offset)
 		*offset += 0x1C;
 }
 
-void Geometry::readMeshExtension(char *bytes, size_t *offset)
+void Geometry::readMeshExtension(char* bytes, size_t* offset)
 {
 	if (meshExtension->unknown == 0)
 		return;
 
 	// rw.seekg(0x4, ios::cur);
 	*offset += 0x4;
-	
+
 	uint32_t vertexCount = readUInt32(bytes, offset);
 	//rw.seekg(0xC, ios::cur);
 	*offset += 0xC;
@@ -385,38 +385,38 @@ void Geometry::readMeshExtension(char *bytes, size_t *offset)
 	*offset += 0x10;
 
 	/* vertices */
-	meshExtension->vertices.resize(3*vertexCount);
+	meshExtension->vertices.resize(3 * vertexCount);
 	//rw.read((char *) (&meshExtension->vertices[0]),
 		 //3*vertexCount*sizeof(float));
-	memcpy((char *)(&meshExtension->vertices[0]),
+	memcpy((char*)(&meshExtension->vertices[0]),
 		&bytes[*offset],
 		3 * vertexCount * sizeof(float));
 	*offset += 3 * vertexCount * sizeof(float);
 
 	/* tex coords */
-	meshExtension->texCoords.resize(2*vertexCount);
+	meshExtension->texCoords.resize(2 * vertexCount);
 	//rw.read((char *) (&meshExtension->texCoords[0]),
 	//	 2*vertexCount*sizeof(float));
-	memcpy((char *)(&meshExtension->texCoords[0]),
+	memcpy((char*)(&meshExtension->texCoords[0]),
 		&bytes[*offset],
 		2 * vertexCount * sizeof(float));
 	*offset += 2 * vertexCount * sizeof(float);
 
 	/* vertex colors */
-	meshExtension->vertexColors.resize(4*vertexCount);
+	meshExtension->vertexColors.resize(4 * vertexCount);
 	//rw.read((char *) (&meshExtension->vertexColors[0]),
 	//	 4*vertexCount*sizeof(uint8_t));
-	memcpy((char *)(&meshExtension->vertexColors[0]),
+	memcpy((char*)(&meshExtension->vertexColors[0]),
 		&bytes[*offset],
 		4 * vertexCount * sizeof(uint8_t));
 	*offset += 4 * vertexCount * sizeof(uint8_t);
 
 
 	/* faces */
-	meshExtension->faces.resize(3*faceCount);
+	meshExtension->faces.resize(3 * faceCount);
 	//rw.read((char *) (&meshExtension->faces[0]),
 	//	 3*faceCount*sizeof(uint16_t));
-	memcpy((char *)(&meshExtension->faces[0]),
+	memcpy((char*)(&meshExtension->faces[0]),
 		&bytes[*offset],
 		3 * faceCount * sizeof(uint16_t));
 	*offset += 3 * faceCount * sizeof(uint16_t);
@@ -426,7 +426,7 @@ void Geometry::readMeshExtension(char *bytes, size_t *offset)
 	meshExtension->assignment.resize(faceCount);
 	//rw.read((char *) (&meshExtension->assignment[0]),
 	//	 faceCount*sizeof(uint16_t));
-	memcpy((char *)(&meshExtension->assignment[0]),
+	memcpy((char*)(&meshExtension->assignment[0]),
 		&bytes[*offset],
 		faceCount * sizeof(uint16_t));
 	*offset += faceCount * sizeof(uint16_t);
@@ -457,17 +457,17 @@ void Geometry::readMeshExtension(char *bytes, size_t *offset)
 
 bool Geometry::isDegenerateFace(uint32_t i, uint32_t j, uint32_t k)
 {
-	if (vertices[i*3+0] == vertices[j*3+0] &&
-	    vertices[i*3+1] == vertices[j*3+1] &&
-	    vertices[i*3+2] == vertices[j*3+2])
+	if (vertices[i * 3 + 0] == vertices[j * 3 + 0] &&
+		vertices[i * 3 + 1] == vertices[j * 3 + 1] &&
+		vertices[i * 3 + 2] == vertices[j * 3 + 2])
 		return true;
-	if (vertices[i*3+0] == vertices[k*3+0] &&
-	    vertices[i*3+1] == vertices[k*3+1] &&
-	    vertices[i*3+2] == vertices[k*3+2])
+	if (vertices[i * 3 + 0] == vertices[k * 3 + 0] &&
+		vertices[i * 3 + 1] == vertices[k * 3 + 1] &&
+		vertices[i * 3 + 2] == vertices[k * 3 + 2])
 		return true;
-	if (vertices[j*3+0] == vertices[k*3+0] &&
-	    vertices[j*3+1] == vertices[k*3+1] &&
-	    vertices[j*3+2] == vertices[k*3+2])
+	if (vertices[j * 3 + 0] == vertices[k * 3 + 0] &&
+		vertices[j * 3 + 1] == vertices[k * 3 + 1] &&
+		vertices[j * 3 + 2] == vertices[k * 3 + 2])
 		return true;
 	return false;
 }
@@ -478,27 +478,27 @@ void Geometry::generateFaces(void)
 	faces.clear();
 
 	for (uint32_t i = 0; i < splits.size(); i++) {
-		Split &s = splits[i];
+		Split& s = splits[i];
 		if (faceType == FACETYPE_STRIP)
-			for (uint32_t j = 0; j < s.indices.size()-2; j++) {
-//				if (isDegenerateFace(s.indices[j+0],
-//				    s.indices[j+1], s.indices[j+2]))
-//					continue;
-				if(s.indices[j+0] == s.indices[j+1] ||
-				   s.indices[j+0] == s.indices[j+2] ||
-				   s.indices[j+1] == s.indices[j+2])
+			for (uint32_t j = 0; j < s.indices.size() - 2; j++) {
+				//				if (isDegenerateFace(s.indices[j+0],
+				//				    s.indices[j+1], s.indices[j+2]))
+				//					continue;
+				if (s.indices[j + 0] == s.indices[j + 1] ||
+					s.indices[j + 0] == s.indices[j + 2] ||
+					s.indices[j + 1] == s.indices[j + 2])
 					continue;
-				faces.push_back(s.indices[j+1 + (j%2)]);
-				faces.push_back(s.indices[j+0]);
+				faces.push_back(s.indices[j + 1 + (j % 2)]);
+				faces.push_back(s.indices[j + 0]);
 				faces.push_back(s.matIndex);
-				faces.push_back(s.indices[j+2 - (j%2)]);
+				faces.push_back(s.indices[j + 2 - (j % 2)]);
 			}
 		else
-			for (uint32_t j = 0; j < s.indices.size()-2; j+=3) {
-				faces.push_back(s.indices[j+1]);
-				faces.push_back(s.indices[j+0]);
+			for (uint32_t j = 0; j < s.indices.size() - 2; j += 3) {
+				faces.push_back(s.indices[j + 1]);
+				faces.push_back(s.indices[j + 0]);
 				faces.push_back(s.matIndex);
-				faces.push_back(s.indices[j+2]);
+				faces.push_back(s.indices[j + 2]);
 			}
 	}
 }
@@ -518,95 +518,95 @@ std::vector<float> vertexBoneWeights_new;
 uint32_t Geometry::addTempVertexIfNew(uint32_t index)
 {
 	// return if we already have the vertex
-	for (uint32_t i = 0; i < vertices_new.size()/3; i++) {
-		if (vertices_new[i*3+0] != vertices[index*3+0] ||
-		    vertices_new[i*3+1] != vertices[index*3+1] ||
-		    vertices_new[i*3+2] != vertices[index*3+2])
+	for (uint32_t i = 0; i < vertices_new.size() / 3; i++) {
+		if (vertices_new[i * 3 + 0] != vertices[index * 3 + 0] ||
+			vertices_new[i * 3 + 1] != vertices[index * 3 + 1] ||
+			vertices_new[i * 3 + 2] != vertices[index * 3 + 2])
 			continue;
 		if (flags & FLAGS_NORMALS) {
-			if (normals_new[i*3+0] != normals[index*3+0] ||
-			    normals_new[i*3+1] != normals[index*3+1] ||
-			    normals_new[i*3+2] != normals[index*3+2])
+			if (normals_new[i * 3 + 0] != normals[index * 3 + 0] ||
+				normals_new[i * 3 + 1] != normals[index * 3 + 1] ||
+				normals_new[i * 3 + 2] != normals[index * 3 + 2])
 				continue;
 		}
 		if (flags & FLAGS_TEXTURED || flags & FLAGS_TEXTURED2) {
 			for (uint32_t j = 0; j < numUVs; j++)
-				if (texCoords_new[j][i*2+0] !=
-				                    texCoords[j][index*2+0] ||
-				    texCoords_new[j][i*2+1] !=
-				                    texCoords[j][index*2+1])
+				if (texCoords_new[j][i * 2 + 0] !=
+					texCoords[j][index * 2 + 0] ||
+					texCoords_new[j][i * 2 + 1] !=
+					texCoords[j][index * 2 + 1])
 					goto cont;
 		}
 		if (flags & FLAGS_PRELIT) {
-			if (vertexColors_new[i*4+0]!=vertexColors[index*4+0] ||
-			    vertexColors_new[i*4+1]!=vertexColors[index*4+1] ||
-			    vertexColors_new[i*4+2]!=vertexColors[index*4+2] ||
-			    vertexColors_new[i*4+3]!=vertexColors[index*4+3])
+			if (vertexColors_new[i * 4 + 0] != vertexColors[index * 4 + 0] ||
+				vertexColors_new[i * 4 + 1] != vertexColors[index * 4 + 1] ||
+				vertexColors_new[i * 4 + 2] != vertexColors[index * 4 + 2] ||
+				vertexColors_new[i * 4 + 3] != vertexColors[index * 4 + 3])
 				continue;
 		}
 		if (hasNightColors) {
-			if (nightColors_new[i*4+0] != nightColors[index*4+0] ||
-			    nightColors_new[i*4+1] != nightColors[index*4+1] ||
-			    nightColors_new[i*4+2] != nightColors[index*4+2] ||
-			    nightColors_new[i*4+3] != nightColors[index*4+3])
+			if (nightColors_new[i * 4 + 0] != nightColors[index * 4 + 0] ||
+				nightColors_new[i * 4 + 1] != nightColors[index * 4 + 1] ||
+				nightColors_new[i * 4 + 2] != nightColors[index * 4 + 2] ||
+				nightColors_new[i * 4 + 3] != nightColors[index * 4 + 3])
 				continue;
 		}
 		if (hasSkin) {
-			if (vertexBoneIndices_new[i]!=vertexBoneIndices[index])
+			if (vertexBoneIndices_new[i] != vertexBoneIndices[index])
 				continue;
 
-			if (vertexBoneWeights_new[i*4+0] !=
-			                      vertexBoneWeights[index*4+0] ||
-			    vertexBoneWeights_new[i*4+1] !=
-			                      vertexBoneWeights[index*4+1] ||
-			    vertexBoneWeights_new[i*4+2] !=
-			                      vertexBoneWeights[index*4+2] ||
-			    vertexBoneWeights_new[i*4+3] !=
-			                      vertexBoneWeights[index*4+3])
+			if (vertexBoneWeights_new[i * 4 + 0] !=
+				vertexBoneWeights[index * 4 + 0] ||
+				vertexBoneWeights_new[i * 4 + 1] !=
+				vertexBoneWeights[index * 4 + 1] ||
+				vertexBoneWeights_new[i * 4 + 2] !=
+				vertexBoneWeights[index * 4 + 2] ||
+				vertexBoneWeights_new[i * 4 + 3] !=
+				vertexBoneWeights[index * 4 + 3])
 				continue;
 		}
 		// this is only reached when the vertex is already in the list
 		return i;
 
-		cont: ;
+	cont:;
 	}
 
 	// else add the vertex
-	vertices_new.push_back(vertices[index*3+0]);
-	vertices_new.push_back(vertices[index*3+1]);
-	vertices_new.push_back(vertices[index*3+2]);
+	vertices_new.push_back(vertices[index * 3 + 0]);
+	vertices_new.push_back(vertices[index * 3 + 1]);
+	vertices_new.push_back(vertices[index * 3 + 2]);
 	if (flags & FLAGS_NORMALS) {
-		normals_new.push_back(normals[index*3+0]);
-		normals_new.push_back(normals[index*3+1]);
-		normals_new.push_back(normals[index*3+2]);
+		normals_new.push_back(normals[index * 3 + 0]);
+		normals_new.push_back(normals[index * 3 + 1]);
+		normals_new.push_back(normals[index * 3 + 2]);
 	}
 	if (flags & FLAGS_TEXTURED || flags & FLAGS_TEXTURED2) {
 		for (uint32_t j = 0; j < numUVs; j++) {
-			texCoords_new[j].push_back(texCoords[j][index*2+0]);
-			texCoords_new[j].push_back(texCoords[j][index*2+1]);
+			texCoords_new[j].push_back(texCoords[j][index * 2 + 0]);
+			texCoords_new[j].push_back(texCoords[j][index * 2 + 1]);
 		}
 	}
 	if (flags & FLAGS_PRELIT) {
-		vertexColors_new.push_back(vertexColors[index*4+0]);
-		vertexColors_new.push_back(vertexColors[index*4+1]);
-		vertexColors_new.push_back(vertexColors[index*4+2]);
-		vertexColors_new.push_back(vertexColors[index*4+3]);
+		vertexColors_new.push_back(vertexColors[index * 4 + 0]);
+		vertexColors_new.push_back(vertexColors[index * 4 + 1]);
+		vertexColors_new.push_back(vertexColors[index * 4 + 2]);
+		vertexColors_new.push_back(vertexColors[index * 4 + 3]);
 	}
 	if (hasNightColors) {
-		nightColors_new.push_back(nightColors[index*4+0]);
-		nightColors_new.push_back(nightColors[index*4+1]);
-		nightColors_new.push_back(nightColors[index*4+2]);
-		nightColors_new.push_back(nightColors[index*4+3]);
+		nightColors_new.push_back(nightColors[index * 4 + 0]);
+		nightColors_new.push_back(nightColors[index * 4 + 1]);
+		nightColors_new.push_back(nightColors[index * 4 + 2]);
+		nightColors_new.push_back(nightColors[index * 4 + 3]);
 	}
 	if (hasSkin) {
 		vertexBoneIndices_new.push_back(vertexBoneIndices[index]);
 
-		vertexBoneWeights_new.push_back(vertexBoneWeights[index*4+0]);
-		vertexBoneWeights_new.push_back(vertexBoneWeights[index*4+1]);
-		vertexBoneWeights_new.push_back(vertexBoneWeights[index*4+2]);
-		vertexBoneWeights_new.push_back(vertexBoneWeights[index*4+3]);
+		vertexBoneWeights_new.push_back(vertexBoneWeights[index * 4 + 0]);
+		vertexBoneWeights_new.push_back(vertexBoneWeights[index * 4 + 1]);
+		vertexBoneWeights_new.push_back(vertexBoneWeights[index * 4 + 2]);
+		vertexBoneWeights_new.push_back(vertexBoneWeights[index * 4 + 3]);
 	}
-	return vertices_new.size()/3 - 1;
+	return vertices_new.size() / 3 - 1;
 }
 
 // removes duplicate vertices (only useful with ps2 meshes)
@@ -624,7 +624,7 @@ void Geometry::cleanUp(void)
 	std::vector<uint32_t> newIndices;
 
 	// create new vertex list
-	for (uint32_t i = 0; i < vertices.size()/3; i++)
+	for (uint32_t i = 0; i < vertices.size() / 3; i++)
 		newIndices.push_back(addTempVertexIfNew(i));
 
 	vertices = vertices_new;
@@ -647,10 +647,10 @@ void Geometry::cleanUp(void)
 		for (uint32_t j = 0; j < splits[i].indices.size(); j++)
 			splits[i].indices[j] = newIndices[splits[i].indices[j]];
 
-	for (uint32_t i = 0; i < faces.size()/4; i++) {
-		faces[i*4+0] = newIndices[faces[i*4+0]];
-		faces[i*4+1] = newIndices[faces[i*4+1]];
-		faces[i*4+3] = newIndices[faces[i*4+3]];
+	for (uint32_t i = 0; i < faces.size() / 4; i++) {
+		faces[i * 4 + 0] = newIndices[faces[i * 4 + 0]];
+		faces[i * 4 + 1] = newIndices[faces[i * 4 + 1]];
+		faces[i * 4 + 3] = newIndices[faces[i * 4 + 3]];
 	}
 }
 
@@ -662,7 +662,7 @@ void Geometry::dump(uint32_t index, std::string ind, bool detailed)
 	std::cout << ind << "flags: " << std::hex << flags << std::endl;
 	std::cout << ind << "numUVs: " << std::dec << numUVs << std::endl;
 	std::cout << ind << "hasNativeGeometry: " << hasNativeGeometry << std::endl;
-	std::cout << ind << "triangleCount: " << faces.size()/4 << std::endl;
+	std::cout << ind << "triangleCount: " << faces.size() / 4 << std::endl;
 	std::cout << ind << "vertexCount: " << vertexCount << std::endl << std::endl;
 
 	if (flags & FLAGS_PRELIT) {
@@ -671,12 +671,12 @@ void Geometry::dump(uint32_t index, std::string ind, bool detailed)
 		if (!detailed)
 			std::cout << ind << "skipping\n";
 		else
-			for (uint32_t i = 0; i < vertexColors.size()/4; i++)
-				std::cout << ind << int(vertexColors[i*4+0])<< ", "
-					<< int(vertexColors[i*4+1]) << ", "
-					<< int(vertexColors[i*4+2]) << ", "
-					<< int(vertexColors[i*4+3]) << std::endl;
-		ind = ind.substr(0, ind.size()-2);
+			for (uint32_t i = 0; i < vertexColors.size() / 4; i++)
+				std::cout << ind << int(vertexColors[i * 4 + 0]) << ", "
+				<< int(vertexColors[i * 4 + 1]) << ", "
+				<< int(vertexColors[i * 4 + 2]) << ", "
+				<< int(vertexColors[i * 4 + 3]) << std::endl;
+		ind = ind.substr(0, ind.size() - 2);
 		std::cout << ind << "}\n\n";
 	}
 
@@ -686,24 +686,24 @@ void Geometry::dump(uint32_t index, std::string ind, bool detailed)
 		if (!detailed)
 			std::cout << ind << "skipping\n";
 		else
-			for (uint32_t i = 0; i < texCoords[0].size()/2; i++)
-				std::cout << ind << texCoords[0][i*2+0]<< ", "
-					<< texCoords[0][i*2+1] << std::endl;
-		ind = ind.substr(0, ind.size()-2);
+			for (uint32_t i = 0; i < texCoords[0].size() / 2; i++)
+				std::cout << ind << texCoords[0][i * 2 + 0] << ", "
+				<< texCoords[0][i * 2 + 1] << std::endl;
+		ind = ind.substr(0, ind.size() - 2);
 		std::cout << ind << "}\n\n";
 	}
 	if (flags & FLAGS_TEXTURED2) {
 		for (uint32_t j = 0; j < numUVs; j++) {
 			std::cout << ind << "texCoords " << j << " {\n";
-		ind += "  ";
-		if (!detailed)
-			std::cout << ind << "skipping\n";
-		else
-			for (uint32_t i = 0; i < texCoords[j].size()/2; i++)
-				std::cout << ind << texCoords[j][i*2+0]<< ", "
-					<< texCoords[j][i*2+1] << std::endl;
-		ind = ind.substr(0, ind.size()-2);
-		std::cout << ind << "}\n\n";
+			ind += "  ";
+			if (!detailed)
+				std::cout << ind << "skipping\n";
+			else
+				for (uint32_t i = 0; i < texCoords[j].size() / 2; i++)
+					std::cout << ind << texCoords[j][i * 2 + 0] << ", "
+					<< texCoords[j][i * 2 + 1] << std::endl;
+			ind = ind.substr(0, ind.size() - 2);
+			std::cout << ind << "}\n\n";
 		}
 	}
 
@@ -712,12 +712,12 @@ void Geometry::dump(uint32_t index, std::string ind, bool detailed)
 	if (!detailed)
 		std::cout << ind << "skipping\n";
 	else
-		for (uint32_t i = 0; i < faces.size()/4; i++)
-			std::cout << ind << faces[i*4+0] << ", "
-			            << faces[i*4+1] << ", "
-			            << faces[i*4+2] << ", "
-			            << faces[i*4+3] << std::endl;
-	ind = ind.substr(0, ind.size()-2);
+		for (uint32_t i = 0; i < faces.size() / 4; i++)
+			std::cout << ind << faces[i * 4 + 0] << ", "
+			<< faces[i * 4 + 1] << ", "
+			<< faces[i * 4 + 2] << ", "
+			<< faces[i * 4 + 3] << std::endl;
+	ind = ind.substr(0, ind.size() - 2);
 	std::cout << ind << "}\n\n";
 
 	std::cout << ind << "boundingSphere: ";
@@ -732,11 +732,11 @@ void Geometry::dump(uint32_t index, std::string ind, bool detailed)
 	if (!detailed)
 		std::cout << ind << "skipping\n";
 	else
-		for (uint32_t i = 0; i < vertices.size()/3; i++)
-			std::cout << ind << vertices[i*3+0] << ", "
-			            << vertices[i*3+1] << ", "
-			            << vertices[i*3+2] << std::endl;
-	ind = ind.substr(0, ind.size()-2);
+		for (uint32_t i = 0; i < vertices.size() / 3; i++)
+			std::cout << ind << vertices[i * 3 + 0] << ", "
+			<< vertices[i * 3 + 1] << ", "
+			<< vertices[i * 3 + 2] << std::endl;
+	ind = ind.substr(0, ind.size() - 2);
 	std::cout << ind << "}\n";
 
 	if (flags & FLAGS_NORMALS) {
@@ -745,11 +745,11 @@ void Geometry::dump(uint32_t index, std::string ind, bool detailed)
 		if (!detailed)
 			std::cout << ind << "skipping\n";
 		else
-			for (uint32_t i = 0; i < normals.size()/3; i++)
-				std::cout << ind << normals[i*3+0] << ", "
-					    << normals[i*3+1] << ", "
-					    << normals[i*3+2] << std::endl;
-		ind = ind.substr(0, ind.size()-2);
+			for (uint32_t i = 0; i < normals.size() / 3; i++)
+				std::cout << ind << normals[i * 3 + 0] << ", "
+				<< normals[i * 3 + 1] << ", "
+				<< normals[i * 3 + 2] << std::endl;
+		ind = ind.substr(0, ind.size() - 2);
 		std::cout << ind << "}\n";
 	}
 
@@ -761,18 +761,18 @@ void Geometry::dump(uint32_t index, std::string ind, bool detailed)
 		std::cout << std::endl << ind << "Split " << i << " {\n";
 		ind += "  ";
 		std::cout << ind << "matIndex: " << splits[i].matIndex << std::endl;
-		std::cout << ind << "numIndices: "<<splits[i].indices.size() << std::endl;
+		std::cout << ind << "numIndices: " << splits[i].indices.size() << std::endl;
 		std::cout << ind << "indices {\n";
-		if(!detailed)
-			std::cout << ind+"  skipping\n";
+		if (!detailed)
+			std::cout << ind + "  skipping\n";
 		else
-			for(uint32_t j = 0; j < splits[i].indices.size(); j++)
-				std::cout << ind+" " << splits[i].indices[j] << std::endl;
+			for (uint32_t j = 0; j < splits[i].indices.size(); j++)
+				std::cout << ind + " " << splits[i].indices[j] << std::endl;
 		std::cout << ind << "}\n";
-		ind = ind.substr(0, ind.size()-2);
+		ind = ind.substr(0, ind.size() - 2);
 		std::cout << ind << "}\n";
 	}
-	ind = ind.substr(0, ind.size()-2);
+	ind = ind.substr(0, ind.size() - 2);
 	std::cout << ind << "}\n";
 
 
@@ -781,39 +781,39 @@ void Geometry::dump(uint32_t index, std::string ind, bool detailed)
 	std::cout << ind << "numMaterials: " << materialList.size() << std::endl;
 	for (uint32_t i = 0; i < materialList.size(); i++)
 		materialList[i].dump(i, ind);
-	ind = ind.substr(0, ind.size()-2);
+	ind = ind.substr(0, ind.size() - 2);
 	std::cout << ind << "}\n";
 
-	ind = ind.substr(0, ind.size()-2);
+	ind = ind.substr(0, ind.size() - 2);
 	std::cout << ind << "}\n";
 }
 
 Geometry::Geometry(void)
-: flags(0), numUVs(0), hasNativeGeometry(false), vertexCount(0),
-  hasNormals(false), faceType(0), numIndices(0), hasSkin(false), boneCount(0),
-  specialIndexCount(0), unknown1(0), unknown2(0), hasMeshExtension(false),
-  meshExtension(0), hasNightColors(false), nightColorsUnknown(0),
-  has2dfx(false), hasMorph(false)
+	: flags(0), numUVs(0), hasNativeGeometry(false), vertexCount(0),
+	hasNormals(false), faceType(0), numIndices(0), hasSkin(false), boneCount(0),
+	specialIndexCount(0), unknown1(0), unknown2(0), hasMeshExtension(false),
+	meshExtension(0), hasNightColors(false), nightColorsUnknown(0),
+	has2dfx(false), hasMorph(false)
 {
 }
 
-Geometry::Geometry(const Geometry &orig)
-: flags(orig.flags), numUVs(orig.numUVs),
-  hasNativeGeometry(orig.hasNativeGeometry), vertexCount(orig.vertexCount),
-  faces(orig.faces), vertexColors(orig.vertexColors),
-  hasPositions(orig.hasPositions), hasNormals(orig.hasNormals),
-  vertices(orig.vertices), normals(orig.normals),
-  materialList(orig.materialList), faceType(orig.faceType),
-  numIndices(orig.numIndices), splits(orig.splits), hasSkin(orig.hasSkin),
-  boneCount(orig.boneCount), specialIndexCount(orig.specialIndexCount),
-  unknown1(orig.unknown1), unknown2(orig.unknown2),
-  specialIndices(orig.specialIndices),
-  vertexBoneIndices(orig.vertexBoneIndices),
-  vertexBoneWeights(orig.vertexBoneWeights),
-  inverseMatrices(orig.inverseMatrices),
-  hasMeshExtension(orig.hasMeshExtension), hasNightColors(orig.hasNightColors),
-  nightColorsUnknown(orig.nightColorsUnknown), nightColors(orig.nightColors),
-  has2dfx(orig.has2dfx), hasMorph(orig.hasMorph)
+Geometry::Geometry(const Geometry& orig)
+	: flags(orig.flags), numUVs(orig.numUVs),
+	hasNativeGeometry(orig.hasNativeGeometry), vertexCount(orig.vertexCount),
+	faces(orig.faces), vertexColors(orig.vertexColors),
+	hasPositions(orig.hasPositions), hasNormals(orig.hasNormals),
+	vertices(orig.vertices), normals(orig.normals),
+	materialList(orig.materialList), faceType(orig.faceType),
+	numIndices(orig.numIndices), splits(orig.splits), hasSkin(orig.hasSkin),
+	boneCount(orig.boneCount), specialIndexCount(orig.specialIndexCount),
+	unknown1(orig.unknown1), unknown2(orig.unknown2),
+	specialIndices(orig.specialIndices),
+	vertexBoneIndices(orig.vertexBoneIndices),
+	vertexBoneWeights(orig.vertexBoneWeights),
+	inverseMatrices(orig.inverseMatrices),
+	hasMeshExtension(orig.hasMeshExtension), hasNightColors(orig.hasNightColors),
+	nightColorsUnknown(orig.nightColorsUnknown), nightColors(orig.nightColors),
+	has2dfx(orig.has2dfx), hasMorph(orig.hasMorph)
 {
 	if (orig.meshExtension)
 		meshExtension = new MeshExtension(*orig.meshExtension);
@@ -826,7 +826,7 @@ Geometry::Geometry(const Geometry &orig)
 		boundingSphere[i] = orig.boundingSphere[i];
 }
 
-Geometry &Geometry::operator=(const Geometry &that)
+Geometry& Geometry::operator=(const Geometry& that)
 {
 	if (this != &that) {
 		flags = that.flags;
@@ -889,7 +889,7 @@ Geometry::~Geometry(void)
  * Material
  */
 
-void Material::read(char *bytes, size_t *offset)
+void Material::read(char* bytes, size_t* offset)
 {
 	HeaderInfo header;
 
@@ -902,7 +902,7 @@ void Material::read(char *bytes, size_t *offset)
 	flags = readUInt32(bytes, offset);
 
 	//rw.read((char *) (color), 4*sizeof(uint8_t));
-	memcpy((char *)(color), &bytes[*offset], 4 * sizeof(uint8_t));
+	memcpy((char*)(color), &bytes[*offset], 4 * sizeof(uint8_t));
 	*offset += 4 * sizeof(uint8_t);
 
 	unknown = readUInt32(bytes, offset);
@@ -910,7 +910,7 @@ void Material::read(char *bytes, size_t *offset)
 
 
 	//rw.read((char *) (surfaceProps), 3*sizeof(float));
-	memcpy((char *)(surfaceProps), &bytes[*offset], 3 * sizeof(float));
+	memcpy((char*)(surfaceProps), &bytes[*offset], 3 * sizeof(float));
 	*offset += 3 * sizeof(float);
 
 	if (hasTex)
@@ -919,7 +919,7 @@ void Material::read(char *bytes, size_t *offset)
 	readExtension(bytes, offset);
 }
 
-void Material::readExtension(char *bytes, size_t *offset)
+void Material::readExtension(char* bytes, size_t* offset)
 {
 	HeaderInfo header;
 	char buf[32];
@@ -936,7 +936,7 @@ void Material::readExtension(char *bytes, size_t *offset)
 			hasRightToRender = true;
 			rightToRenderVal1 = readUInt32(bytes, offset);
 			rightToRenderVal2 = readUInt32(bytes, offset);
-//cout << filename << " matrights: " << hex << rightToRenderVal1 << " " << rightToRenderVal2 << endl;
+			//cout << filename << " matrights: " << hex << rightToRenderVal1 << " " << rightToRenderVal2 << endl;
 			break;
 		case CHUNK_MATERIALEFFECTS: {
 			hasMatFx = true;
@@ -944,8 +944,8 @@ void Material::readExtension(char *bytes, size_t *offset)
 			matFx->type = readUInt32(bytes, offset);
 			switch (matFx->type) {
 			case MATFX_BUMPMAP: {
-//cout << filename << " BUMPMAP\n";
-				// rw.seekg(4, ios::cur); // also MATFX_BUMPMAP
+				//cout << filename << " BUMPMAP\n";
+								// rw.seekg(4, ios::cur); // also MATFX_BUMPMAP
 				*offset += 4;
 
 				matFx->bumpCoefficient = readFloat32(bytes, offset);
@@ -981,8 +981,8 @@ void Material::readExtension(char *bytes, size_t *offset)
 
 				break;
 			} case MATFX_BUMPENVMAP: {
-//cout << filename << " BUMPENVMAP\n";
-				// rw.seekg(4, ios::cur); // MATFX_BUMPMAP
+				//cout << filename << " BUMPENVMAP\n";
+								// rw.seekg(4, ios::cur); // MATFX_BUMPMAP
 				*offset += 4;
 
 				matFx->bumpCoefficient = readFloat32(bytes, offset);
@@ -1006,8 +1006,8 @@ void Material::readExtension(char *bytes, size_t *offset)
 					matFx->tex2.read(bytes, offset);
 				break;
 			} case MATFX_DUAL: {
-//cout << filename << " DUAL\n";
-				//rw.seekg(4, ios::cur); // also MATFX_DUAL
+				//cout << filename << " DUAL\n";
+								//rw.seekg(4, ios::cur); // also MATFX_DUAL
 				*offset += 4;
 				matFx->srcBlend = readUInt32(bytes, offset);
 				matFx->destBlend = readUInt32(bytes, offset);
@@ -1019,15 +1019,15 @@ void Material::readExtension(char *bytes, size_t *offset)
 				*offset += 4;
 				break;
 			} case MATFX_UVTRANSFORM: {
-//cout << filename << " UVTRANSFORM\n";
-				// rw.seekg(4, ios::cur);//also MATFX_UVTRANSFORM
+				//cout << filename << " UVTRANSFORM\n";
+								// rw.seekg(4, ios::cur);//also MATFX_UVTRANSFORM
 				*offset += 4;
 				// rw.seekg(4, ios::cur); // 0
 				*offset += 4;
 				break;
 			} case MATFX_DUALUVTRANSFORM: {
-//cout << filename << " DUALUVTRANSFORM\n";
-				// never observed in gta
+				//cout << filename << " DUALUVTRANSFORM\n";
+								// never observed in gta
 				break;
 			} default:
 				break;
@@ -1047,7 +1047,7 @@ void Material::readExtension(char *bytes, size_t *offset)
 			hasSpecularMat = true;
 			specularLevel = readFloat32(bytes, offset);
 			uint32_t len = header.length - sizeof(float) - 4;
-			char *name = new char[len];
+			char* name = new char[len];
 			//rw.read(name, len);
 			memcpy(name, &bytes[*offset], len);
 			*offset += len;
@@ -1085,57 +1085,57 @@ void Material::dump(uint32_t index, std::string ind)
 	// unused
 //	cout << ind << "flags: " << hex << flags << endl;
 	std::cout << ind << "color: " << std::dec << int(color[0]) << " "
-	                         << int(color[1]) << " "
-	                         << int(color[2]) << " "
-	                         << int(color[3]) << std::endl;
+		<< int(color[1]) << " "
+		<< int(color[2]) << " "
+		<< int(color[3]) << std::endl;
 	// unused
 //	cout << ind << "unknown: " << hex << unknown << endl;
 	std::cout << ind << "surfaceProps: " << surfaceProps[0] << " "
-	                                << surfaceProps[1] << " "
-	                                << surfaceProps[2] << std::endl;
+		<< surfaceProps[1] << " "
+		<< surfaceProps[2] << std::endl;
 
-	if(hasTex)
+	if (hasTex)
 		texture.dump(ind);
 
-	if(hasMatFx)
+	if (hasMatFx)
 		matFx->dump(ind);
 
-	if(hasRightToRender){
+	if (hasRightToRender) {
 		std::cout << std::hex;
 		std::cout << ind << "Right to Render {\n";
-		std::cout << ind+"  " << "val1: " << rightToRenderVal1<< std::endl;
-		std::cout << ind+"  " << "val2: " << rightToRenderVal2<< std::endl;
+		std::cout << ind + "  " << "val1: " << rightToRenderVal1 << std::endl;
+		std::cout << ind + "  " << "val2: " << rightToRenderVal2 << std::endl;
 		std::cout << ind << "}\n";
 		std::cout << std::dec;
 	}
 
-	if(hasReflectionMat){
+	if (hasReflectionMat) {
 		std::cout << ind << "Reflection Material {\n";
-		std::cout << ind+"  " << "amount: "
-		     << reflectionChannelAmount[0] << " "
-		     << reflectionChannelAmount[1] << " "
-		     << reflectionChannelAmount[2] << " "
-		     << reflectionChannelAmount[3] << std::endl;
-		std::cout << ind+"  " << "intensity: " << reflectionIntensity << std::endl;
+		std::cout << ind + "  " << "amount: "
+			<< reflectionChannelAmount[0] << " "
+			<< reflectionChannelAmount[1] << " "
+			<< reflectionChannelAmount[2] << " "
+			<< reflectionChannelAmount[3] << std::endl;
+		std::cout << ind + "  " << "intensity: " << reflectionIntensity << std::endl;
 		std::cout << ind << "}\n";
 	}
 
-	if(hasSpecularMat){
+	if (hasSpecularMat) {
 		std::cout << ind << "Specular Material {\n";
-		std::cout << ind+"  " << "level: " << specularLevel << std::endl;
-		std::cout << ind+"  " << "name: " << specularName << std::endl;
+		std::cout << ind + "  " << "level: " << specularLevel << std::endl;
+		std::cout << ind + "  " << "name: " << specularName << std::endl;
 		std::cout << ind << "}\n";
 	}
 
-	ind = ind.substr(0, ind.size()-2);
+	ind = ind.substr(0, ind.size() - 2);
 	std::cout << ind << "}\n";
 }
 
 Material::Material(void)
-: flags(0), unknown(0), hasTex(false), hasRightToRender(false),
-  rightToRenderVal1(0), rightToRenderVal2(0), hasMatFx(false), matFx(0),
-  hasReflectionMat(false), reflectionIntensity(0.0f), hasSpecularMat(false),
-  specularLevel(0.0f), hasUVAnim(false)
+	: flags(0), unknown(0), hasTex(false), hasRightToRender(false),
+	rightToRenderVal1(0), rightToRenderVal2(0), hasMatFx(false), matFx(0),
+	hasReflectionMat(false), reflectionIntensity(0.0f), hasSpecularMat(false),
+	specularLevel(0.0f), hasUVAnim(false)
 {
 	for (int i = 0; i < 4; i++)
 		color[i] = 0;
@@ -1146,15 +1146,15 @@ Material::Material(void)
 }
 
 Material::Material(const Material& orig)
-: flags(orig.flags), unknown(orig.unknown),
-  hasTex(orig.hasTex), texture(orig.texture),
-  hasRightToRender(orig.hasRightToRender),
-  rightToRenderVal1(orig.rightToRenderVal1),
-  rightToRenderVal2(orig.rightToRenderVal2),
-  hasMatFx(orig.hasMatFx), hasReflectionMat(orig.hasReflectionMat),
-  reflectionIntensity(orig.reflectionIntensity),
-  hasSpecularMat(orig.hasSpecularMat), specularLevel(orig.specularLevel),
-  specularName(orig.specularName), hasUVAnim(orig.hasUVAnim)
+	: flags(orig.flags), unknown(orig.unknown),
+	hasTex(orig.hasTex), texture(orig.texture),
+	hasRightToRender(orig.hasRightToRender),
+	rightToRenderVal1(orig.rightToRenderVal1),
+	rightToRenderVal2(orig.rightToRenderVal2),
+	hasMatFx(orig.hasMatFx), hasReflectionMat(orig.hasReflectionMat),
+	reflectionIntensity(orig.reflectionIntensity),
+	hasSpecularMat(orig.hasSpecularMat), specularLevel(orig.specularLevel),
+	specularName(orig.specularName), hasUVAnim(orig.hasUVAnim)
 {
 	if (orig.matFx)
 		matFx = new MatFx(*orig.matFx);
@@ -1169,7 +1169,7 @@ Material::Material(const Material& orig)
 		reflectionChannelAmount[i] = orig.reflectionChannelAmount[i];
 }
 
-Material &Material::operator=(const Material &that)
+Material& Material::operator=(const Material& that)
 {
 	if (this != &that) {
 		flags = that.flags;
@@ -1195,7 +1195,7 @@ Material &Material::operator=(const Material &that)
 		hasReflectionMat = that.hasReflectionMat;
 		for (uint32_t i = 0; i < 4; i++)
 			reflectionChannelAmount[i] =
-					that.reflectionChannelAmount[i];
+			that.reflectionChannelAmount[i];
 		reflectionIntensity = that.reflectionIntensity;
 
 		hasSpecularMat = that.hasSpecularMat;
@@ -1214,7 +1214,7 @@ Material::~Material(void)
 
 void MatFx::dump(std::string ind)
 {
-	static const char *names[] = {
+	static const char* names[] = {
 		"INVALID",
 		"MATFX_BUMPMAP",
 		"MATFX_ENVMAP",
@@ -1226,28 +1226,28 @@ void MatFx::dump(std::string ind)
 	std::cout << ind << "MatFX {\n";
 	ind += "  ";
 	std::cout << ind << "type: " << names[type] << std::endl;
-	if(type == MATFX_BUMPMAP || type == MATFX_BUMPENVMAP)
+	if (type == MATFX_BUMPMAP || type == MATFX_BUMPENVMAP)
 		std::cout << ind << "bumpCoefficient: " << bumpCoefficient << std::endl;
-	if(type == MATFX_ENVMAP || type == MATFX_BUMPENVMAP)
+	if (type == MATFX_ENVMAP || type == MATFX_BUMPENVMAP)
 		std::cout << ind << "envCoefficient: " << envCoefficient << std::endl;
-	if(type == MATFX_DUAL){
+	if (type == MATFX_DUAL) {
 		std::cout << ind << "srcBlend: " << srcBlend << std::endl;
 		std::cout << ind << "destBlend: " << destBlend << std::endl;
 	}
 	std::cout << ind << "textures: " << hasTex1 << " " << hasTex2 << " " << hasDualPassMap << std::endl;
-	if(hasTex1)
+	if (hasTex1)
 		tex1.dump(ind);
-	if(hasTex2)
+	if (hasTex2)
 		tex2.dump(ind);
-	if(hasDualPassMap)
+	if (hasDualPassMap)
 		dualPassMap.dump(ind);
 
-	ind = ind.substr(0, ind.size()-2);
+	ind = ind.substr(0, ind.size() - 2);
 	std::cout << ind << "}\n";
 }
 
 MatFx::MatFx(void)
-: hasTex1(false), hasTex2(false), hasDualPassMap(false)
+	: hasTex1(false), hasTex2(false), hasDualPassMap(false)
 {
 }
 
@@ -1255,7 +1255,7 @@ MatFx::MatFx(void)
  * Texture
  */
 
-void Texture::read(char *bytes, size_t *offset)
+void Texture::read(char* bytes, size_t* offset)
 {
 	HeaderInfo header;
 
@@ -1272,7 +1272,7 @@ void Texture::read(char *bytes, size_t *offset)
 	// READ_HEADER(CHUNK_STRING);
 	header.read(bytes, offset);
 
-	char *buffer = new char[header.length+1];
+	char* buffer = new char[header.length + 1];
 	//rw.read(buffer, header.length);
 	memcpy(buffer, &bytes[*offset], header.length);
 	*offset += header.length;
@@ -1284,7 +1284,7 @@ void Texture::read(char *bytes, size_t *offset)
 	// READ_HEADER(CHUNK_STRING);
 	header.read(bytes, offset);
 
-	buffer = new char[header.length+1];
+	buffer = new char[header.length + 1];
 	//rw.read(buffer, header.length);
 	memcpy(buffer, &bytes[*offset], header.length);
 	*offset += header.length;
@@ -1296,7 +1296,7 @@ void Texture::read(char *bytes, size_t *offset)
 	readExtension(bytes, offset);
 }
 
-void Texture::readExtension(char *bytes, size_t *offset)
+void Texture::readExtension(char* bytes, size_t* offset)
 {
 	HeaderInfo header;
 	// READ_HEADER(CHUNK_EXTENSION);
@@ -1329,11 +1329,11 @@ void Texture::dump(std::string ind)
 	std::cout << ind << "name: " << name << std::endl;
 	std::cout << ind << "maskName: " << maskName << std::endl;
 
-	ind = ind.substr(0, ind.size()-2);
+	ind = ind.substr(0, ind.size() - 2);
 	std::cout << ind << "}\n";
 }
 
 Texture::Texture(void)
-: filterFlags(0), name(""), maskName(""), hasSkyMipmap(false)
+	: filterFlags(0), name(""), maskName(""), hasSkyMipmap(false)
 {
 }

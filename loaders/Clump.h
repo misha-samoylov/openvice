@@ -7,6 +7,7 @@
 #include "FrameList.h"
 #include "LightList.h"
 #include "AtomicList.h"
+#include "Geometry.h"
 
 using namespace std;
 

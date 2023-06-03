@@ -138,11 +138,11 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="dffread.cpp" />
     <ClCompile Include="Camera.cpp" />
     <ClCompile Include="Input.cpp" />
     <ClCompile Include="loaders\AtomicList.cpp" />
     <ClCompile Include="loaders\FrameList.cpp" />
+    <ClCompile Include="loaders\Geometry.cpp" />
     <ClCompile Include="loaders\LightList.cpp" />
     <ClCompile Include="Mesh.cpp" />
     <ClCompile Include="DXRender.cpp" />
@@ -160,6 +160,7 @@
     <ClInclude Include="Input.hpp" />
     <ClInclude Include="loaders\AtomicList.h" />
     <ClInclude Include="loaders\FrameList.h" />
+    <ClInclude Include="loaders\Geometry.h" />
     <ClInclude Include="loaders\LightList.h" />
     <ClInclude Include="Mesh.hpp" />
     <ClInclude Include="DXRender.hpp" />
