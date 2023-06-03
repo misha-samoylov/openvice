@@ -9,7 +9,7 @@
 
 #define IMG_BLOCK_SIZE 2048
 
-struct dirEntry {
+struct DirEntry {
 	uint32_t offset;
 	uint32_t size;
 	char name[24];
@@ -38,7 +38,7 @@ private:
 	HANDLE m_hFileDir;
 	HANDLE m_hMappingDir;
 	unsigned char* m_dataPtrDir;
-	struct dirEntry *m_pFilesDir;
+	struct DirEntry *m_pFilesDir;
 	int m_countFiles;
 	
 	HANDLE m_hFileImg;

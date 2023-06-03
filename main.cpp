@@ -551,7 +551,7 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 			float speed = 10.0f * frameTime;
 
 			if (gameInput->IsKey(DIK_ESCAPE)) {
-				PostQuitMessage(-1);
+				PostQuitMessage(EXIT_SUCCESS);
 			}
 
 			if (gameInput->IsKey(DIK_LSHIFT)) {

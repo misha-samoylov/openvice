@@ -25,16 +25,18 @@ void Clump::Read(char *bytes)
 	size_t offset;
 	HeaderInfo header;
 	uint32_t numGeometries;
+	uint32_t numAtomics;
+	uint32_t numLights;
 
 	offset = 0;
 
-	header.read(bytes, &offset);// CHUNK_CLUMP
-	header.read(bytes, &offset); //READ_HEADER(CHUNK_STRUCT);
+	header.read(bytes, &offset); /* CHUNK_CLUMP */
+	header.read(bytes, &offset); /* CHUNK_STRUCT */
 
-	m_numAtomics = readUInt32(bytes, &offset);
-	m_numLights = 0;
+	numAtomics = readUInt32(bytes, &offset);
+	numLights = 0;
 	if (header.length == 0xC) {
-		m_numLights = readUInt32(bytes, &offset);
+		numLights = readUInt32(bytes, &offset);
 		offset += 4;  /* Camera count, unused in GTA */
 	}
 
@@ -54,11 +56,11 @@ void Clump::Read(char *bytes)
 
 	/* Atomic */
 	m_atomicList = new AtomicList();
-	m_atomicList->Read(m_numAtomics, bytes, &offset);
+	m_atomicList->Read(numAtomics, bytes, &offset);
 
 	/* Light */
 	m_lightList = new LightList();
-	m_lightList->Read(m_numLights, bytes, &offset);
+	m_lightList->Read(numLights, bytes, &offset);
 
 	m_hasCollision = false;
 
@@ -68,25 +70,28 @@ void Clump::Read(char *bytes)
 void Clump::ReadExtension(char *bytes, size_t *offset)
 {
 	HeaderInfo header;
-	header.read(bytes, offset); //READ_HEADER(CHUNK_EXTENSION);
+	header.read(bytes, offset); /* CHUNK_EXTENSION */
 
 	streampos end = *offset;
 	end += header.length;
 
 	while (*offset < end) {
 		header.read(bytes, offset);
+
 		switch (header.type) {
 		case CHUNK_COLLISIONMODEL:
 			m_hasCollision = true;
-			m_colData.resize(header.length);
-			//rw.read((char*)&m_colData[0], header.length);
-			memcpy((char*)&m_colData[0],
+
+			m_colData = (uint8_t*)malloc(header.length * sizeof(uint8_t));
+			memcpy(
+				(char*)&m_colData[0],
 				&bytes[*offset],
-				header.length);
+				header.length
+			);
+
 			*offset += header.length;
 			break;
 		default:
-			//rw.seekg(header.length, ios::cur);
 			*offset += header.length;
 			break;
 		}
@@ -95,31 +100,25 @@ void Clump::ReadExtension(char *bytes, size_t *offset)
 
 void Clump::Dump(bool detailed)
 {
-	string ind = "";
-	cout << ind << "Clump {\n";
-	ind += "  ";
-	cout << ind << "numAtomics: " << m_numAtomics << endl;
+	printf("Clump\n");
 
 	printf("FrameList\n");
 	printf("numFrames: %d\n", m_frameList->GetNumFrames());
-	for (uint32_t i = 0; i < m_frameList->GetNumFrames(); i++)
+	for (uint32_t i = 0; i < m_frameList->GetNumFrames(); i++) {
 		m_frameList->GetFrame(i)->Dump(i);
-
-	cout << endl << ind << "GeometryList {\n";
-	ind += "  ";
-	cout << ind << "numGeometries: " << m_geometryList.size() << endl;
-	for (uint32_t i = 0; i < m_geometryList.size(); i++)
-		m_geometryList[i].dump(i, ind, detailed);
-
-	ind = ind.substr(0, ind.size() - 2);
-	cout << ind << "}\n\n";
-
-	for (uint32_t i = 0; i < m_numAtomics; i++) {
-		m_atomicList->GetAtomic(i)->Dump(i);
 	}
 
-	ind = ind.substr(0, ind.size() - 2);
-	cout << ind << "}\n";
+	cout << "GeometryList {\n";
+	cout << "numGeometries: " << m_geometryList.size() << endl;
+	for (uint32_t i = 0; i < m_geometryList.size(); i++) {
+		m_geometryList[i].dump(i, 0, detailed);
+	}
+
+	printf("Atomic List\n");
+	printf("numAtomics: %d\n", m_atomicList->GetNumAtomic());
+	for (uint32_t i = 0; i < m_atomicList->GetNumAtomic(); i++) {
+		m_atomicList->GetAtomic(i)->Dump(i);
+	}
 }
 
 void Clump::Clear(void)
@@ -135,5 +134,5 @@ void Clump::Clear(void)
 	m_lightList->Cleanup();
 	delete m_lightList;
 
-	m_colData.clear();
+	free(m_colData);
 }

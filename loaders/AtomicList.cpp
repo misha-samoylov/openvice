@@ -7,8 +7,8 @@ void Atomic::Read(char* bytes, size_t* offset)
 	header.read(bytes, offset); /* CHUNK_ATOMIC */
 	header.read(bytes, offset); /* CHUNK_STRUCT */
 
-	frameIndex = readUInt32(bytes, offset);
-	geometryIndex = readUInt32(bytes, offset);
+	m_frameIndex = readUInt32(bytes, offset);
+	m_geometryIndex = readUInt32(bytes, offset);
 	*offset += 8; /* constant */
 
 	ReadExtension(bytes, offset);
@@ -27,21 +27,21 @@ void Atomic::ReadExtension(char* bytes, size_t* offset)
 		header.read(bytes, offset);
 		switch (header.type) {
 		case CHUNK_RIGHTTORENDER:
-			hasRightToRender = true;
-			rightToRenderVal1 = readUInt32(bytes, offset);
-			rightToRenderVal2 = readUInt32(bytes, offset);
+			m_hasRightToRender = true;
+			m_rightToRenderVal1 = readUInt32(bytes, offset);
+			m_rightToRenderVal2 = readUInt32(bytes, offset);
 			break;
 		case CHUNK_PARTICLES:
-			hasParticles = true;
-			particlesVal = readUInt32(bytes, offset);
+			m_hasParticles = true;
+			m_particlesVal = readUInt32(bytes, offset);
 			break;
 		case CHUNK_MATERIALEFFECTS:
-			hasMaterialFx = true;
-			materialFxVal = readUInt32(bytes, offset);
+			m_hasMaterialFx = true;
+			m_materialFxVal = readUInt32(bytes, offset);
 			break;
 		case CHUNK_PIPELINESET:
-			hasPipelineSet = true;
-			pipelineSetVal = readUInt32(bytes, offset);
+			m_hasPipelineSet = true;
+			m_pipelineSetVal = readUInt32(bytes, offset);
 			break;
 		default:
 			*offset += header.length;
@@ -54,41 +54,41 @@ void Atomic::Dump(uint32_t index)
 {
 	printf("Atomic %d\n", index);
 
-	printf("frameIndex: %d\n", frameIndex);
-	printf("geometryIndex: %d\n", geometryIndex);
+	printf("frameIndex: %d\n", m_frameIndex);
+	printf("geometryIndex: %d\n", m_geometryIndex);
 
-	if (hasRightToRender) {
+	if (m_hasRightToRender) {
 		printf("Right to Render\n");
-		printf("val1: %d\n", rightToRenderVal1);
-		printf("val2: %d\n", rightToRenderVal2);
+		printf("val1: %d\n", m_rightToRenderVal1);
+		printf("val2: %d\n", m_rightToRenderVal2);
 	}
 
-	if (hasParticles)
-		printf("particlesVal: %d\n", particlesVal);
+	if (m_hasParticles)
+		printf("particlesVal: %d\n", m_particlesVal);
 
-	if (hasPipelineSet)
-		printf("pipelineSetVal: %d\n", pipelineSetVal);
+	if (m_hasPipelineSet)
+		printf("pipelineSetVal: %d\n", m_pipelineSetVal);
 
-	if (hasMaterialFx)
-		printf("materialFxVal: %d\n", materialFxVal);
+	if (m_hasMaterialFx)
+		printf("materialFxVal: %d\n", m_materialFxVal);
 }
 
 void Atomic::Init()
 {
-	frameIndex = -1;
-	geometryIndex = -1;
+	m_frameIndex = -1;
+	m_geometryIndex = -1;
 
-	hasRightToRender = false;
-	rightToRenderVal1 = 0;
-	rightToRenderVal2 = 0;
+	m_hasRightToRender = false;
+	m_rightToRenderVal1 = 0;
+	m_rightToRenderVal2 = 0;
 
-	hasParticles = false;
-	particlesVal = 0;
-	hasPipelineSet = false;
-	pipelineSetVal = 0;
+	m_hasParticles = false;
+	m_particlesVal = 0;
+	m_hasPipelineSet = false;
+	m_pipelineSetVal = 0;
 
-	hasMaterialFx = false;
-	materialFxVal = 0;
+	m_hasMaterialFx = false;
+	m_materialFxVal = 0;
 }
 
 void Atomic::Cleanup()
@@ -124,4 +124,9 @@ void AtomicList::Cleanup()
 Atomic* AtomicList::GetAtomic(int id)
 {
 	return m_atomics[id];
+}
+
+uint32_t AtomicList::GetNumAtomic()
+{
+	return m_numAtomics;
 }

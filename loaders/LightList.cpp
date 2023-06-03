@@ -7,23 +7,29 @@ void Light::Read(char* bytes, size_t* offset)
 	header.read(bytes, offset); /* CHUNK_LIGHT */
 	header.read(bytes, offset); /* CHUNK_STRUCT */
 
-	radius = readFloat32(bytes, offset);
+	m_radius = readFloat32(bytes, offset);
 
-	memcpy((char*)&color[0], &bytes[*offset], 12);
+	memcpy((char*)&m_color[0], &bytes[*offset], 12);
 	*offset += 12;
 
-	minusCosAngle = readFloat32(bytes, offset);
-	flags = readUInt16(bytes, offset);
-	type = readUInt16(bytes, offset);
+	m_minusCosAngle = readFloat32(bytes, offset);
+	m_flags = readUInt16(bytes, offset);
+	m_type = readUInt16(bytes, offset);
 
 	header.read(bytes, offset); /* CHUNK_EXTENSION */
 
 	*offset += header.length;
 }
 
+void Light::SetFrameIndex(int32_t frameIndex)
+{
+	m_frameIndex = frameIndex;
+}
+
 void LightList::Read(uint32_t numLights, char *bytes, size_t *offset)
 {
 	HeaderInfo header;
+	int32_t frameIndex;
 
 	m_numLights = numLights;
 	m_lightList = new Light * [numLights];
@@ -34,7 +40,9 @@ void LightList::Read(uint32_t numLights, char *bytes, size_t *offset)
 
 	for (uint32_t i = 0; i < numLights; i++) {
 		header.read(bytes, offset); /* CHUNK_STRUCT */
-		m_lightList[i]->frameIndex = readInt32(bytes, offset);
+
+		frameIndex = readInt32(bytes, offset);
+		m_lightList[i]->SetFrameIndex(frameIndex);
 		m_lightList[i]->Read(bytes, offset);
 	}
 }

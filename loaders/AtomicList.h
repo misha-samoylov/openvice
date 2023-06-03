@@ -5,28 +5,6 @@
 
 class Atomic
 {
-private:
-	int32_t frameIndex;
-	int32_t geometryIndex;
-
-	/* Extensions */
-
-	/* right to render */
-	bool hasRightToRender;
-	uint32_t rightToRenderVal1;
-	uint32_t rightToRenderVal2;
-
-	/* particles */
-	bool hasParticles;
-	uint32_t particlesVal;
-
-	/* pipelineset */
-	bool hasPipelineSet;
-	uint32_t pipelineSetVal;
-
-	/* material fx */
-	bool hasMaterialFx;
-	uint32_t materialFxVal;
 public:
 	void Read(char* bytes, size_t* offset);
 	void ReadExtension(char* bytes, size_t* offset);
@@ -34,6 +12,29 @@ public:
 
 	void Init();
 	void Cleanup();
+
+private:
+	int32_t m_frameIndex;
+	int32_t m_geometryIndex;
+
+	/* Extensions */
+
+	/* right to render */
+	bool m_hasRightToRender;
+	uint32_t m_rightToRenderVal1;
+	uint32_t m_rightToRenderVal2;
+
+	/* particles */
+	bool m_hasParticles;
+	uint32_t m_particlesVal;
+
+	/* pipelineset */
+	bool m_hasPipelineSet;
+	uint32_t m_pipelineSetVal;
+
+	/* material fx */
+	bool m_hasMaterialFx;
+	uint32_t m_materialFxVal;
 };
 
 
@@ -43,6 +44,7 @@ public:
 	void Read(uint32_t numAtomics, char* bytes, size_t* offset);
 	void Cleanup();
 	Atomic* GetAtomic(int id);
+	uint32_t GetNumAtomic();
 
 private:
 	Atomic** m_atomics;
