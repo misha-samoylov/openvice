@@ -7,22 +7,8 @@
 #include <cstring>
 #include <cmath>
 #include <cstdlib>
-#include <fstream>
 
 #include <windows.h>
-
-using namespace std;
-
-//#ifdef _DEBUG
-//	#define READ_HEADER(x)\
-//	header.read(bytes, &offset);\
-//	if (header.type != (x)) {\
-//		ChunkNotFound((x), rw.tellg());\
-//	}
-//#else
-	#define READ_HEADER(x)\
-		header.read(bytes, &offset);
-//#endif
 
 enum PLATFORM_ID {
 	PLATFORM_OGL = 2,

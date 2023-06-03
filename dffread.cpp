@@ -179,8 +179,8 @@ void Geometry::readExtension(char *bytes, size_t *offset)
 				//else if(platform == PLATFORM_XBOX)
 				//	readXboxNativeData(rw);
 				//else
-					cout << "unknown platform " <<
-					        platform << endl;
+					std::cout << "unknown platform " <<
+					        platform << std::endl;
 			}else{
 				//rw.seekg(beg, ios::beg);
 				*offset += beg;
@@ -240,8 +240,8 @@ void Geometry::readExtension(char *bytes, size_t *offset)
 				//	hasSkin = true;
 				//	readXboxNativeSkin(rw);
 				}else{
-					cout << "skin: unknown platform "
-					     << platform << endl;
+					std::cout << "skin: unknown platform "
+					     << platform << std::endl;
 					//rw.seekg(header.length, ios::cur);
 					*offset = header.length;
 				}
@@ -331,7 +331,7 @@ void Geometry::readNativeSkinMatrices(char *bytes, size_t *offset)
 
 	uint32_t platform = readUInt32(bytes, offset);
 	if (platform != PLATFORM_PS2 && platform != PLATFORM_OGL) {
-		cerr << "error: native skin not in ps2 or ogl format\n";
+		std::cerr << "error: native skin not in ps2 or ogl format\n";
 		return;
 	}
 
@@ -504,13 +504,13 @@ void Geometry::generateFaces(void)
 }
 
 // these hold the (temporary) cleaned up data
-vector<float> vertices_new;
-vector<float> normals_new;
-vector<float> texCoords_new[8];
-vector<uint8_t> vertexColors_new;
-vector<uint8_t> nightColors_new;
-vector<uint32_t> vertexBoneIndices_new;
-vector<float> vertexBoneWeights_new;
+std::vector<float> vertices_new;
+std::vector<float> normals_new;
+std::vector<float> texCoords_new[8];
+std::vector<uint8_t> vertexColors_new;
+std::vector<uint8_t> nightColors_new;
+std::vector<uint32_t> vertexBoneIndices_new;
+std::vector<float> vertexBoneWeights_new;
 
 // used only by Geometry::cleanUp()
 // adds new temporary vertex if it isn't already in the list
@@ -621,7 +621,7 @@ void Geometry::cleanUp(void)
 	vertexBoneIndices_new.clear();
 	vertexBoneWeights_new.clear();
 
-	vector<uint32_t> newIndices;
+	std::vector<uint32_t> newIndices;
 
 	// create new vertex list
 	for (uint32_t i = 0; i < vertices.size()/3; i++)
@@ -654,138 +654,138 @@ void Geometry::cleanUp(void)
 	}
 }
 
-void Geometry::dump(uint32_t index, string ind, bool detailed)
+void Geometry::dump(uint32_t index, std::string ind, bool detailed)
 {
-	cout << ind << "Geometry " << index << " {\n";
+	std::cout << ind << "Geometry " << index << " {\n";
 	ind += "  ";
 
-	cout << ind << "flags: " << hex << flags << endl;
-	cout << ind << "numUVs: " << dec << numUVs << endl;
-	cout << ind << "hasNativeGeometry: " << hasNativeGeometry << endl;
-	cout << ind << "triangleCount: " << faces.size()/4 << endl;
-	cout << ind << "vertexCount: " << vertexCount << endl << endl;;
+	std::cout << ind << "flags: " << std::hex << flags << std::endl;
+	std::cout << ind << "numUVs: " << std::dec << numUVs << std::endl;
+	std::cout << ind << "hasNativeGeometry: " << hasNativeGeometry << std::endl;
+	std::cout << ind << "triangleCount: " << faces.size()/4 << std::endl;
+	std::cout << ind << "vertexCount: " << vertexCount << std::endl << std::endl;
 
 	if (flags & FLAGS_PRELIT) {
-		cout << ind << "vertexColors {\n";
+		std::cout << ind << "vertexColors {\n";
 		ind += "  ";
 		if (!detailed)
-			cout << ind << "skipping\n";
+			std::cout << ind << "skipping\n";
 		else
 			for (uint32_t i = 0; i < vertexColors.size()/4; i++)
-				cout << ind << int(vertexColors[i*4+0])<< ", "
+				std::cout << ind << int(vertexColors[i*4+0])<< ", "
 					<< int(vertexColors[i*4+1]) << ", "
 					<< int(vertexColors[i*4+2]) << ", "
-					<< int(vertexColors[i*4+3]) << endl;
+					<< int(vertexColors[i*4+3]) << std::endl;
 		ind = ind.substr(0, ind.size()-2);
-		cout << ind << "}\n\n";
+		std::cout << ind << "}\n\n";
 	}
 
 	if (flags & FLAGS_TEXTURED) {
-		cout << ind << "texCoords {\n";
+		std::cout << ind << "texCoords {\n";
 		ind += "  ";
 		if (!detailed)
-			cout << ind << "skipping\n";
+			std::cout << ind << "skipping\n";
 		else
 			for (uint32_t i = 0; i < texCoords[0].size()/2; i++)
-				cout << ind << texCoords[0][i*2+0]<< ", "
-					<< texCoords[0][i*2+1] << endl;
+				std::cout << ind << texCoords[0][i*2+0]<< ", "
+					<< texCoords[0][i*2+1] << std::endl;
 		ind = ind.substr(0, ind.size()-2);
-		cout << ind << "}\n\n";
+		std::cout << ind << "}\n\n";
 	}
 	if (flags & FLAGS_TEXTURED2) {
 		for (uint32_t j = 0; j < numUVs; j++) {
-		cout << ind << "texCoords " << j << " {\n";
+			std::cout << ind << "texCoords " << j << " {\n";
 		ind += "  ";
 		if (!detailed)
-			cout << ind << "skipping\n";
+			std::cout << ind << "skipping\n";
 		else
 			for (uint32_t i = 0; i < texCoords[j].size()/2; i++)
-				cout << ind << texCoords[j][i*2+0]<< ", "
-					<< texCoords[j][i*2+1] << endl;
+				std::cout << ind << texCoords[j][i*2+0]<< ", "
+					<< texCoords[j][i*2+1] << std::endl;
 		ind = ind.substr(0, ind.size()-2);
-		cout << ind << "}\n\n";
+		std::cout << ind << "}\n\n";
 		}
 	}
 
-	cout << ind << "faces {\n";
+	std::cout << ind << "faces {\n";
 	ind += "  ";
 	if (!detailed)
-		cout << ind << "skipping\n";
+		std::cout << ind << "skipping\n";
 	else
 		for (uint32_t i = 0; i < faces.size()/4; i++)
-			cout << ind << faces[i*4+0] << ", "
+			std::cout << ind << faces[i*4+0] << ", "
 			            << faces[i*4+1] << ", "
 			            << faces[i*4+2] << ", "
-			            << faces[i*4+3] << endl;
+			            << faces[i*4+3] << std::endl;
 	ind = ind.substr(0, ind.size()-2);
-	cout << ind << "}\n\n";
+	std::cout << ind << "}\n\n";
 
-	cout << ind << "boundingSphere: ";
+	std::cout << ind << "boundingSphere: ";
 	for (uint32_t i = 0; i < 4; i++)
-		cout << boundingSphere[i] << " ";
-	cout << endl << endl;
-	cout << ind << "hasPositions: " << hasPositions << endl;
-	cout << ind << "hasNormals: " << hasNormals << endl;
+		std::cout << boundingSphere[i] << " ";
+	std::cout << std::endl << std::endl;
+	std::cout << ind << "hasPositions: " << hasPositions << std::endl;
+	std::cout << ind << "hasNormals: " << hasNormals << std::endl;
 
-	cout << ind << "vertices {\n";
+	std::cout << ind << "vertices {\n";
 	ind += "  ";
 	if (!detailed)
-		cout << ind << "skipping\n";
+		std::cout << ind << "skipping\n";
 	else
 		for (uint32_t i = 0; i < vertices.size()/3; i++)
-			cout << ind << vertices[i*3+0] << ", "
+			std::cout << ind << vertices[i*3+0] << ", "
 			            << vertices[i*3+1] << ", "
-			            << vertices[i*3+2] << endl;
+			            << vertices[i*3+2] << std::endl;
 	ind = ind.substr(0, ind.size()-2);
-	cout << ind << "}\n";
+	std::cout << ind << "}\n";
 
 	if (flags & FLAGS_NORMALS) {
-		cout << ind << "normals {\n";
+		std::cout << ind << "normals {\n";
 		ind += "  ";
 		if (!detailed)
-			cout << ind << "skipping\n";
+			std::cout << ind << "skipping\n";
 		else
 			for (uint32_t i = 0; i < normals.size()/3; i++)
-				cout << ind << normals[i*3+0] << ", "
+				std::cout << ind << normals[i*3+0] << ", "
 					    << normals[i*3+1] << ", "
-					    << normals[i*3+2] << endl;
+					    << normals[i*3+2] << std::endl;
 		ind = ind.substr(0, ind.size()-2);
-		cout << ind << "}\n";
+		std::cout << ind << "}\n";
 	}
 
-	cout << endl << ind << "BinMesh {\n";
+	std::cout << std::endl << ind << "BinMesh {\n";
 	ind += "  ";
-	cout << ind << "faceType: " << faceType << endl;
-	cout << ind << "numIndices: " << numIndices << endl;
+	std::cout << ind << "faceType: " << faceType << std::endl;
+	std::cout << ind << "numIndices: " << numIndices << std::endl;
 	for (uint32_t i = 0; i < splits.size(); i++) {
-		cout << endl << ind << "Split " << i << " {\n";
+		std::cout << std::endl << ind << "Split " << i << " {\n";
 		ind += "  ";
-		cout << ind << "matIndex: " << splits[i].matIndex << endl;
-		cout << ind << "numIndices: "<<splits[i].indices.size() << endl;
-		cout << ind << "indices {\n";
+		std::cout << ind << "matIndex: " << splits[i].matIndex << std::endl;
+		std::cout << ind << "numIndices: "<<splits[i].indices.size() << std::endl;
+		std::cout << ind << "indices {\n";
 		if(!detailed)
-			cout << ind+"  skipping\n";
+			std::cout << ind+"  skipping\n";
 		else
 			for(uint32_t j = 0; j < splits[i].indices.size(); j++)
-				cout << ind+" " << splits[i].indices[j] << endl;
-		cout << ind << "}\n";
+				std::cout << ind+" " << splits[i].indices[j] << std::endl;
+		std::cout << ind << "}\n";
 		ind = ind.substr(0, ind.size()-2);
-		cout << ind << "}\n";
+		std::cout << ind << "}\n";
 	}
 	ind = ind.substr(0, ind.size()-2);
-	cout << ind << "}\n";
+	std::cout << ind << "}\n";
 
 
-	cout << endl << ind << "MaterialList {\n";
+	std::cout << std::endl << ind << "MaterialList {\n";
 	ind += "  ";
-	cout << ind << "numMaterials: " << materialList.size() << endl;
+	std::cout << ind << "numMaterials: " << materialList.size() << std::endl;
 	for (uint32_t i = 0; i < materialList.size(); i++)
 		materialList[i].dump(i, ind);
 	ind = ind.substr(0, ind.size()-2);
-	cout << ind << "}\n";
+	std::cout << ind << "}\n";
 
 	ind = ind.substr(0, ind.size()-2);
-	cout << ind << "}\n";
+	std::cout << ind << "}\n";
 }
 
 Geometry::Geometry(void)
@@ -1077,22 +1077,22 @@ void Material::readExtension(char *bytes, size_t *offset)
 	}
 }
 
-void Material::dump(uint32_t index, string ind)
+void Material::dump(uint32_t index, std::string ind)
 {
-	cout << ind << "Material " << index << " {\n";
+	std::cout << ind << "Material " << index << " {\n";
 	ind += "  ";
 
 	// unused
 //	cout << ind << "flags: " << hex << flags << endl;
-	cout << ind << "color: " << dec << int(color[0]) << " "
+	std::cout << ind << "color: " << std::dec << int(color[0]) << " "
 	                         << int(color[1]) << " "
 	                         << int(color[2]) << " "
-	                         << int(color[3]) << endl;
+	                         << int(color[3]) << std::endl;
 	// unused
 //	cout << ind << "unknown: " << hex << unknown << endl;
-	cout << ind << "surfaceProps: " << surfaceProps[0] << " "
+	std::cout << ind << "surfaceProps: " << surfaceProps[0] << " "
 	                                << surfaceProps[1] << " "
-	                                << surfaceProps[2] << endl;
+	                                << surfaceProps[2] << std::endl;
 
 	if(hasTex)
 		texture.dump(ind);
@@ -1101,34 +1101,34 @@ void Material::dump(uint32_t index, string ind)
 		matFx->dump(ind);
 
 	if(hasRightToRender){
-		cout << hex;
-		cout << ind << "Right to Render {\n";
-		cout << ind+"  " << "val1: " << rightToRenderVal1<<endl;
-		cout << ind+"  " << "val2: " << rightToRenderVal2<<endl;
-		cout << ind << "}\n";
-		cout << dec;
+		std::cout << std::hex;
+		std::cout << ind << "Right to Render {\n";
+		std::cout << ind+"  " << "val1: " << rightToRenderVal1<< std::endl;
+		std::cout << ind+"  " << "val2: " << rightToRenderVal2<< std::endl;
+		std::cout << ind << "}\n";
+		std::cout << std::dec;
 	}
 
 	if(hasReflectionMat){
-		cout << ind << "Reflection Material {\n";
-		cout << ind+"  " << "amount: "
+		std::cout << ind << "Reflection Material {\n";
+		std::cout << ind+"  " << "amount: "
 		     << reflectionChannelAmount[0] << " "
 		     << reflectionChannelAmount[1] << " "
 		     << reflectionChannelAmount[2] << " "
-		     << reflectionChannelAmount[3] << endl;
-		cout << ind+"  " << "intensity: " << reflectionIntensity << endl;
-		cout << ind << "}\n";
+		     << reflectionChannelAmount[3] << std::endl;
+		std::cout << ind+"  " << "intensity: " << reflectionIntensity << std::endl;
+		std::cout << ind << "}\n";
 	}
 
 	if(hasSpecularMat){
-		cout << ind << "Specular Material {\n";
-		cout << ind+"  " << "level: " << specularLevel << endl;
-		cout << ind+"  " << "name: " << specularName << endl;
-		cout << ind << "}\n";
+		std::cout << ind << "Specular Material {\n";
+		std::cout << ind+"  " << "level: " << specularLevel << std::endl;
+		std::cout << ind+"  " << "name: " << specularName << std::endl;
+		std::cout << ind << "}\n";
 	}
 
 	ind = ind.substr(0, ind.size()-2);
-	cout << ind << "}\n";
+	std::cout << ind << "}\n";
 }
 
 Material::Material(void)
@@ -1212,7 +1212,7 @@ Material::~Material(void)
 	delete matFx;
 }
 
-void MatFx::dump(string ind)
+void MatFx::dump(std::string ind)
 {
 	static const char *names[] = {
 		"INVALID",
@@ -1223,18 +1223,18 @@ void MatFx::dump(string ind)
 		"MATFX_UVTRANSFORM",
 		"MATFX_DUALUVTRANSFORM"
 	};
-	cout << ind << "MatFX {\n";
+	std::cout << ind << "MatFX {\n";
 	ind += "  ";
-	cout << ind << "type: " << names[type] << endl;
+	std::cout << ind << "type: " << names[type] << std::endl;
 	if(type == MATFX_BUMPMAP || type == MATFX_BUMPENVMAP)
-		cout << ind << "bumpCoefficient: " << bumpCoefficient << endl;
+		std::cout << ind << "bumpCoefficient: " << bumpCoefficient << std::endl;
 	if(type == MATFX_ENVMAP || type == MATFX_BUMPENVMAP)
-		cout << ind << "envCoefficient: " << envCoefficient << endl;
+		std::cout << ind << "envCoefficient: " << envCoefficient << std::endl;
 	if(type == MATFX_DUAL){
-		cout << ind << "srcBlend: " << srcBlend << endl;
-		cout << ind << "destBlend: " << destBlend << endl;
+		std::cout << ind << "srcBlend: " << srcBlend << std::endl;
+		std::cout << ind << "destBlend: " << destBlend << std::endl;
 	}
-	cout << ind << "textures: " << hasTex1 << " " << hasTex2 << " " << hasDualPassMap << endl;
+	std::cout << ind << "textures: " << hasTex1 << " " << hasTex2 << " " << hasDualPassMap << std::endl;
 	if(hasTex1)
 		tex1.dump(ind);
 	if(hasTex2)
@@ -1243,7 +1243,7 @@ void MatFx::dump(string ind)
 		dualPassMap.dump(ind);
 
 	ind = ind.substr(0, ind.size()-2);
-	cout << ind << "}\n";
+	std::cout << ind << "}\n";
 }
 
 MatFx::MatFx(void)
@@ -1322,15 +1322,15 @@ void Texture::readExtension(char *bytes, size_t *offset)
 
 void Texture::dump(std::string ind)
 {
-	cout << ind << "Texture {\n";
+	std::cout << ind << "Texture {\n";
 	ind += "  ";
 
-	cout << ind << "filterFlags: " << hex << filterFlags << dec << endl;
-	cout << ind << "name: " << name << endl;
-	cout << ind << "maskName: " << maskName << endl;
+	std::cout << ind << "filterFlags: " << std::hex << filterFlags << std::dec << std::endl;
+	std::cout << ind << "name: " << name << std::endl;
+	std::cout << ind << "maskName: " << maskName << std::endl;
 
 	ind = ind.substr(0, ind.size()-2);
-	cout << ind << "}\n";
+	std::cout << ind << "}\n";
 }
 
 Texture::Texture(void)

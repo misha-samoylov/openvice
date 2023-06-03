@@ -58,8 +58,9 @@ void Frame::ReadExtension(char* bytes, size_t* offset)
 
 					uint32_t flag = readUInt32(bytes, offset);
 
-					if ((flag & ~0x3) != 0)
-						cout << flag << endl;
+					if ((flag & ~0x3) != 0) {
+						printf("flag %d\n", flag);
+					}
 
 					m_hAnimBoneTypes[i] = flag;
 				}

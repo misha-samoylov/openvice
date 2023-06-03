@@ -507,7 +507,7 @@ void NativeTexture::decompressDxt()
 	else if (dxtCompression == 4) {
 		decompressDxt4();
 	} else
-		cout << "dxt" << dxtCompression << " not supported\n";
+		std::cout << "dxt" << dxtCompression << " not supported\n";
 }
 
 NativeTexture::NativeTexture()
