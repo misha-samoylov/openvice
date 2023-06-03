@@ -2,6 +2,9 @@
 
 #include <string>
 #include <stdio.h>
+#include <stdlib.h>
+#include <iostream>
+#include <cstdlib>
 
 #include <d3d11.h>
 #include <DirectXMath.h>

@@ -66,11 +66,9 @@ void Mesh::Render(DXRender* pRender, Camera *pCamera)
 	pRender->GetDeviceContext()->UpdateSubresource(m_pObjectBuffer, 0, NULL, &m_objectConstBuffer, 0, 0);
 	pRender->GetDeviceContext()->VSSetConstantBuffers(0, 1, &m_pObjectBuffer);
 
-
-	///////////////**************new**************////////////////////
+	/* pixel shader */
 	pRender->GetDeviceContext()->PSSetShaderResources(0, 1, &m_pTexture);
 	pRender->GetDeviceContext()->PSSetSamplers(0, 1, &m_pTextureSampler);
-	///////////////**************new**************////////////////////
 
 	/* render indexed vertices */
 	pRender->GetDeviceContext()->DrawIndexed(m_countIndices, 0, 0);
@@ -81,7 +79,7 @@ void Mesh::SetPosition(float x, float y, float z,
 	float rotx, float roty, float rotz, float rotr)
 {
 	XMVECTOR vector = XMVectorSet(0, 0, 0, 0);
-	XMMATRIX modelRotation = XMMatrixRotationRollPitchYawFromVector(vector);
+	XMMATRIX modelRotation = XMMatrixRotationQuaternion(vector);
 
 	XMMATRIX modelPosition = XMMatrixIdentity();
 	XMMATRIX modelScale = XMMatrixScaling(scaleX, scaleY, scaleZ);
@@ -90,23 +88,12 @@ void Mesh::SetPosition(float x, float y, float z,
 	m_World = modelRotation * modelPosition * modelScale * modelTranslation;
 }
 
-#include <stdlib.h>
-#include<iostream>
-#include<cstdlib>
 
 HRESULT Mesh::SetDataDDS(DXRender* pRender, uint8_t* source, size_t size, uint32_t width, uint32_t height, uint32_t dxtCompression, uint32_t depth)
 {
 	HRESULT hr;
 
-	//tgaFileSource = source;
-	//tgaFileSize = size;
-
-	///////////////**************new**************////////////////////
-	//hr = CreateDDSTextureFromFile(pRender->GetDevice(), L"C:/Users/john/Documents/GitHub/openvice/test-dxt5.dds", nullptr, &CubesTexture);
-	//if (FAILED(hr)) {
-	//	printf("Error: cannot create dds file\n");
-	//}
-
+	/* Manual create DDS file */
 	struct DDS_File dds;
 	dds.dwMagic = DDS_MAGIC;
 	dds.header.size = sizeof(struct DDS_HEADER);
@@ -161,6 +148,8 @@ HRESULT Mesh::SetDataDDS(DXRender* pRender, uint8_t* source, size_t size, uint32
 	if (FAILED(hr)) {
 		printf("Error: cannot load tga file\n");
 	}
+
+	free(buf);
 
 	//ID3D11ShaderResourceView* pSRV = nullptr;
 	hr = CreateShaderResourceView(pRender->GetDevice(),

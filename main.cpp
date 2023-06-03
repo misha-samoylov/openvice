@@ -300,6 +300,7 @@ void RenderScene(DXRender *render, Camera *camera)
 				g_LoadedMeshes[m]->SetPosition(
 					g_MapObjects[i].posX, g_MapObjects[i].posY, g_MapObjects[i].posZ,
 					g_MapObjects[i].scale[0], g_MapObjects[i].scale[1], g_MapObjects[i].scale[2],
+
 					g_MapObjects[i].rot[0], g_MapObjects[i].rot[1], g_MapObjects[i].rot[2], g_MapObjects[i].rot[3]
 				);
 				g_LoadedMeshes[m]->Render(render, camera);
@@ -337,7 +338,7 @@ void LoadIDEFile(const char* filepath)
 			int id = 0;
 			char modelName[64];
 			char textureArchiveName[64];
-			//std::string modelNameq;
+
 			int interior = 0;
 			float posX = 0, posY = 0, posZ = 0;
 			float scale[3];
@@ -395,29 +396,34 @@ void LoadIPLFile(const char *filepath)
 				}
 			}
 
-
 			int id = 0;
-			char modelName[64];
-			//std::string modelNameq;
+			char modelName[64]; // in file without extension (.dff)
 			int interior = 0;
 			float posX = 0, posY = 0, posZ = 0;
 			float scale[3];
 			float rot[4];
 
-			int values = sscanf(str, "%d, %64[^,], %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f", &id, modelName, &interior, &posX, &posY, &posZ,
+			int values = sscanf(
+				str,
+				"%d, %64[^,], %d, "
+				"%f, %f, %f, " // pos
+				"%f, %f, %f, " // scale
+				"%f, %f, %f, %f", // rotation
+				&id, modelName, &interior,
+				&posX, &posY, &posZ,
 				&scale[0], &scale[1], &scale[2],
 				&rot[0], &rot[1], &rot[2], &rot[3]
 			);
 
-			printf("%s", str);
 			if (values == 13 && isObjs) {
+				printf("%s", str);
 
 				// Добавляем .dff окончание, так как там указано без DFF формата
 				//modelNameq = modelNameq + ".dff";
 
 				std::string mName = modelName;
 				mName = mName + ".dff";
-								
+
 				struct IPLFile iplfile;
 				iplfile.id = id;
 				iplfile.modelName = mName;
@@ -435,14 +441,14 @@ void LoadIPLFile(const char *filepath)
 				iplfile.posY = posZ;
 				iplfile.posZ = posX;
 
-				iplfile.scale[0] = scale[1]; // y 
+				iplfile.scale[0] = scale[1]; // y
 				iplfile.scale[1] = scale[2]; // z
 				iplfile.scale[2] = scale[0]; // x
 
-				iplfile.rot[0] = rot[0];
-				iplfile.rot[1] = rot[1];
-				iplfile.rot[2] = rot[2];
-				iplfile.rot[3] = rot[3];
+				iplfile.rot[0] = rot[1]; // y
+				iplfile.rot[1] = rot[2]; // z
+				iplfile.rot[2] = rot[0]; // x
+				iplfile.rot[3] = rot[3]; // w
 
 				g_MapObjects.push_back(iplfile);
 			}
@@ -478,8 +484,7 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 	);
 
 	/* Load map models and their textures */
-	LoadIDEFile("C:/Games/Grand Theft Auto Vice City/data/maps/generic.ide");
-	LoadIDEFile("C:/Games/Grand Theft Auto Vice City/data/maps/bridge/bridge.ide");
+	//LoadIDEFile("C:/Games/Grand Theft Auto Vice City/data/maps/generic.ide");
 	LoadIDEFile("C:/Games/Grand Theft Auto Vice City/data/maps/bank/bank.ide");
 
 
@@ -503,7 +508,6 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 
 
 	/* Load model placement */
-	LoadIPLFile("C:/Games/Grand Theft Auto Vice City/data/maps/bridge/bridge.ipl");
 	LoadIPLFile("C:/Games/Grand Theft Auto Vice City/data/maps/bank/bank.ipl");
 	
 	printf("[OK] %s Loaded\n", PROJECT_NAME);
