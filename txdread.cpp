@@ -8,8 +8,9 @@ void TextureDictionary::read(char *bytes, size_t *offset)
 	if (header.type != CHUNK_TEXDICTIONARY)
 		return;
 
-	//READ_HEADER(CHUNK_STRUCT);
 	header.read(bytes, offset);
+	if (header.type != CHUNK_STRUCT)
+		return;
 
 	uint32_t textureCount = readUInt16(bytes, offset);
 	// rw.seekg(2, ios::cur);
@@ -141,8 +142,7 @@ void NativeTexture::readD3d(char *bytes, size_t *offset)
 	if (rasterFormat & RASTER_PAL8 || rasterFormat & RASTER_PAL4) {
 		paletteSize = (rasterFormat & RASTER_PAL8) ? 0x100 : 0x10;
 		palette = new uint8_t[paletteSize*4*sizeof(uint8_t)];
-		//rw.read(reinterpret_cast <char *> (palette),
-		//	paletteSize*4*sizeof(uint8_t));
+
 		memcpy(reinterpret_cast<char *> (palette),
 			&bytes[*offset],
 			paletteSize * 4 * sizeof(uint8_t));
@@ -166,13 +166,13 @@ void NativeTexture::readD3d(char *bytes, size_t *offset)
 		uint32_t dataSize = readUInt32(bytes, offset);
 
 		// There is no way to predict, when the size is going to be zero
-		if (dataSize == 0)
-			width[i] = height[i] = 0;
+		if (dataSize == 0) {
+			width[i] = 0;
+			height[i] = 0;
+		}
 
 		dataSizes.push_back(dataSize);
 		texels.push_back(new uint8_t[dataSize]);
-		//rw.read(reinterpret_cast <char *> (&texels[i][0]),
-		//        dataSize*sizeof(uint8_t));
 		memcpy(reinterpret_cast<char *> (&texels[i][0]),
 			&bytes[*offset],
 			dataSize * sizeof(uint8_t));
