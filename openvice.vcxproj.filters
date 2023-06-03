@@ -25,6 +25,9 @@
     <Filter Include="Source Files\loaders">
       <UniqueIdentifier>{0a1a7b11-40fc-47a9-8d11-ee9d1e3862e8}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Header Files\renderware">
+      <UniqueIdentifier>{a0a93a25-79fe-4c43-ad14-9229f64f7954}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
@@ -104,9 +107,6 @@
     <ClInclude Include="loaders\FrameList.h">
       <Filter>Header Files\loaders</Filter>
     </ClInclude>
-    <ClInclude Include="renderware.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="loaders\LightList.h">
       <Filter>Header Files\loaders</Filter>
     </ClInclude>
@@ -115,6 +115,9 @@
     </ClInclude>
     <ClInclude Include="loaders\Geometry.h">
       <Filter>Header Files\loaders</Filter>
+    </ClInclude>
+    <ClInclude Include="renderware.h">
+      <Filter>Header Files\renderware</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

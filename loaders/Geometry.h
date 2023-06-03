@@ -164,8 +164,6 @@ struct Geometry {
 	void readExtension(char* bytes, size_t* offset);
 	void readMeshExtension(char* bytes, size_t* offset);
 
-	void cleanUp(void);
-
 	void dump(uint32_t index, std::string ind = "", bool detailed = false);
 
 	Geometry(void);
@@ -176,6 +174,4 @@ private:
 	void readNativeSkinMatrices(char* bytes, size_t* offset);
 	bool isDegenerateFace(uint32_t i, uint32_t j, uint32_t k);
 	void generateFaces(void);
-
-	uint32_t addTempVertexIfNew(uint32_t index);
 };
