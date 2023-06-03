@@ -7,12 +7,13 @@
 
 #include <Windows.h>
 
+#define MAX_LENGTH_FILENAME 24
 #define IMG_BLOCK_SIZE 2048
 
 struct DirEntry {
 	uint32_t offset;
 	uint32_t size;
-	char name[24];
+	char name[MAX_LENGTH_FILENAME];
 };
 
 class ImgLoader

@@ -45,9 +45,6 @@ public:
 		float scaleX, float scaleY, float scaleZ,
 		float rotx, float roty, float rotz, float rotr);
 
-	void SetName(std::string name) { m_name = name; }
-	std::string GetName() { return m_name; }
-
 	void SetId(int id) { m_id = id; }
 	int GetId() { return m_id; }
 

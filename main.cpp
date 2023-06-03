@@ -1,3 +1,4 @@
+#include <string.h>
 #include <stdio.h>
 #include <iostream>
 #include <fstream>
@@ -28,7 +29,7 @@ using namespace DirectX;
 /* IPL file contains model position */
 struct IPLFile {
 	int id;
-	std::string modelName;
+	char modelName[MAX_LENGTH_FILENAME];
 	int interior;
 	float posX, posY, posZ;
 	float scale[3];
@@ -38,8 +39,8 @@ struct IPLFile {
 /* IDE file contains model name and their texture name */
 struct IDEFile {
 	int objectId;
-	std::string modelName;
-	std::string textureArchiveName;
+	char modelName[MAX_LENGTH_FILENAME];
+	char textureArchiveName[MAX_LENGTH_FILENAME];
 };
 
 struct GameMaterial {
@@ -72,16 +73,17 @@ void remove_duplicates(std::vector<T>& vec)
 
 void LoadAllTexturesFromTXDFile(ImgLoader *pImgLoader, const char *filename)
 {
-	std::string textureName = filename;
-	textureName += ".txd";
+	char result_name[MAX_LENGTH_FILENAME + 4];
+	strcpy(result_name, filename);
+	strcat(result_name, ".txd");
 
-	int fileId = pImgLoader->GetFileIndexByName(textureName.c_str());
+	int fileId = pImgLoader->GetFileIndexByName(result_name);
 	if (fileId == -1) {
-		printf("[ERROR] Cannot find file %s in IMG archive\n", textureName.c_str());
+		printf("[ERROR] Cannot find file %s in IMG archive\n", result_name);
 		return;
 	}
 
-	printf("[OK] Finded file %s in IMG archive\n", textureName.c_str());
+	printf("[OK] Finded file %s in IMG archive\n", result_name);
 
 	char *fileBuffer = (char*)pImgLoader->GetFileById(fileId);
 
@@ -115,7 +117,7 @@ void LoadAllTexturesFromTXDFile(ImgLoader *pImgLoader, const char *filename)
 		m.dxtCompression = txd.texList[i].dxtCompression; /* DXT1, DXT3, DXT4 */
 		m.depth = txd.texList[i].depth;
 
-		printf("[OK] Loaded texture name %s from TXD file %s\n", t.name.c_str(), textureName.c_str());
+		printf("[OK] Loaded texture name %s from TXD file %s\n", t.name.c_str(), result_name);
 
 		g_Textures.push_back(m);
 	}
@@ -123,16 +125,20 @@ void LoadAllTexturesFromTXDFile(ImgLoader *pImgLoader, const char *filename)
 	//free(fileBuffer);
 }
 
-int LoadFileDFFWithName(ImgLoader* pImgLoader, DXRender* render, std::string name, int modelId)
+int LoadFileDFFWithName(ImgLoader* pImgLoader, DXRender* render, char *name, int modelId)
 {
-	int fileId = pImgLoader->GetFileIndexByName(name.c_str());
+	char result_name[MAX_LENGTH_FILENAME + 4];
+	strcpy(result_name, name);
+	strcat(result_name, ".dff");
+
+	int fileId = pImgLoader->GetFileIndexByName(result_name);
 	if (fileId == -1) {
-		printf("[ERROR] Cannot find %s.dff in IMG archive\n", name.c_str());
+		printf("[ERROR] Cannot find %s.dff in IMG archive\n", result_name);
 		return 1;
 	}
 
-	if (strstr(name.c_str(), "LOD")) {
-		printf("[NOTICE] Skip loading LOD file: %s\n", name.c_str());
+	if (strstr(result_name, "LOD")) {
+		printf("[NOTICE] Skip loading LOD file: %s\n", result_name);
 		return 1;
 	}
 
@@ -274,7 +280,6 @@ int LoadFileDFFWithName(ImgLoader* pImgLoader, DXRender* render, std::string nam
 					g_Textures[index].depth /* TODO: depth is not working */
 				);
 			}
-			mesh->SetName(name);
 			mesh->SetId(modelId);
 
 			g_LoadedMeshes.push_back(mesh);
@@ -329,10 +334,8 @@ void LoadIDEFile(const char* filepath)
 				isObjs = true;
 			}
 
-			if (strcmp(str, "end") == 0) {
-				if (isObjs) {
-					isObjs = false;
-				}
+			if (isObjs && strcmp(str, "end\n") == 0) {
+				isObjs = false;
 			}
 
 			int id = 0;
@@ -352,16 +355,17 @@ void LoadIDEFile(const char* filepath)
 				// Добавляем .dff окончание, так как там указано без DFF формата
 				//modelNameq = modelNameq + ".dff";
 
-				std::string mName = modelName;
-				mName = mName + ".dff";
+				//std::string mName = modelName;
+				//mName = mName + ".dff";
 
-				std::string taName = textureArchiveName;
+				//std::string taName = textureArchiveName;
 				//taName = taName + ".txd";
 
 				struct IDEFile idf;
+
 				idf.objectId = id;
-				idf.modelName = mName;
-				idf.textureArchiveName = taName;
+				strcpy(idf.modelName, modelName);
+				strcpy(idf.textureArchiveName, textureArchiveName);
 				
 				g_ideFile.push_back(idf);
 			}
@@ -390,14 +394,14 @@ void LoadIPLFile(const char *filepath)
 				isObjs = true;
 			}
 
-			if (strcmp(str, "end") == 0) {
+			if (strcmp(str, "end\n") == 0) {
 				if (isObjs) {
 					isObjs = false;
 				}
 			}
 
 			int id = 0;
-			char modelName[64]; // in file without extension (.dff)
+			char modelName[MAX_LENGTH_FILENAME]; // in file without extension (.dff)
 			int interior = 0;
 			float posX = 0, posY = 0, posZ = 0;
 			float scale[3];
@@ -421,12 +425,9 @@ void LoadIPLFile(const char *filepath)
 				// Добавляем .dff окончание, так как там указано без DFF формата
 				//modelNameq = modelNameq + ".dff";
 
-				std::string mName = modelName;
-				mName = mName + ".dff";
-
 				struct IPLFile iplfile;
 				iplfile.id = id;
-				iplfile.modelName = mName;
+				strcpy(iplfile.modelName, modelName);
 				iplfile.interior = interior;
 
 				/*
@@ -503,7 +504,7 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 
 	/* Loading models. IDE file doesn't contain dublicate models */
 	for (int i = 0; i < g_ideFile.size(); i++) {
-		LoadFileDFFWithName(imgLoader, gameRender, g_ideFile[i].modelName.c_str(), g_ideFile[i].objectId);
+		LoadFileDFFWithName(imgLoader, gameRender, g_ideFile[i].modelName, g_ideFile[i].objectId);
 	}
 
 
