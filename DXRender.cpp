@@ -17,7 +17,7 @@ HRESULT DXRender::ChangeRasterizerStateToWireframe()
 	D3D11_RASTERIZER_DESC wfdesc;
 	ZeroMemory(&wfdesc, sizeof(D3D11_RASTERIZER_DESC));
 	wfdesc.FillMode = D3D11_FILL_WIREFRAME;
-	wfdesc.CullMode = D3D11_CULL_BACK;
+	wfdesc.CullMode = D3D11_CULL_NONE;
 
 	// Создаем растеризатор с данными настройками
 	hr = m_pDevice->CreateRasterizerState(&wfdesc, &m_pRasterizerState);
@@ -78,7 +78,7 @@ HRESULT DXRender::ChangeRasterizerStateToSolid()
 	D3D11_RASTERIZER_DESC solidDesc;
 	ZeroMemory(&solidDesc, sizeof(D3D11_RASTERIZER_DESC));
 	solidDesc.FillMode = D3D11_FILL_SOLID;
-	solidDesc.CullMode = D3D11_CULL_BACK;
+	solidDesc.CullMode = D3D11_CULL_FRONT;
 
 	// Создаем растеризатор с данными настройками
 	hr = m_pDevice->CreateRasterizerState(&solidDesc, &m_pRasterizerState);

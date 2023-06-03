@@ -78,7 +78,7 @@ void Mesh::SetPosition(float x, float y, float z,
 	float scaleX, float scaleY, float scaleZ,
 	float rotx, float roty, float rotz, float rotr)
 {
-	XMVECTOR vector = XMVectorSet(0, 0, 0, 0);
+	XMVECTOR vector = XMVectorSet(rotx, roty, rotz, rotr);
 	XMMATRIX modelRotation = XMMatrixRotationQuaternion(vector);
 
 	XMMATRIX modelPosition = XMMatrixIdentity();

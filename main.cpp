@@ -222,9 +222,9 @@ int LoadFileDFFWithName(ImgLoader* pImgLoader, DXRender* render, char *name, int
 				 * Z – up/down direction
 				 * @see https://gtamods.com/wiki/Map_system
 				*/
-				meshVertexData.push_back(y);
-				meshVertexData.push_back(z);
 				meshVertexData.push_back(x);
+				meshVertexData.push_back(z);
+				meshVertexData.push_back(y);
 
 				meshVertexData.push_back(tx);
 				meshVertexData.push_back(ty);
@@ -438,17 +438,17 @@ void LoadIPLFile(const char *filepath)
 				 * Z – up/down direction
 				 * @see https://gtamods.com/wiki/Map_system
 				*/
-				iplfile.posX = posY;
+				iplfile.posX = posX;
 				iplfile.posY = posZ;
-				iplfile.posZ = posX;
+				iplfile.posZ = posY;
 
-				iplfile.scale[0] = scale[1]; // y
+				iplfile.scale[0] = scale[0]; // y
 				iplfile.scale[1] = scale[2]; // z
-				iplfile.scale[2] = scale[0]; // x
+				iplfile.scale[2] = scale[1]; // x
 
-				iplfile.rot[0] = rot[1]; // y
+				iplfile.rot[0] = rot[0]; // y
 				iplfile.rot[1] = rot[2]; // z
-				iplfile.rot[2] = rot[0]; // x
+				iplfile.rot[2] = rot[1]; // x
 				iplfile.rot[3] = rot[3]; // w
 
 				g_MapObjects.push_back(iplfile);
