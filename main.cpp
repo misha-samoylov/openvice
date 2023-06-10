@@ -158,9 +158,6 @@ int LoadFileDFFWithName(ImgLoader* pImgLoader, DXRender* render, char *name, int
 
 		std::vector<ModelMaterial> materIndex;
 
-		//std::vector<float> modelVertices;
-		std::vector<float> modelTextureCoord;
-
 		/* Load all materials */
 		for (int i = 0; i < clump->GetGeometryList()[index].materialList.size(); i++) {
 			Material material = clump->GetGeometryList()[index].materialList[i];
@@ -245,7 +242,7 @@ int LoadFileDFFWithName(ImgLoader* pImgLoader, DXRender* render, char *name, int
 
 			uint32_t materialIndex = clump->GetGeometryList()[index].splits[i].matIndex;
 
-			int index = -1;
+			int matIndex = -1;
 
 			// поиск текстуры по индексу
 			for (int ib = 0; ib < materIndex.size(); ib++) {
@@ -254,7 +251,7 @@ int LoadFileDFFWithName(ImgLoader* pImgLoader, DXRender* render, char *name, int
 
 					for (int im = 0; im < g_Textures.size(); im++) {
 						if (g_Textures[im].name == materIndex[ib].materialName) {
-							index = im;
+							matIndex = im;
 							break;
 						}
 					}
@@ -262,17 +259,17 @@ int LoadFileDFFWithName(ImgLoader* pImgLoader, DXRender* render, char *name, int
 				}
 			}
 
-			if (index != -1) {
-				mesh->SetAlpha(g_Textures[index].hasAlpha); // is transparent or not
+			if (matIndex != -1) {
+				mesh->SetAlpha(g_Textures[matIndex].hasAlpha); // is transparent or not
 
 				mesh->SetDataDDS(
 					render,
-					g_Textures[index].source,
-					g_Textures[index].size,
-					g_Textures[index].width,
-					g_Textures[index].height,
-					g_Textures[index].dxtCompression,
-					g_Textures[index].depth /* TODO: depth is not working */
+					g_Textures[matIndex].source,
+					g_Textures[matIndex].size,
+					g_Textures[matIndex].width,
+					g_Textures[matIndex].height,
+					g_Textures[matIndex].dxtCompression,
+					g_Textures[matIndex].depth /* TODO: depth is not working */
 				);
 			}
 			mesh->SetId(modelId);
@@ -587,6 +584,7 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 
 	/* Load map models and their textures */
 	//LoadIDEFile("C:/Games/Grand Theft Auto Vice City/data/maps/generic.ide");
+
 	LoadIDEFile("C:/Games/Grand Theft Auto Vice City/data/maps/bridge/bridge.ide");
 	//LoadIDEFile("C:/Games/Grand Theft Auto Vice City/data/maps/bank/bank.ide");
 	//LoadIDEFile("C:/Games/Grand Theft Auto Vice City/data/maps/downtown/downtown.ide");
