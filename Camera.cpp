@@ -42,6 +42,11 @@ XMMATRIX Camera::GetView()
 	return m_cameraView;
 }
 
+XMVECTOR Camera::GetPosition()
+{
+	return m_cameraPosition;
+}
+
 XMMATRIX Camera::GetProjection()
 {
 	return m_cameraProjection;

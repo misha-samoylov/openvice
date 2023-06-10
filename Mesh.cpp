@@ -316,6 +316,8 @@ HRESULT Mesh::CreateDataBuffer(DXRender* pRender,
 HRESULT Mesh::Init(DXRender*pRender, float *pVertices, int verticesCount, unsigned int *pIndices, int indicesCount, D3D_PRIMITIVE_TOPOLOGY topology) {
 	HRESULT hr;
 
+	m_hasAlpha = false;
+
 	m_pVSBlob = NULL;
 
 	m_countIndices = indicesCount;

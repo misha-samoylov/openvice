@@ -63,6 +63,9 @@ public:
 	void SetId(int id) { m_meshId = id; }
 	int GetId() { return m_meshId; }
 
+	void SetAlpha(bool a) { m_hasAlpha = a; }
+	bool GetAlpha() { return m_hasAlpha; }
+
 private:
 	HRESULT CreateConstBuffer(DXRender *pRender);
 	HRESULT CreatePixelShader(DXRender *pRender);
@@ -101,4 +104,6 @@ private:
 	size_t m_FileSizeDDS;
 
 	int m_meshId;
+
+	bool m_hasAlpha;
 };

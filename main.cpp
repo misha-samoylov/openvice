@@ -51,6 +51,7 @@ struct GameMaterial {
 	uint32_t height;
 	uint32_t dxtCompression;
 	uint32_t depth;
+	bool hasAlpha;
 };
 
 struct ModelMaterial {
@@ -61,6 +62,10 @@ struct ModelMaterial {
 std::vector<IDEFile> g_ideFile;
 std::vector<IPLFile> g_MapObjects;
 std::vector<Mesh*> g_LoadedMeshes;
+
+//std::vector<Mesh*> g_transparentMeshes;
+//std::vector<Mesh*> g_notTransparentMeshes;
+
 std::vector<GameMaterial> g_Textures;
 
 
@@ -100,7 +105,7 @@ void LoadAllTexturesFromTXDFile(ImgLoader *pImgLoader, const char *filename)
 		cout << i << " " << t.name << " " << t.maskName << " "
 			<< " " << t.width[0] << " " << t.height[0] << " "
 			<< " " << t.depth << " " << hex << t.rasterFormat << endl;
-
+		
 		uint8_t* texelsToArray = txd.texList[i].texels[0];
 		size_t len = txd.texList[i].dataSizes[0];
 
@@ -116,6 +121,7 @@ void LoadAllTexturesFromTXDFile(ImgLoader *pImgLoader, const char *filename)
 		m.height = txd.texList[i].height[0];
 		m.dxtCompression = txd.texList[i].dxtCompression; /* DXT1, DXT3, DXT4 */
 		m.depth = txd.texList[i].depth;
+		m.hasAlpha = t.hasAlpha;
 
 		printf("[OK] Loaded texture name %s from TXD file %s\n", t.name.c_str(), result_name);
 
@@ -270,6 +276,8 @@ int LoadFileDFFWithName(ImgLoader* pImgLoader, DXRender* render, char *name, int
 			}
 
 			if (index != -1) {
+				mesh->SetAlpha(g_Textures[index].hasAlpha); // is transparent or not
+
 				mesh->SetDataDDS(
 					render,
 					g_Textures[index].source,
@@ -282,6 +290,12 @@ int LoadFileDFFWithName(ImgLoader* pImgLoader, DXRender* render, char *name, int
 			}
 			mesh->SetId(modelId);
 
+			//if (mesh->GetAlpha() == true)
+			//	g_transparentMeshes.push_back(mesh);
+
+			//if (mesh->GetAlpha() == false)
+			//	g_notTransparentMeshes.push_back(mesh);
+
 			g_LoadedMeshes.push_back(mesh);
 		}
 	}
@@ -292,28 +306,129 @@ int LoadFileDFFWithName(ImgLoader* pImgLoader, DXRender* render, char *name, int
 	return 0;
 }
 
+/*
+* Структура для хранения номера модели и дистанции до камеры
+*/
+struct obj_render {
+	int index;
+	float distance;
+	int modelId;
+
+	// Для std::sotr
+	bool operator() (obj_render i, obj_render j) { return (i.distance < j.distance); }
+} obj_render_;
+
+// Глобальная переменная хранения номера модели и дистации модели до камеры
+std::vector<struct obj_render> g_obj_render;
+
+inline float Distance(XMVECTOR v1, XMVECTOR v2)
+{
+	return XMVectorGetX(XMVector3Length(XMVectorSubtract(v1, v2)));
+}
+inline float DistanceSquared(XMVECTOR v1, XMVECTOR v2)
+{
+	return XMVectorGetX(XMVector3LengthSq(XMVectorSubtract(v1, v2)));
+}
+
+int render_distance = false;
+
 void RenderScene(DXRender *render, Camera *camera)
 {
 	render->RenderStart();
 
+	float distance = 0;
+
 	// Получаем местоположения объектов на карте
 	for (int i = 0; i < g_MapObjects.size(); i++) {
-		// Проходимся по загруженным моделям
-		for (int m = 0; m < g_LoadedMeshes.size(); m++) {
-			// Если нашли модель, то ставим ей координаты и рисуем
-			if (g_MapObjects[i].id == g_LoadedMeshes[m]->GetId()) {
-				g_LoadedMeshes[m]->SetPosition(
-					g_MapObjects[i].posX, g_MapObjects[i].posY, g_MapObjects[i].posZ,
-					g_MapObjects[i].scale[0], g_MapObjects[i].scale[1], g_MapObjects[i].scale[2],
 
-					g_MapObjects[i].rot[0], g_MapObjects[i].rot[1], g_MapObjects[i].rot[2], g_MapObjects[i].rot[3]
+		XMVECTOR cameraPos = camera->GetPosition();
+		XMVECTOR objectPos = XMVectorSet(g_MapObjects[i].posX, g_MapObjects[i].posY, g_MapObjects[i].posZ, 0.0f);
+		float distance = Distance(cameraPos, objectPos);
+
+		struct obj_render obj;
+		obj.distance = distance;
+		obj.index = i;
+		obj.modelId = g_MapObjects[i].id;
+		g_obj_render.push_back(obj);
+	}
+
+	// Сортируем наши модели по дистанции к камере
+	std::sort(g_obj_render.begin(), g_obj_render.end(), obj_render_);
+
+	/*
+	* Рисуем сперва не прозразные объекты,
+	* а уже только потом рисуем прозрачные объекты.
+	*/
+	for (int i = 0; i < g_obj_render.size(); i++) {
+
+		int index = g_obj_render[i].index;
+		int modelId = g_obj_render[i].modelId;
+
+	// Получаем местоположения объектов на карте
+	//for (int i = 0; i < g_MapObjects.size(); i++) {
+		// Проходимся по загруженным моделям
+
+		for (int m = 0; m < g_LoadedMeshes.size(); m++) {
+
+			if (render_distance && distance > 100)
+				continue;
+
+			
+			if (g_LoadedMeshes[m]->GetAlpha() == true)
+				continue;
+
+			// Если нашли модель, то ставим ей координаты и рисуем
+			if (modelId == g_LoadedMeshes[m]->GetId()) {
+
+				g_LoadedMeshes[m]->SetPosition(
+					g_MapObjects[index].posX, g_MapObjects[index].posY, g_MapObjects[index].posZ,
+					g_MapObjects[index].scale[0], g_MapObjects[index].scale[1], g_MapObjects[index].scale[2],
+
+					g_MapObjects[index].rot[0], g_MapObjects[index].rot[1], g_MapObjects[index].rot[2], g_MapObjects[index].rot[3]
 				);
 				g_LoadedMeshes[m]->Render(render, camera);
 			}
 		}
 	}
 
+
+	// Рисуем прозраные объекты
+	for (int i = 0; i < g_obj_render.size(); i++) {
+
+		int index = g_obj_render[i].index;
+		int modelId = g_obj_render[i].modelId;
+
+		// Получаем местоположения объектов на карте
+		//for (int i = 0; i < g_MapObjects.size(); i++) {
+			// Проходимся по загруженным моделям
+
+		for (int m = 0; m < g_LoadedMeshes.size(); m++) {
+
+			if (render_distance && distance > 100)
+				continue;
+
+
+			if (g_LoadedMeshes[m]->GetAlpha() == false)
+				continue;
+
+			// Если нашли модель, то ставим ей координаты и рисуем
+			if (modelId == g_LoadedMeshes[m]->GetId()) {
+
+				g_LoadedMeshes[m]->SetPosition(
+					g_MapObjects[index].posX, g_MapObjects[index].posY, g_MapObjects[index].posZ,
+					g_MapObjects[index].scale[0], g_MapObjects[index].scale[1], g_MapObjects[index].scale[2],
+
+					g_MapObjects[index].rot[0], g_MapObjects[index].rot[1], g_MapObjects[index].rot[2], g_MapObjects[index].rot[3]
+				);
+				g_LoadedMeshes[m]->Render(render, camera);
+			}
+		}
+	}
+
+
 	render->RenderEnd();
+
+	g_obj_render.clear();
 }
 
 void LoadIDEFile(const char* filepath)
@@ -330,7 +445,7 @@ void LoadIDEFile(const char* filepath)
 	while (!feof(fp)) {
 		if (fgets(str, 512, fp)) {
 
-			if (strcmp(str, "objs\n") == 0) {
+			if (strcmp(str, "tobj\n") == 0 || strcmp(str, "objs\n")) {
 				isObjs = true;
 			}
 
@@ -463,6 +578,11 @@ void LoadIPLFile(const char *filepath)
 INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 	PSTR lpCmdLine, INT nCmdShow)
 {
+	if (!DirectX::XMVerifyCPUSupport()) {
+		MessageBox(NULL, L"You CPU doesn't support DirectXMath.", L"Error", MB_OK);
+		return EXIT_FAILURE;
+	}
+
 	Window *gameWindow = new Window();
 	gameWindow->Init(hInstance, nCmdShow, WINDOW_WIDTH, WINDOW_HEIGHT, WINDOW_TITLE);
 
@@ -487,7 +607,8 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 	/* Load map models and their textures */
 	LoadIDEFile("C:/Games/Grand Theft Auto Vice City/data/maps/generic.ide");
 	//LoadIDEFile("C:/Games/Grand Theft Auto Vice City/data/maps/bank/bank.ide");
-	LoadIDEFile("C:/Games/Grand Theft Auto Vice City/data/maps/downtown/downtown.ide");
+	//LoadIDEFile("C:/Games/Grand Theft Auto Vice City/data/maps/downtown/downtown.ide");
+	LoadIDEFile("C:/Games/Grand Theft Auto Vice City/data/maps/bank/bank.ide");
 
 
 	/* Load from IDE file only archives textures */
@@ -510,8 +631,9 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 
 
 	/* Load model placement */
+	LoadIPLFile("C:/Games/Grand Theft Auto Vice City/data/maps/bank/bank.ipl");
 	//LoadIPLFile("C:/Games/Grand Theft Auto Vice City/data/maps/bank/bank.ipl");
-	LoadIPLFile("C:/Games/Grand Theft Auto Vice City/data/maps/downtown/downtown.ipl");
+	//LoadIPLFile("C:/Games/Grand Theft Auto Vice City/data/maps/downtown/downtown.ipl");
 	
 	printf("[OK] %s Loaded\n", PROJECT_NAME);
 
@@ -589,7 +711,11 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 
 			if (gameInput->IsKey(DIK_D)) {
 				moveLeftRight += speed;
-			}			
+			}
+
+			if (gameInput->IsKey(DIK_NUMPAD0)) {
+				render_distance = !render_distance;
+			}
 
 			mouseCurrState.lX = gameInput->GetMouseSpeedX();
 			mouseCurrState.lY = gameInput->GetMouseSpeedY();

@@ -15,6 +15,8 @@ public:
 	XMMATRIX GetView();
 	XMMATRIX GetProjection();
 
+	XMVECTOR GetPosition();
+
 private:
 	XMVECTOR m_cameraPosition;
 	XMVECTOR m_cameraTarget;
