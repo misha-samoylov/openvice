@@ -191,12 +191,13 @@ int LoadFileDFFWithName(ImgLoader* pImgLoader, DXRender* render, char *name, int
 		/* Loop for every mesh */
 		for (uint32_t i = 0; i < clump->GetGeometryList()[index].splits.size(); i++) {
 
-			uint32_t *meshIndices = clump->GetGeometryList()[index].splits[i].indices;
+			int v_count = clump->GetGeometryList()[index].vertexCount;
 
 			/* Save to data for create vertex buffer (x,y,z tx,ty) */
-			std::vector<float> meshVertexData;
+			// TODO: Free memory
+			float *meshVertexData = (float*)malloc(sizeof(float) * v_count * 5);
 
-			for (int v = 0; v < clump->GetGeometryList()[index].vertexCount; v++) {
+			for (int v = 0; v < v_count; v++) {
 				float x = clump->GetGeometryList()[index].vertices[v * 3 + 0];
 				float y = clump->GetGeometryList()[index].vertices[v * 3 + 1];
 				float z = clump->GetGeometryList()[index].vertices[v * 3 + 2];
@@ -216,19 +217,13 @@ int LoadFileDFFWithName(ImgLoader* pImgLoader, DXRender* render, char *name, int
 				 * Z – up/down direction
 				 * @see https://gtamods.com/wiki/Map_system
 				*/
-				meshVertexData.push_back(x);
-				meshVertexData.push_back(z);
-				meshVertexData.push_back(y);
+				meshVertexData[v * 5 + 0] = x;
+				meshVertexData[v * 5 + 1] = z;
+				meshVertexData[v * 5 + 2] = y;
 
-				meshVertexData.push_back(tx);
-				meshVertexData.push_back(ty);
+				meshVertexData[v * 5 + 3] = tx;
+				meshVertexData[v * 5 + 4] = ty;
 			}
-
-			float* vertices = &meshVertexData[0];
-			int countVertices = meshVertexData.size();
-
-			unsigned int* indices = &meshIndices[0]; /* Convert to array unsigned int */
-			int countIndices = clump->GetGeometryList()[index].splits[i].m_numIndices; //indices.size();
 
 			D3D_PRIMITIVE_TOPOLOGY topology =
 				clump->GetGeometryList()[index].faceType == FACETYPE_STRIP
@@ -238,8 +233,12 @@ int LoadFileDFFWithName(ImgLoader* pImgLoader, DXRender* render, char *name, int
 			Mesh* mesh = new Mesh();
 
 			printf("Loading mesh\n");
-			mesh->Init(render, vertices, countVertices,
-				indices, countIndices,
+			mesh->Init(
+				render, 
+				meshVertexData,
+				v_count * 5,
+				(unsigned int*)clump->GetGeometryList()[index].splits[i].indices,
+				clump->GetGeometryList()[index].splits[i].m_numIndices,
 				topology
 			);
 			printf("Loaded mesh\n");
