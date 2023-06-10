@@ -158,7 +158,7 @@ int LoadFileDFFWithName(ImgLoader* pImgLoader, DXRender* render, char *name, int
 
 		std::vector<ModelMaterial> materIndex;
 
-		std::vector<float> modelVertices;
+		//std::vector<float> modelVertices;
 		std::vector<float> modelTextureCoord;
 
 		/* Load all materials */
@@ -171,20 +171,13 @@ int LoadFileDFFWithName(ImgLoader* pImgLoader, DXRender* render, char *name, int
 			materIndex.push_back(matInd);
 		}
 
-		for (uint32_t i = 0; i < clump->GetGeometryList()[index].vertexCount; i++) {
+		/*for (uint32_t i = 0; i < clump->GetGeometryList()[index].vertexCount; i++) {
 
-			float x = clump->GetGeometryList()[index].vertices[i * 3 + 0];
-			modelVertices.push_back(x);
-
-			float y = clump->GetGeometryList()[index].vertices[i * 3 + 1];
-			modelVertices.push_back(y);
-
-			float z = clump->GetGeometryList()[index].vertices[i * 3 + 2];
-			modelVertices.push_back(z);
-
-			/* Load texture coordinates model */
-			if (clump->GetGeometryList()[index].flags & FLAGS_TEXTURED /*|| clump->GetGeometryList()[index].flags & FLAGS_TEXTURED2*/) {
-				for (uint32_t j = 0; j < 1 /* clump->GetGeometryList()[index].numUVs */; j++) { /* insert now FLAGS_TEXTURED */
+			// Load texture coordinates model
+			if (clump->GetGeometryList()[index].flags & FLAGS_TEXTURED
+				// || clump->GetGeometryList()[index].flags & FLAGS_TEXTURED2
+				) {
+				for (uint32_t j = 0; j < 1 / clump->GetGeometryList()[index].numUVs /; j++) { / insert now FLAGS_TEXTURED /
 
 					float tx = clump->GetGeometryList()[index].texCoords[j][i * 2 + 0];
 					float ty = clump->GetGeometryList()[index].texCoords[j][i * 2 + 1];
@@ -193,36 +186,26 @@ int LoadFileDFFWithName(ImgLoader* pImgLoader, DXRender* render, char *name, int
 					modelTextureCoord.push_back(ty);
 				}
 			}
-		}
+		}*/
 
 		/* Loop for every mesh */
 		for (uint32_t i = 0; i < clump->GetGeometryList()[index].splits.size(); i++) {
 
-			//int num_indices = clump->GetGeometryList()[index].splits[i].m_numIndices;
-			//uint32_t *meshIndices = (uint32_t*)malloc(sizeof(uint32_t) * num_indices);
-
 			uint32_t *meshIndices = clump->GetGeometryList()[index].splits[i].indices;
-
-			/* Save indices */
-			//for (uint32_t j = 0; j < num_indices; j++) {
-				
-				//meshIndices.push_back(indices);
-			//	meshIndices[j] = 
-			//}
 
 			/* Save to data for create vertex buffer (x,y,z tx,ty) */
 			std::vector<float> meshVertexData;
 
-			for (int v = 0; v < modelVertices.size() / 3; v++) {
-				float x = modelVertices[v * 3 + 0];
-				float y = modelVertices[v * 3 + 1];
-				float z = modelVertices[v * 3 + 2];
+			for (int v = 0; v < clump->GetGeometryList()[index].vertexCount; v++) {
+				float x = clump->GetGeometryList()[index].vertices[v * 3 + 0];
+				float y = clump->GetGeometryList()[index].vertices[v * 3 + 1];
+				float z = clump->GetGeometryList()[index].vertices[v * 3 + 2];
 
 				float tx = 0.0f;
 				float ty = 0.0f;
 				if (clump->GetGeometryList()[index].flags & FLAGS_TEXTURED) {
-					tx = modelTextureCoord[v * 2 + 0];
-					ty = modelTextureCoord[v * 2 + 1];
+					tx = clump->GetGeometryList()[index].texCoords[0][v * 2 + 0];
+					ty = clump->GetGeometryList()[index].texCoords[0][v * 2 + 1];
 				}
 
 				/*
@@ -604,7 +587,7 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 	);
 
 	/* Load map models and their textures */
-	LoadIDEFile("C:/Games/Grand Theft Auto Vice City/data/maps/generic.ide");
+	//LoadIDEFile("C:/Games/Grand Theft Auto Vice City/data/maps/generic.ide");
 	LoadIDEFile("C:/Games/Grand Theft Auto Vice City/data/maps/bridge/bridge.ide");
 	//LoadIDEFile("C:/Games/Grand Theft Auto Vice City/data/maps/bank/bank.ide");
 	//LoadIDEFile("C:/Games/Grand Theft Auto Vice City/data/maps/downtown/downtown.ide");

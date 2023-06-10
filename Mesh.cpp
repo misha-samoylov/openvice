@@ -269,9 +269,13 @@ HRESULT Mesh::CreateInputLayout(DXRender*pRender)
 	return hr;
 }
 
-HRESULT Mesh::CreateDataBuffer(DXRender* pRender,
-	float *vertices, int verticesCount,	unsigned int *indices, int indicesCount)
-{
+HRESULT Mesh::CreateDataBuffer(
+	DXRender* pRender,
+	float *pVertices, 
+	int verticesCount,	
+	unsigned int *pIndices, 
+	int indicesCount
+) {
 	HRESULT hr;
 
 	/* vertices: fill in a buffer description */
@@ -284,7 +288,7 @@ HRESULT Mesh::CreateDataBuffer(DXRender* pRender,
 	/* vertices: define the resource data */
 	D3D11_SUBRESOURCE_DATA datav; /* buffer data */
 	ZeroMemory(&datav, sizeof(datav));
-	datav.pSysMem = vertices; /* pointer to data */
+	datav.pSysMem = pVertices; /* pointer to data */
 
 	hr = pRender->GetDevice()->CreateBuffer(&bdv, &datav, &m_pVertexBuffer);
 
@@ -303,7 +307,7 @@ HRESULT Mesh::CreateDataBuffer(DXRender* pRender,
 	/* indices: define the resource data */
 	D3D11_SUBRESOURCE_DATA datai;
 	ZeroMemory(&datai, sizeof(datai));
-	datai.pSysMem = indices; /* pointer to data */
+	datai.pSysMem = pIndices; /* pointer to data */
 
 	hr = pRender->GetDevice()->CreateBuffer(&bdi, &datai, &m_pIndexBuffer);
 
