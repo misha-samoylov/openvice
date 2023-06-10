@@ -78,6 +78,9 @@
     <ClCompile Include="loaders\Geometry.cpp">
       <Filter>Source Files\loaders</Filter>
     </ClCompile>
+    <ClCompile Include="Frustum.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Utils.hpp">
@@ -118,6 +121,9 @@
     </ClInclude>
     <ClInclude Include="renderware.h">
       <Filter>Header Files\renderware</Filter>
+    </ClInclude>
+    <ClInclude Include="Frustum.h">
+      <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

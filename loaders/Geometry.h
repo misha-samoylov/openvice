@@ -120,8 +120,8 @@ struct Geometry {
 	float boundingSphere[4];
 	uint32_t hasPositions;
 	uint32_t hasNormals;
-	std::vector<float> vertices;
-	std::vector<float> normals;
+	float *vertices;
+	float *normals;
 
 	std::vector<Material> materialList;
 

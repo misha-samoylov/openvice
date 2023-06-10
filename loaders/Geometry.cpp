@@ -8,21 +8,19 @@ void Geometry::read(char* bytes, size_t* offset)
 {
 	HeaderInfo header;
 
-	// READ_HEADER(CHUNK_GEOMETRY);
-	header.read(bytes, offset);
+	header.read(bytes, offset); // CHUNK_GEOMETRY
+	header.read(bytes, offset); // CHUNK_STRUCT
 
-	//READ_HEADER(CHUNK_STRUCT);
-	header.read(bytes, offset);
 	flags = readUInt16(bytes, offset);
 	numUVs = readUInt8(bytes, offset);
 	if (flags & FLAGS_TEXTURED)
 		numUVs = 1;
 	hasNativeGeometry = readUInt8(bytes, offset);
+
 	uint32_t triangleCount = readUInt32(bytes, offset);
 	vertexCount = readUInt32(bytes, offset);
 
-	//rw.seekg(4, ios::cur); /* number of morph targets, uninteresting */
-	*offset += 4;
+	*offset += 4; /* number of morph targets, uninteresting */
 
 	// skip light info
 	if (header.version < 0x34000)
@@ -84,36 +82,37 @@ void Geometry::read(char* bytes, size_t* offset)
 	hasNormals = (flags & FLAGS_NORMALS) ? 1 : 0;
 
 	if (!hasNativeGeometry) {
-		vertices.resize(3 * vertexCount);
-		//rw.read((char *) (&vertices[0]), 3*vertexCount*sizeof(float));
-		memcpy((char*)(&vertices[0]),
+		size_t sz = 3 * vertexCount * sizeof(float);
+		// TODO: Free memory vertices
+		vertices = (float*)malloc(sz);
+		memcpy(
+			(char*)(&vertices[0]),
 			&bytes[*offset],
-			3 * vertexCount * sizeof(float));
-		*offset += 3 * vertexCount * sizeof(float);
-
+			sz
+		);
+		*offset += sz;
 
 		if (flags & FLAGS_NORMALS) {
-			normals.resize(3 * vertexCount);
-			//rw.read((char *) (&normals[0]),
-			//	 3*vertexCount*sizeof(float));
-			memcpy((char*)(&normals[0]),
+			// TODO: Free memory normals
+			size_t sz = 3 * vertexCount * sizeof(float);
+			normals = (float*)malloc(sz);
+			memcpy(
+				(char*)(&normals[0]),
 				&bytes[*offset],
-				3 * vertexCount * sizeof(float));
-			*offset += 3 * vertexCount * sizeof(float);
+				sz
+			);
+			*offset += sz;
 
 		}
 
 	}
 
-	//READ_HEADER(CHUNK_MATLIST);
-	header.read(bytes, offset);
-
-	//READ_HEADER(CHUNK_STRUCT);
-	header.read(bytes, offset);
+	header.read(bytes, offset); // CHUNK_MATLIST
+	header.read(bytes, offset); // CHUNK_STRUCT
 
 	uint32_t numMaterials = readUInt32(bytes, offset);
-	//rw.seekg(numMaterials*4, ios::cur);	// constant
-	*offset += numMaterials * 4;
+	//rw.seekg(numMaterials*4, ios::cur);
+	*offset += numMaterials * 4; // constrant
 
 	materialList.resize(numMaterials);
 	for (uint32_t i = 0; i < numMaterials; i++)
@@ -580,11 +579,11 @@ void Geometry::dump(uint32_t index, std::string ind, bool detailed)
 	ind += "  ";
 	if (!detailed)
 		std::cout << ind << "skipping\n";
-	else
-		for (uint32_t i = 0; i < vertices.size() / 3; i++)
-			std::cout << ind << vertices[i * 3 + 0] << ", "
-			<< vertices[i * 3 + 1] << ", "
-			<< vertices[i * 3 + 2] << std::endl;
+	//else
+		//for (uint32_t i = 0; i < vertices.size() / 3; i++)
+		//	std::cout << ind << vertices[i * 3 + 0] << ", "
+		//	<< vertices[i * 3 + 1] << ", "
+		//	<< vertices[i * 3 + 2] << std::endl;
 	ind = ind.substr(0, ind.size() - 2);
 	std::cout << ind << "}\n";
 
@@ -593,11 +592,11 @@ void Geometry::dump(uint32_t index, std::string ind, bool detailed)
 		ind += "  ";
 		if (!detailed)
 			std::cout << ind << "skipping\n";
-		else
-			for (uint32_t i = 0; i < normals.size() / 3; i++)
-				std::cout << ind << normals[i * 3 + 0] << ", "
-				<< normals[i * 3 + 1] << ", "
-				<< normals[i * 3 + 2] << std::endl;
+		//else
+		//	for (uint32_t i = 0; i < normals.size() / 3; i++)
+		//		std::cout << ind << normals[i * 3 + 0] << ", "
+		//		<< normals[i * 3 + 1] << ", "
+		//		<< normals[i * 3 + 2] << std::endl;
 		ind = ind.substr(0, ind.size() - 2);
 		std::cout << ind << "}\n";
 	}
@@ -730,6 +729,7 @@ Geometry& Geometry::operator=(const Geometry& that)
 
 Geometry::~Geometry(void)
 {
+	//free(vertices);
 	delete meshExtension;
 }
 
