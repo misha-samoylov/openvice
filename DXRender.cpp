@@ -153,7 +153,7 @@ HRESULT DXRender::CreateBlendState()
 	// blendDesc.AlphaToCoverageEnable = false;
 	blendDesc.RenderTarget[0] = rtbd;
 
-	hr = m_pDevice->CreateBlendState(&blendDesc, &Transparency);
+	hr = m_pDevice->CreateBlendState(&blendDesc, &m_pBlendStateTransparency);
 	
 
 	/*D3D11_BLEND_DESC BlendState;
@@ -270,7 +270,8 @@ void DXRender::Cleanup()
 	if (m_pRasterizerState)
 		m_pRasterizerState->Release();
 
-	Transparency->Release();
+	if (m_pBlendStateTransparency)
+		m_pBlendStateTransparency->Release();
 
 	if (m_pDeviceContext) 
 		m_pDeviceContext->Release();
@@ -304,7 +305,7 @@ void DXRender::RenderStart()
 	UINT sampleMask = 0xffffffff;
 
 	//m_pDeviceContext->OMSetBlendState(Transparency, blendFactor, sampleMask);
-	m_pDeviceContext->OMSetBlendState(Transparency, NULL, sampleMask);
+	m_pDeviceContext->OMSetBlendState(m_pBlendStateTransparency, NULL, sampleMask);
 }
 
 void DXRender::RenderEnd()

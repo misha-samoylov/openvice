@@ -170,6 +170,7 @@ void NativeTexture::readD3d(char *bytes, size_t *offset)
 			width[i] = 0;
 			height[i] = 0;
 		}
+		
 
 		dataSizes.push_back(dataSize);
 		texels.push_back(new uint8_t[dataSize]);

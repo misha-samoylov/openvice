@@ -41,7 +41,7 @@ private:
 	ID3D11Texture2D* m_pDepthStencil; // Текстура буфера глубин
 	ID3D11DepthStencilView* m_pDepthStencilView; // Объект вида, буфер глубин
 
-	ID3D11BlendState* Transparency;
+	ID3D11BlendState* m_pBlendStateTransparency;
 
 	HWND m_hWnd;
 };
