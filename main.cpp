@@ -339,7 +339,7 @@ void RenderScene(DXRender *render, Camera *camera)
 	float distance = 0;
 
 	// Получаем местоположения объектов на карте
-	for (int i = 0; i < g_MapObjects.size(); i++) {
+	/*for (int i = 0; i < g_MapObjects.size(); i++) {
 
 		XMVECTOR cameraPos = camera->GetPosition();
 		XMVECTOR objectPos = XMVectorSet(g_MapObjects[i].posX, g_MapObjects[i].posY, g_MapObjects[i].posZ, 0.0f);
@@ -350,19 +350,19 @@ void RenderScene(DXRender *render, Camera *camera)
 		obj.index = i;
 		obj.modelId = g_MapObjects[i].id;
 		g_obj_render.push_back(obj);
-	}
+	}*/
 
 	// Сортируем наши модели по дистанции к камере
-	std::sort(g_obj_render.begin(), g_obj_render.end(), obj_render_);
+	//std::sort(g_obj_render.begin(), g_obj_render.end(), obj_render_);
 
 	/*
 	* Рисуем сперва не прозразные объекты,
 	* а уже только потом рисуем прозрачные объекты.
 	*/
-	for (int i = 0; i < g_obj_render.size(); i++) {
+	for (int i = 0; i < g_MapObjects.size(); i++) {
 
-		int index = g_obj_render[i].index;
-		int modelId = g_obj_render[i].modelId;
+		//int index = g_MapObjects[i].index;
+		//int modelId = g_MapObjects[i].modelId;
 
 	// Получаем местоположения объектов на карте
 	//for (int i = 0; i < g_MapObjects.size(); i++) {
@@ -376,6 +376,9 @@ void RenderScene(DXRender *render, Camera *camera)
 			
 			if (g_LoadedMeshes[m]->GetAlpha() == true)
 				continue;
+
+			int index = i;
+			int modelId = g_MapObjects[i].id;
 
 			// Если нашли модель, то ставим ей координаты и рисуем
 			if (modelId == g_LoadedMeshes[m]->GetId()) {
@@ -393,10 +396,10 @@ void RenderScene(DXRender *render, Camera *camera)
 
 
 	// Рисуем прозраные объекты
-	for (int i = 0; i < g_obj_render.size(); i++) {
+	for (int i = 0; i < g_MapObjects.size(); i++) {
 
-		int index = g_obj_render[i].index;
-		int modelId = g_obj_render[i].modelId;
+		int index = i;
+		int modelId = g_MapObjects[i].id;
 
 		// Получаем местоположения объектов на карте
 		//for (int i = 0; i < g_MapObjects.size(); i++) {
@@ -606,9 +609,9 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 
 	/* Load map models and their textures */
 	LoadIDEFile("C:/Games/Grand Theft Auto Vice City/data/maps/generic.ide");
-	//LoadIDEFile("C:/Games/Grand Theft Auto Vice City/data/maps/bank/bank.ide");
-	//LoadIDEFile("C:/Games/Grand Theft Auto Vice City/data/maps/downtown/downtown.ide");
 	LoadIDEFile("C:/Games/Grand Theft Auto Vice City/data/maps/bank/bank.ide");
+	//LoadIDEFile("C:/Games/Grand Theft Auto Vice City/data/maps/downtown/downtown.ide");
+	//LoadIDEFile("C:/Games/Grand Theft Auto Vice City/data/maps/bridge/bridge.ide");
 
 
 	/* Load from IDE file only archives textures */
@@ -631,8 +634,8 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 
 
 	/* Load model placement */
+	//LoadIPLFile("C:/Games/Grand Theft Auto Vice City/data/maps/bridge/bridge.ipl");
 	LoadIPLFile("C:/Games/Grand Theft Auto Vice City/data/maps/bank/bank.ipl");
-	//LoadIPLFile("C:/Games/Grand Theft Auto Vice City/data/maps/bank/bank.ipl");
 	//LoadIPLFile("C:/Games/Grand Theft Auto Vice City/data/maps/downtown/downtown.ipl");
 	
 	printf("[OK] %s Loaded\n", PROJECT_NAME);
