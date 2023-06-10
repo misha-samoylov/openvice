@@ -28,6 +28,11 @@ void Mesh::Cleanup()
 	if (m_pObjectBuffer)
 		m_pObjectBuffer->Release();
 
+	if (m_pTexture)
+		m_pTexture->Release();
+	if (m_pTextureSampler)
+		m_pTextureSampler->Release();
+
 	/* clear layout */
 	if (m_pVertexLayout)
 		m_pVertexLayout->Release();
@@ -124,7 +129,7 @@ HRESULT Mesh::SetDataDDS(DXRender* pRender, uint8_t* pDataSourceDDS, size_t file
 	uint8_t* buf = (uint8_t*)malloc(len);
 	memcpy(buf, &dds, sizeof(dds));
 	memcpy(
-		buf + (1 * sizeof(dds)), // buf + offset
+		buf + sizeof(dds), // buf + offset
 		pDataSourceDDS,
 		fileSizeDDS
 	);
@@ -152,9 +157,13 @@ HRESULT Mesh::SetDataDDS(DXRender* pRender, uint8_t* pDataSourceDDS, size_t file
 	}
 
 	//ID3D11ShaderResourceView* pSRV = nullptr;
-	hr = CreateShaderResourceView(pRender->GetDevice(),
-		image.GetImages(), image.GetImageCount(),
-		image.GetMetadata(), &m_pTexture);
+	hr = CreateShaderResourceView(
+		pRender->GetDevice(),
+		image.GetImages(), 
+		image.GetImageCount(),
+		image.GetMetadata(),
+		&m_pTexture
+	);
 
 	free(buf); /* After created texture we can free memory */
 

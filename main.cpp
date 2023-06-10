@@ -99,29 +99,25 @@ void LoadAllTexturesFromTXDFile(ImgLoader *pImgLoader, const char *filename)
 
 	/* Loop for every texture in TXD file */
 	for (uint32_t i = 0; i < txd.texList.size(); i++) {
-
-		/* TODO: Check for already loaded texture */
-
 		NativeTexture &t = txd.texList[i];
-		cout << i << " " << t.name << " " << t.maskName << " "
-			<< " " << t.width[0] << " " << t.height[0] << " "
-			<< " " << t.depth << " " << hex << t.rasterFormat << endl;
+		printf("%s %s %d %d %d %d\n", t.name.c_str(), t.maskName.c_str(), t.width[0], t.height[0], t.depth, t.rasterFormat);
 		
-		uint8_t* texelsToArray = txd.texList[i].texels[0];
-		size_t len = txd.texList[i].dataSizes[0];
+		uint8_t* texelsToArray = t.texels[0];
+		size_t len = t.dataSizes[0];
 
 		struct GameMaterial m;
 		m.name = t.name; /* without extension ".TXD" */
 
 		/* TODO: Replace copy to buffer to best solution */
+		/* TODO: Free memory */
 		m.source = (uint8_t *)malloc(len);
 		memcpy(m.source, texelsToArray, len);
 
-		m.size = txd.texList[i].dataSizes[0];
-		m.width = txd.texList[i].width[0];
-		m.height = txd.texList[i].height[0];
-		m.dxtCompression = txd.texList[i].dxtCompression; /* DXT1, DXT3, DXT4 */
-		m.depth = txd.texList[i].depth;
+		m.size = t.dataSizes[0];
+		m.width = t.width[0];
+		m.height = t.height[0];
+		m.dxtCompression = t.dxtCompression; /* DXT1, DXT3, DXT4 */
+		m.depth = t.depth;
 		m.hasAlpha = t.hasAlpha;
 
 		printf("[OK] Loaded texture name %s from TXD file %s\n", t.name.c_str(), result_name);
