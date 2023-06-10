@@ -144,17 +144,17 @@ void Geometry::readExtension(char* bytes, size_t* offset)
 			for (uint32_t i = 0; i < numSplits; i++) {
 				uint32_t numIndices = readUInt32(bytes, offset);
 				splits[i].matIndex = readUInt32(bytes, offset);
-				splits[i].indices.resize(numIndices);
+				splits[i].m_numIndices = numIndices;
+				// TODO: Free indices
+				splits[i].indices = (uint32_t*)malloc(sizeof(uint32_t) * numIndices);
 				if (hasData) {
 					/* OpenGL Data */
 					if (hasNativeGeometry)
 						for (uint32_t j = 0; j < numIndices; j++)
-							splits[i].indices[j] =
-							readUInt16(bytes, offset);
+							splits[i].indices[j] = readUInt16(bytes, offset);
 					else
 						for (uint32_t j = 0; j < numIndices; j++)
-							splits[i].indices[j] =
-							readUInt32(bytes, offset);
+							splits[i].indices[j] = readUInt32(bytes, offset);
 				}
 			}
 			break;
@@ -479,7 +479,7 @@ void Geometry::generateFaces(void)
 	for (uint32_t i = 0; i < splits.size(); i++) {
 		Split& s = splits[i];
 		if (faceType == FACETYPE_STRIP)
-			for (uint32_t j = 0; j < s.indices.size() - 2; j++) {
+			for (uint32_t j = 0; j < s.m_numIndices - 2; j++) {
 				//				if (isDegenerateFace(s.indices[j+0],
 				//				    s.indices[j+1], s.indices[j+2]))
 				//					continue;
@@ -493,7 +493,7 @@ void Geometry::generateFaces(void)
 				faces.push_back(s.indices[j + 2 - (j % 2)]);
 			}
 		else
-			for (uint32_t j = 0; j < s.indices.size() - 2; j += 3) {
+			for (uint32_t j = 0; j < s.m_numIndices - 2; j += 3) {
 				faces.push_back(s.indices[j + 1]);
 				faces.push_back(s.indices[j + 0]);
 				faces.push_back(s.matIndex);
@@ -609,13 +609,13 @@ void Geometry::dump(uint32_t index, std::string ind, bool detailed)
 		std::cout << std::endl << ind << "Split " << i << " {\n";
 		ind += "  ";
 		std::cout << ind << "matIndex: " << splits[i].matIndex << std::endl;
-		std::cout << ind << "numIndices: " << splits[i].indices.size() << std::endl;
+		//std::cout << ind << "numIndices: " << splits[i].indices.size() << std::endl;
 		std::cout << ind << "indices {\n";
 		if (!detailed)
 			std::cout << ind + "  skipping\n";
-		else
-			for (uint32_t j = 0; j < splits[i].indices.size(); j++)
-				std::cout << ind + " " << splits[i].indices[j] << std::endl;
+		//else
+		//	for (uint32_t j = 0; j < splits[i].indices.size(); j++)
+		//		std::cout << ind + " " << splits[i].indices[j] << std::endl;
 		std::cout << ind << "}\n";
 		ind = ind.substr(0, ind.size() - 2);
 		std::cout << ind << "}\n";

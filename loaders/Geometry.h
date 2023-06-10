@@ -103,7 +103,8 @@ struct MeshExtension {
 
 struct Split {
 	uint32_t matIndex;
-	std::vector<uint32_t> indices;
+	uint32_t m_numIndices;
+	uint32_t *indices;
 };
 
 struct Geometry {

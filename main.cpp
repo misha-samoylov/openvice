@@ -198,13 +198,17 @@ int LoadFileDFFWithName(ImgLoader* pImgLoader, DXRender* render, char *name, int
 		/* Loop for every mesh */
 		for (uint32_t i = 0; i < clump->GetGeometryList()[index].splits.size(); i++) {
 
-			std::vector<uint32_t> meshIndices;
+			//int num_indices = clump->GetGeometryList()[index].splits[i].m_numIndices;
+			//uint32_t *meshIndices = (uint32_t*)malloc(sizeof(uint32_t) * num_indices);
+
+			uint32_t *meshIndices = clump->GetGeometryList()[index].splits[i].indices;
 
 			/* Save indices */
-			for (uint32_t j = 0; j < clump->GetGeometryList()[index].splits[i].indices.size(); j++) {
-				uint32_t indices = clump->GetGeometryList()[index].splits[i].indices[j];
-				meshIndices.push_back(indices);
-			}
+			//for (uint32_t j = 0; j < num_indices; j++) {
+				
+				//meshIndices.push_back(indices);
+			//	meshIndices[j] = 
+			//}
 
 			/* Save to data for create vertex buffer (x,y,z tx,ty) */
 			std::vector<float> meshVertexData;
@@ -241,7 +245,7 @@ int LoadFileDFFWithName(ImgLoader* pImgLoader, DXRender* render, char *name, int
 			int countVertices = meshVertexData.size();
 
 			unsigned int* indices = &meshIndices[0]; /* Convert to array unsigned int */
-			int countIndices = clump->GetGeometryList()[index].splits[i].indices.size();
+			int countIndices = clump->GetGeometryList()[index].splits[i].m_numIndices; //indices.size();
 
 			D3D_PRIMITIVE_TOPOLOGY topology =
 				clump->GetGeometryList()[index].faceType == FACETYPE_STRIP
