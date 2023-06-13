@@ -150,17 +150,20 @@ int LoadFileDFFWithName(ImgLoader* pImgLoader, DXRender* render, char *name, int
 	Clump* clump = new Clump();
 	clump->Read(fileBuffer);
 
-	for (uint32_t index = 0; index < clump->GetGeometryList().size(); index++) {
+	for (uint32_t index = 0; index < clump->m_numGeometries; index++) {
 
 		std::vector<ModelMaterial> materIndex;
 
 		/* Load all materials */
-		for (int i = 0; i < clump->GetGeometryList()[index].materialList.size(); i++) {
-			Material material = clump->GetGeometryList()[index].materialList[i];
+		uint32_t materials = clump->GetGeometryList()[index]->m_numMaterials;
+		for (uint32_t i = 0; i < materials; i++) {
+			Material *material = clump->GetGeometryList()[index]->materialList[i];
 
 			struct ModelMaterial matInd;
-			matInd.materialName = material.texture.name;
+			std::string b = material->texture.name;
+			matInd.materialName = b;
 			matInd.index = i;
+
 			materIndex.push_back(matInd);
 		}
 
@@ -182,24 +185,24 @@ int LoadFileDFFWithName(ImgLoader* pImgLoader, DXRender* render, char *name, int
 		}*/
 
 		/* Loop for every mesh */
-		for (uint32_t i = 0; i < clump->GetGeometryList()[index].splits.size(); i++) {
+		for (uint32_t i = 0; i < clump->GetGeometryList()[index]->splits.size(); i++) {
 
-			int v_count = clump->GetGeometryList()[index].vertexCount;
+			int v_count = clump->GetGeometryList()[index]->vertexCount;
 
 			/* Save to data for create vertex buffer (x,y,z tx,ty) */
 			// TODO: Free memory
 			float *meshVertexData = (float*)malloc(sizeof(float) * v_count * 5);
 
 			for (int v = 0; v < v_count; v++) {
-				float x = clump->GetGeometryList()[index].vertices[v * 3 + 0];
-				float y = clump->GetGeometryList()[index].vertices[v * 3 + 1];
-				float z = clump->GetGeometryList()[index].vertices[v * 3 + 2];
+				float x = clump->GetGeometryList()[index]->vertices[v * 3 + 0];
+				float y = clump->GetGeometryList()[index]->vertices[v * 3 + 1];
+				float z = clump->GetGeometryList()[index]->vertices[v * 3 + 2];
 
 				float tx = 0.0f;
 				float ty = 0.0f;
-				if (clump->GetGeometryList()[index].flags & FLAGS_TEXTURED) {
-					tx = clump->GetGeometryList()[index].texCoords[0][v * 2 + 0];
-					ty = clump->GetGeometryList()[index].texCoords[0][v * 2 + 1];
+				if (clump->GetGeometryList()[index]->flags & FLAGS_TEXTURED) {
+					tx = clump->GetGeometryList()[index]->texCoords[0][v * 2 + 0];
+					ty = clump->GetGeometryList()[index]->texCoords[0][v * 2 + 1];
 				}
 
 				/*
@@ -219,7 +222,7 @@ int LoadFileDFFWithName(ImgLoader* pImgLoader, DXRender* render, char *name, int
 			}
 
 			D3D_PRIMITIVE_TOPOLOGY topology =
-				clump->GetGeometryList()[index].faceType == FACETYPE_STRIP
+				clump->GetGeometryList()[index]->faceType == FACETYPE_STRIP
 				? D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP
 				: D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 
@@ -230,13 +233,13 @@ int LoadFileDFFWithName(ImgLoader* pImgLoader, DXRender* render, char *name, int
 				render, 
 				meshVertexData,
 				v_count * 5,
-				(unsigned int*)clump->GetGeometryList()[index].splits[i].indices,
-				clump->GetGeometryList()[index].splits[i].m_numIndices,
+				(unsigned int*)clump->GetGeometryList()[index]->splits[i].indices,
+				clump->GetGeometryList()[index]->splits[i].m_numIndices,
 				topology
 			);
 			printf("Loaded mesh\n");
 
-			uint32_t materialIndex = clump->GetGeometryList()[index].splits[i].matIndex;
+			uint32_t materialIndex = clump->GetGeometryList()[index]->splits[i].matIndex;
 
 			int matIndex = -1;
 
@@ -280,6 +283,7 @@ int LoadFileDFFWithName(ImgLoader* pImgLoader, DXRender* render, char *name, int
 		}
 	}
 
+	printf("clear clump\n");
 	clump->Clear();
 	delete clump;
 
@@ -579,12 +583,12 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 	);
 
 	/* Load map models and their textures */
-	//LoadIDEFile("C:/Games/Grand Theft Auto Vice City/data/maps/generic.ide");
+	LoadIDEFile("C:/Games/Grand Theft Auto Vice City/data/maps/generic.ide");
 
 	LoadIDEFile("C:/Games/Grand Theft Auto Vice City/data/maps/bridge/bridge.ide");
-	//LoadIDEFile("C:/Games/Grand Theft Auto Vice City/data/maps/bank/bank.ide");
-	//LoadIDEFile("C:/Games/Grand Theft Auto Vice City/data/maps/downtown/downtown.ide");
-	//LoadIDEFile("C:/Games/Grand Theft Auto Vice City/data/maps/littleha/littleha.ide");
+	LoadIDEFile("C:/Games/Grand Theft Auto Vice City/data/maps/bank/bank.ide");
+	LoadIDEFile("C:/Games/Grand Theft Auto Vice City/data/maps/downtown/downtown.ide");
+	LoadIDEFile("C:/Games/Grand Theft Auto Vice City/data/maps/littleha/littleha.ide");
 
 
 	/* Load from IDE file only archives textures */
@@ -608,9 +612,9 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 
 	/* Load model placement */
 	LoadIPLFile("C:/Games/Grand Theft Auto Vice City/data/maps/bridge/bridge.ipl");
-	//LoadIPLFile("C:/Games/Grand Theft Auto Vice City/data/maps/bank/bank.ipl");
-	//LoadIPLFile("C:/Games/Grand Theft Auto Vice City/data/maps/downtown/downtown.ipl");
-	//LoadIPLFile("C:/Games/Grand Theft Auto Vice City/data/maps/littleha/littleha.ipl");
+	LoadIPLFile("C:/Games/Grand Theft Auto Vice City/data/maps/bank/bank.ipl");
+	LoadIPLFile("C:/Games/Grand Theft Auto Vice City/data/maps/downtown/downtown.ipl");
+	LoadIPLFile("C:/Games/Grand Theft Auto Vice City/data/maps/littleha/littleha.ipl");
 	
 	printf("[OK] %s Loaded\n", PROJECT_NAME);
 

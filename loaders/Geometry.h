@@ -124,7 +124,8 @@ struct Geometry {
 	float *vertices;
 	float *normals;
 
-	std::vector<Material> materialList;
+	Material **materialList;
+	uint32_t m_numMaterials;
 
 	/* Extensions */
 

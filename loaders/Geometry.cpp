@@ -110,13 +110,22 @@ void Geometry::read(char* bytes, size_t* offset)
 	header.read(bytes, offset); // CHUNK_MATLIST
 	header.read(bytes, offset); // CHUNK_STRUCT
 
-	uint32_t numMaterials = readUInt32(bytes, offset);
+	m_numMaterials = readUInt32(bytes, offset);
 	//rw.seekg(numMaterials*4, ios::cur);
-	*offset += numMaterials * 4; // constrant
+	*offset += m_numMaterials * 4; // constrant
 
-	materialList.resize(numMaterials);
-	for (uint32_t i = 0; i < numMaterials; i++)
-		materialList[i].read(bytes, offset);
+
+	// Material
+	/**
+	* TODO: Free materialList.
+	*/
+	materialList = new Material * [m_numMaterials];
+
+	for (uint32_t i = 0; i < m_numMaterials; i++)
+		materialList[i] = new Material();
+
+	for (uint32_t i = 0; i < m_numMaterials; i++)
+		materialList[i]->read(bytes, offset);
 
 	readExtension(bytes, offset);
 }
@@ -624,13 +633,13 @@ void Geometry::dump(uint32_t index, std::string ind, bool detailed)
 	std::cout << ind << "}\n";
 
 
-	std::cout << std::endl << ind << "MaterialList {\n";
+	/*std::cout << std::endl << ind << "MaterialList {\n";
 	ind += "  ";
 	std::cout << ind << "numMaterials: " << materialList.size() << std::endl;
 	for (uint32_t i = 0; i < materialList.size(); i++)
 		materialList[i].dump(i, ind);
 	ind = ind.substr(0, ind.size() - 2);
-	std::cout << ind << "}\n";
+	std::cout << ind << "}\n";*/
 
 	ind = ind.substr(0, ind.size() - 2);
 	std::cout << ind << "}\n";
@@ -730,6 +739,7 @@ Geometry& Geometry::operator=(const Geometry& that)
 Geometry::~Geometry(void)
 {
 	//free(vertices);
+	std::cout << "clear geometry" << std::endl;
 	delete meshExtension;
 }
 

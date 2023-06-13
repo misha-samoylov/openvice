@@ -1,6 +1,6 @@
 #include "Clump.h"
 
-std::vector<Geometry> Clump::GetGeometryList() 
+Geometry **Clump::GetGeometryList() 
 { 
 	return m_geometryList; 
 }
@@ -49,10 +49,18 @@ void Clump::Read(char *bytes)
 	header.read(bytes, &offset); // CHUNK_STRUCT
 
 	numGeometries = readUInt32(bytes, &offset);
-	m_geometryList.resize(numGeometries);
+	m_numGeometries = numGeometries;
+
+
+	/* TODO: Free memory geometry */
+	m_geometryList = new Geometry * [numGeometries];
+
+	for (uint32_t i = 0; i < numGeometries; i++) {
+		m_geometryList[i] = new Geometry();
+	}
 
 	for (uint32_t i = 0; i < numGeometries; i++)
-		m_geometryList[i].read(bytes, &offset);
+		m_geometryList[i]->read(bytes, &offset);
 
 	/* Atomic */
 	m_atomicList = new AtomicList();
@@ -108,11 +116,11 @@ void Clump::Dump(bool detailed)
 		m_frameList->GetFrame(i)->Dump(i);
 	}
 
-	cout << "GeometryList {\n";
-	cout << "numGeometries: " << m_geometryList.size() << endl;
-	for (uint32_t i = 0; i < m_geometryList.size(); i++) {
-		m_geometryList[i].dump(i, 0, detailed);
-	}
+	//cout << "GeometryList {\n";
+	//cout << "numGeometries: " << m_geometryList.size() << endl;
+	//for (uint32_t i = 0; i < m_geometryList.size(); i++) {
+	//	m_geometryList[i].dump(i, 0, detailed);
+	//}
 
 	printf("Atomic List\n");
 	printf("numAtomics: %d\n", m_atomicList->GetNumAtomic());
@@ -126,7 +134,7 @@ void Clump::Clear(void)
 	m_atomicList->Cleanup();
 	delete m_atomicList;
 
-	m_geometryList.clear();
+	//m_geometryList.clear();
 
 	m_frameList->Cleanup();
 	delete m_frameList;

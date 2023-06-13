@@ -19,16 +19,18 @@ public:
 	void Dump(bool detailed = false);
 	void Clear();
 
-	std::vector<Geometry> GetGeometryList();
+	Geometry **GetGeometryList();
 	FrameList* GetFrameList();
 	AtomicList* GetAtomicList();
 	LightList* GetLightList();
+
+	uint32_t m_numGeometries;
 
 private:
 	AtomicList *m_atomicList;
 	FrameList *m_frameList;
 	LightList *m_lightList;
-	std::vector<Geometry> m_geometryList;
+	Geometry **m_geometryList;
 
 	/* Extensions */
 	/* collision file */
