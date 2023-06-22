@@ -45,7 +45,7 @@ struct IDEFile {
 };
 
 struct GameMaterial {
-	char name[24]; /* without extension ".TXD" */
+	char name[MAX_LENGTH_FILENAME]; /* without extension ".TXD" */
 	uint8_t* source;
 	int size;
 	uint32_t width;
@@ -56,7 +56,7 @@ struct GameMaterial {
 };
 
 struct ModelMaterial {
-	char materialName[24];
+	char materialName[MAX_LENGTH_FILENAME];
 	int index;
 };
 
@@ -586,21 +586,21 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 	);
 
 	char maps[][24] = {
-		{"airport"},
-		{"airportN"},
+		{ "airport" },
+		{ "airportN" },
 		{ "bank" },
-		{"bar"},
+		{ "bar" },
 		{ "bridge" },
-		{"cisland"},
+		{ "cisland" },
 	};
 
-	//std::string maps[] = {  
-		//"airport",
-		//"airportN",
-		//"bank",
-		//"bar",
-		//"bridge",
-		/*"cisland",
+	/*std::string maps[] = {
+		"airport",
+		"airportN",
+		"bank",
+		"bar",
+		"bridge",
+		"cisland",
 		"club",
 		"concerth",
 		"docks",
@@ -625,8 +625,8 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 		"stripclb",
 		"washintn",
 		"washints",
-		"yacht",*/
-	//};
+		"yacht",
+	};*/
 
 
 	/* Load map models and their textures */
