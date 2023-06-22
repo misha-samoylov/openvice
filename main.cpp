@@ -585,12 +585,21 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 		dirPath
 	);
 
-	std::string maps[] = {  
+	char maps[][24] = {
+		{"airport"},
+		{"airportN"},
+		{ "bank" },
+		{"bar"},
+		{ "bridge" },
+		{"cisland"},
+	};
+
+	//std::string maps[] = {  
 		//"airport",
 		//"airportN",
 		//"bank",
 		//"bar",
-		"bridge",
+		//"bridge",
 		/*"cisland",
 		"club",
 		"concerth",
@@ -617,13 +626,13 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 		"washintn",
 		"washints",
 		"yacht",*/
-	};
+	//};
 
 
 	/* Load map models and their textures */
 	LoadIDEFile("C:/Games/Grand Theft Auto Vice City/data/maps/generic.ide");
 
-	for (int i = 0; i < 1; i++) {
+	for (int i = 0; i < sizeof(maps) / sizeof(maps[0]); i++) {
 		std::string path;
 		path = "C:/Games/Grand Theft Auto Vice City/data/maps/";
 		path += maps[i];
@@ -665,7 +674,7 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 	//LoadIPLFile("C:/Games/Grand Theft Auto Vice City/data/maps/downtown/downtown.ipl");
 	//LoadIPLFile("C:/Games/Grand Theft Auto Vice City/data/maps/littleha/littleha.ipl");
 
-	for (int i = 0; i < 1; i++) {
+	for (int i = 0; i < sizeof(maps) / sizeof(maps[0]); i++) {
 		std::string path;
 		path = "C:/Games/Grand Theft Auto Vice City/data/maps/";
 		path += maps[i];
