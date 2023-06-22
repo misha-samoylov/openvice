@@ -91,10 +91,11 @@ void NativeTexture::readD3d(char *bytes, size_t *offset)
 
 	char buffer[32];
 	// rw.read(buffer, 32);
-	memcpy(buffer, &bytes[*offset], sizeof(buffer));
+	memcpy(name, &bytes[*offset], 24);
 	*offset += sizeof(buffer);
 
-	name = buffer;
+	//name = buffer;
+
 	//rw.read(buffer, 32);
 	memcpy(buffer, &bytes[*offset], sizeof(buffer));
 	*offset += sizeof(buffer);
@@ -520,7 +521,7 @@ NativeTexture::NativeTexture()
 
 NativeTexture::NativeTexture(const NativeTexture &orig)
 : platform(orig.platform),
-  name(orig.name),
+  //name(orig.name),
   maskName(orig.maskName),
   filterFlags(orig.filterFlags),
   rasterFormat(orig.rasterFormat),
@@ -555,7 +556,7 @@ NativeTexture &NativeTexture::operator=(const NativeTexture &that)
 {
 	if (this != &that) {
 		platform = that.platform;
-		name = that.name;
+		//name = that.name;
 		maskName = that.maskName;
 		filterFlags = that.filterFlags;
 		rasterFormat = that.rasterFormat;

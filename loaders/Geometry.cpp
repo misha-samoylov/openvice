@@ -1131,19 +1131,20 @@ void Texture::read(char* bytes, size_t* offset)
 	// READ_HEADER(CHUNK_STRING);
 	header.read(bytes, offset);
 
-	char* buffer = new char[header.length + 1];
+	//char* buffer = new char[header.length + 1];
+	//char* buffer = new char[24];
 	//rw.read(buffer, header.length);
-	memcpy(buffer, &bytes[*offset], header.length);
+	memcpy(name, &bytes[*offset], (header.length) * sizeof(char));
 	*offset += header.length;
 
-	buffer[header.length] = '\0';
-	name = buffer;
-	delete[] buffer;
+	//buffer[header.length] = '\0';
+	//memcpy(name, buffer, sizeof(name));
+	//delete[] buffer;
 
 	// READ_HEADER(CHUNK_STRING);
 	header.read(bytes, offset);
 
-	buffer = new char[header.length + 1];
+	char* buffer = new char[header.length + 1];
 	//rw.read(buffer, header.length);
 	memcpy(buffer, &bytes[*offset], header.length);
 	*offset += header.length;

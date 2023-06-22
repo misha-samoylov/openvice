@@ -4,7 +4,7 @@
 
 struct Texture {
 	uint32_t filterFlags;
-	std::string name;
+	char name[24];
 	std::string maskName;
 
 	/* Extensions */

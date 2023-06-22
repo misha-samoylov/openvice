@@ -179,7 +179,7 @@ float readFloat32(char *bytes, size_t *offset);
 
 struct NativeTexture {
 	uint32_t platform;
-	std::string name;
+	char name[24];
 	std::string maskName;
 	uint32_t filterFlags;
 	uint32_t rasterFormat;

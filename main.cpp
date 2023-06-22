@@ -45,7 +45,7 @@ struct IDEFile {
 };
 
 struct GameMaterial {
-	std::string name; /* without extension ".TXD" */
+	char name[24]; /* without extension ".TXD" */
 	uint8_t* source;
 	int size;
 	uint32_t width;
@@ -56,7 +56,7 @@ struct GameMaterial {
 };
 
 struct ModelMaterial {
-	std::string materialName;
+	char materialName[24];
 	int index;
 };
 
@@ -100,13 +100,13 @@ void LoadAllTexturesFromTXDFile(ImgLoader *pImgLoader, const char *filename)
 	/* Loop for every texture in TXD file */
 	for (uint32_t i = 0; i < txd.texList.size(); i++) {
 		NativeTexture &t = txd.texList[i];
-		printf("%s %s %d %d %d %d\n", t.name.c_str(), t.maskName.c_str(), t.width[0], t.height[0], t.depth, t.rasterFormat);
+		printf("%s %s %d %d %d %d\n", t.name, t.maskName.c_str(), t.width[0], t.height[0], t.depth, t.rasterFormat);
 		
 		uint8_t* texelsToArray = t.texels[0];
 		size_t len = t.dataSizes[0];
 
 		struct GameMaterial m;
-		m.name = t.name; /* without extension ".TXD" */
+		memcpy(m.name, t.name, sizeof(t.name)); /* without extension ".TXD" */
 
 		/* TODO: Replace copy to buffer to best solution */
 		/* TODO: Free memory */
@@ -120,7 +120,7 @@ void LoadAllTexturesFromTXDFile(ImgLoader *pImgLoader, const char *filename)
 		m.depth = t.depth;
 		m.hasAlpha = t.hasAlpha;
 
-		printf("[OK] Loaded texture name %s from TXD file %s\n", t.name.c_str(), result_name);
+		printf("[OK] Loaded texture name %s from TXD file %s\n", t.name, result_name);
 
 		g_Textures.push_back(m);
 	}
@@ -161,7 +161,8 @@ int LoadFileDFFWithName(ImgLoader* pImgLoader, DXRender* render, char *name, int
 
 			struct ModelMaterial matInd;
 			std::string b = material->texture.name;
-			matInd.materialName = b;
+			//matInd.materialName = b;
+			memcpy(matInd.materialName, b.c_str(), sizeof(matInd.materialName));
 			matInd.index = i;
 
 			materIndex.push_back(matInd);
@@ -249,7 +250,7 @@ int LoadFileDFFWithName(ImgLoader* pImgLoader, DXRender* render, char *name, int
 				if (materialIndex == materIndex[ib].index) {
 
 					for (int im = 0; im < g_Textures.size(); im++) {
-						if (g_Textures[im].name == materIndex[ib].materialName) {
+						if (strcmp(g_Textures[im].name, materIndex[ib].materialName) == 0) {
 							matIndex = im;
 							break;
 						}
@@ -257,6 +258,8 @@ int LoadFileDFFWithName(ImgLoader* pImgLoader, DXRender* render, char *name, int
 
 				}
 			}
+
+			//mesh->SetAlpha(g_Textures[matIndex].hasAlpha); // is transparent or not
 
 			if (matIndex != -1) {
 				mesh->SetAlpha(g_Textures[matIndex].hasAlpha); // is transparent or not
@@ -316,15 +319,15 @@ void RenderScene(DXRender *render, Camera *camera)
 	/* Рисуем сперва не прозрачные объекты */
 	for (int i = 0; i < g_MapObjects.size(); i++) {
 
-		// XMVECTOR cameraPos = camera->GetPosition();
-		// XMVECTOR objectPos = XMVectorSet(g_MapObjects[i].posX, g_MapObjects[i].posY, g_MapObjects[i].posZ, 0.0f);
-		// distance = Distance(cameraPos, objectPos);
+		XMVECTOR cameraPos = camera->GetPosition();
+		XMVECTOR objectPos = XMVectorSet(g_MapObjects[i].posX, g_MapObjects[i].posY, g_MapObjects[i].posZ, 0.0f);
+		distance = Distance(cameraPos, objectPos);
 
 		float x, y, z;
 		x = g_MapObjects[i].posX, y = g_MapObjects[i].posY, z = g_MapObjects[i].posZ;
 		//m_modellist.GetData(i, x, y, z);
 
-		bool renderModel = m_frustum.CheckSphere(x, y, z, 100.0f);
+		bool renderModel = m_frustum.CheckCube(x, y, z, 100.0f);
 
 		if (renderModel) {
 			
@@ -337,7 +340,7 @@ void RenderScene(DXRender *render, Camera *camera)
 
 			for (int m = 0; m < g_LoadedMeshes.size(); m++) {
 
-				if (render_distance && distance > 100)
+				if (render_distance && distance > 1000)
 					continue;
 
 				
@@ -582,13 +585,59 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 		dirPath
 	);
 
+	std::string maps[] = {  
+		//"airport",
+		//"airportN",
+		//"bank",
+		//"bar",
+		"bridge",
+		/*"cisland",
+		"club",
+		"concerth",
+		"docks",
+		"downtown",
+		"downtows",
+		"golf",
+		"haiti",
+		"haitiN",
+		"hotel",
+		"islandsf",
+		"lawyers",
+		"littleha",
+		"mall",
+		"mansion",
+		"nbeach",
+		"nbeachbt",
+		"nbeachw",
+		"oceandn",
+		"oceandrv",
+		"stadint",
+		"starisl",
+		"stripclb",
+		"washintn",
+		"washints",
+		"yacht",*/
+	};
+
+
 	/* Load map models and their textures */
 	LoadIDEFile("C:/Games/Grand Theft Auto Vice City/data/maps/generic.ide");
 
-	LoadIDEFile("C:/Games/Grand Theft Auto Vice City/data/maps/bridge/bridge.ide");
-	LoadIDEFile("C:/Games/Grand Theft Auto Vice City/data/maps/bank/bank.ide");
-	LoadIDEFile("C:/Games/Grand Theft Auto Vice City/data/maps/downtown/downtown.ide");
-	LoadIDEFile("C:/Games/Grand Theft Auto Vice City/data/maps/littleha/littleha.ide");
+	for (int i = 0; i < 1; i++) {
+		std::string path;
+		path = "C:/Games/Grand Theft Auto Vice City/data/maps/";
+		path += maps[i];
+		path += "/";
+		path += maps[i];
+		path += ".ide";
+
+		LoadIDEFile(path.c_str());
+	}
+
+	//LoadIDEFile("C:/Games/Grand Theft Auto Vice City/data/maps/bridge/bridge.ide");
+	//LoadIDEFile("C:/Games/Grand Theft Auto Vice City/data/maps/bank/bank.ide");
+	//LoadIDEFile("C:/Games/Grand Theft Auto Vice City/data/maps/downtown/downtown.ide");
+	//LoadIDEFile("C:/Games/Grand Theft Auto Vice City/data/maps/littleha/littleha.ide");
 
 
 	/* Load from IDE file only archives textures */
@@ -611,10 +660,21 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 
 
 	/* Load model placement */
-	LoadIPLFile("C:/Games/Grand Theft Auto Vice City/data/maps/bridge/bridge.ipl");
-	LoadIPLFile("C:/Games/Grand Theft Auto Vice City/data/maps/bank/bank.ipl");
-	LoadIPLFile("C:/Games/Grand Theft Auto Vice City/data/maps/downtown/downtown.ipl");
-	LoadIPLFile("C:/Games/Grand Theft Auto Vice City/data/maps/littleha/littleha.ipl");
+	//LoadIPLFile("C:/Games/Grand Theft Auto Vice City/data/maps/bridge/bridge.ipl");
+	//LoadIPLFile("C:/Games/Grand Theft Auto Vice City/data/maps/bank/bank.ipl");
+	//LoadIPLFile("C:/Games/Grand Theft Auto Vice City/data/maps/downtown/downtown.ipl");
+	//LoadIPLFile("C:/Games/Grand Theft Auto Vice City/data/maps/littleha/littleha.ipl");
+
+	for (int i = 0; i < 1; i++) {
+		std::string path;
+		path = "C:/Games/Grand Theft Auto Vice City/data/maps/";
+		path += maps[i];
+		path += "/";
+		path += maps[i];
+		path += ".ipl";
+
+		LoadIPLFile(path.c_str());
+	}
 	
 	printf("[OK] %s Loaded\n", PROJECT_NAME);
 
