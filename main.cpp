@@ -564,16 +564,16 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 		return EXIT_FAILURE;
 	}
 
-	Window *gameWindow = new Window();
+	Window* gameWindow = new Window();
 	gameWindow->Init(hInstance, nCmdShow, WINDOW_WIDTH, WINDOW_HEIGHT, WINDOW_TITLE);
 
-	Input *gameInput = new Input();
+	Input* gameInput = new Input();
 	gameInput->Init(hInstance, gameWindow->GetHandleWindow());
-	
-	Camera *gameCamera = new Camera();
+
+	Camera* gameCamera = new Camera();
 	gameCamera->Init(WINDOW_WIDTH, WINDOW_HEIGHT);
-	
-	DXRender *gameRender = new DXRender();
+
+	DXRender* gameRender = new DXRender();
 	gameRender->Init(gameWindow->GetHandleWindow());
 
 	TCHAR imgPath[] = L"C:/Games/Grand Theft Auto Vice City/models/gta3.img";
@@ -592,42 +592,32 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 		{ "bar" },
 		{ "bridge" },
 		{ "cisland" },
+		{ "club" },
+		{ "concerth"},
+		{ "docks"},
+		{ "downtown"},
+		{ "downtows"},
+		{ "golf" },
+		{ "haiti" },
+		{ "haitiN" },
+		{ "hotel" },
+		{ "islandsf" },
+		{ "lawyers" },
+		{ "littleha" },
+		{ "mall" },
+		{ "mansion" },
+		{ "nbeach" },
+		{ "nbeachbt" },
+		{ "nbeachw" },
+		{ "oceandn" },
+		{ "oceandrv" },
+		{ "stadint" },
+		{ "starisl" },
+		{ "stripclb" },
+		{ "washintn" },
+		{ "washints" },
+		{ "yacht" }
 	};
-
-	/*std::string maps[] = {
-		"airport",
-		"airportN",
-		"bank",
-		"bar",
-		"bridge",
-		"cisland",
-		"club",
-		"concerth",
-		"docks",
-		"downtown",
-		"downtows",
-		"golf",
-		"haiti",
-		"haitiN",
-		"hotel",
-		"islandsf",
-		"lawyers",
-		"littleha",
-		"mall",
-		"mansion",
-		"nbeach",
-		"nbeachbt",
-		"nbeachw",
-		"oceandn",
-		"oceandrv",
-		"stadint",
-		"starisl",
-		"stripclb",
-		"washintn",
-		"washints",
-		"yacht",
-	};*/
-
 
 	/* Load map models and their textures */
 	LoadIDEFile("C:/Games/Grand Theft Auto Vice City/data/maps/generic.ide");
