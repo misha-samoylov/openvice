@@ -8,6 +8,8 @@
 #include <windows.h>
 #include <DirectXMath.h>
 
+#include "GLRender.h"
+
 #include "renderware.h"
 
 #include "loaders/ImgLoader.hpp"
@@ -556,19 +558,22 @@ void LoadIPLFile(const char *filepath)
 	fclose(fp);
 }
 
-INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
-	PSTR lpCmdLine, INT nCmdShow)
+int main()
 {
 	if (!DirectX::XMVerifyCPUSupport()) {
 		MessageBox(NULL, L"You CPU doesn't support DirectXMath.", L"Error", MB_OK);
 		return EXIT_FAILURE;
 	}
 
+	window_init();
+
+	return 0;
+
 	Window* gameWindow = new Window();
-	gameWindow->Init(hInstance, nCmdShow, WINDOW_WIDTH, WINDOW_HEIGHT, WINDOW_TITLE);
+	//gameWindow->Init(hInstance, nCmdShow, WINDOW_WIDTH, WINDOW_HEIGHT, WINDOW_TITLE);
 
 	Input* gameInput = new Input();
-	gameInput->Init(hInstance, gameWindow->GetHandleWindow());
+	//gameInput->Init(hInstance, gameWindow->GetHandleWindow());
 
 	Camera* gameCamera = new Camera();
 	gameCamera->Init(WINDOW_WIDTH, WINDOW_HEIGHT);
