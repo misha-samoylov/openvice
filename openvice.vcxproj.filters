@@ -28,9 +28,12 @@
     <Filter Include="Header Files\renderware">
       <UniqueIdentifier>{a0a93a25-79fe-4c43-ad14-9229f64f7954}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\glad">
+      <UniqueIdentifier>{2c1f13e3-ec18-46fb-be01-e6fb157001be}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="main.cpp">
+    <ClCompile Include="main-cpp.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="renderware.cpp">
@@ -81,10 +84,13 @@
     <ClCompile Include="Frustum.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\Downloads\glad\src\glad.c">
+    <ClCompile Include="glrender.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="GLRender.cpp">
+    <ClCompile Include="..\..\..\Downloads\glad\src\glad.c">
+      <Filter>Source Files\glad</Filter>
+    </ClCompile>
+    <ClCompile Include="main.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -131,7 +137,7 @@
     <ClInclude Include="Frustum.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="GLRender.h">
+    <ClInclude Include="glrender.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

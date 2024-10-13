@@ -146,14 +146,15 @@
     <ClCompile Include="loaders\FrameList.cpp" />
     <ClCompile Include="loaders\Geometry.cpp" />
     <ClCompile Include="loaders\LightList.cpp" />
+    <ClCompile Include="main.c" />
     <ClCompile Include="Mesh.cpp" />
     <ClCompile Include="DXRender.cpp" />
-    <ClCompile Include="GLRender.cpp" />
+    <ClCompile Include="glrender.c" />
     <ClCompile Include="Utils.cpp" />
     <ClCompile Include="Window.cpp" />
     <ClCompile Include="loaders\Clump.cpp" />
     <ClCompile Include="loaders\ImgLoader.cpp" />
-    <ClCompile Include="main.cpp" />
+    <ClCompile Include="main-cpp.cpp" />
     <ClCompile Include="renderware.cpp" />
     <ClCompile Include="txdread.cpp" />
     <ClCompile Include="uvanim.cpp" />
@@ -161,7 +162,7 @@
   <ItemGroup>
     <ClInclude Include="Camera.hpp" />
     <ClInclude Include="Frustum.h" />
-    <ClInclude Include="GLRender.h" />
+    <ClInclude Include="glrender.h" />
     <ClInclude Include="Input.hpp" />
     <ClInclude Include="loaders\AtomicList.h" />
     <ClInclude Include="loaders\FrameList.h" />
