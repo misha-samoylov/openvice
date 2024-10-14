@@ -1,6 +1,6 @@
 #include "GLRender.h"
 
-int window_init()
+int GLRender::window_init()
 {
     glfwInit();
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
@@ -27,7 +27,7 @@ int window_init()
     return 0;
 }
 
-void loop()
+void GLRender::loop()
 {
     while (!glfwWindowShouldClose(window)) {
         process_input(window);
@@ -42,7 +42,7 @@ void loop()
     glfwTerminate();
 }
 
-void process_input(GLFWwindow* window)
+void GLRender::process_input(GLFWwindow* window)
 {
     if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
         glfwSetWindowShouldClose(window, true);
