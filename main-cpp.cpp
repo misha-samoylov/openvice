@@ -23,8 +23,8 @@
 #include "Frustum.h"
 
 #define PROJECT_NAME "openvice"
-#define WINDOW_WIDTH 1920
-#define WINDOW_HEIGHT 1080
+#define WINDOW_WIDTH 1024
+#define WINDOW_HEIGHT 768
 #define WINDOW_TITLE L"openvice"
 
 using namespace DirectX;
@@ -314,7 +314,7 @@ void RenderScene(DXRender *render, Camera *camera)
 	float distance = 0;
 
 	Frustum m_frustum;
-	m_frustum.ConstructFrustum(1000.0f, camera->GetProjection(), camera->GetView());
+	m_frustum.ConstructFrustum(300.0f, camera->GetProjection(), camera->GetView());
 
 	int renderCount = 0;
 
@@ -325,11 +325,14 @@ void RenderScene(DXRender *render, Camera *camera)
 		XMVECTOR objectPos = XMVectorSet(g_MapObjects[i].posX, g_MapObjects[i].posY, g_MapObjects[i].posZ, 0.0f);
 		distance = Distance(cameraPos, objectPos);
 
+		if (render_distance && distance > 500)
+			continue;
+
 		float x, y, z;
 		x = g_MapObjects[i].posX, y = g_MapObjects[i].posY, z = g_MapObjects[i].posZ;
 		//m_modellist.GetData(i, x, y, z);
 
-		bool renderModel = m_frustum.CheckCube(x, y, z, 100.0f);
+		bool renderModel = m_frustum.CheckCube(x, y, z, 50.0f);
 
 		if (renderModel) {
 			
@@ -342,8 +345,7 @@ void RenderScene(DXRender *render, Camera *camera)
 
 			for (int m = 0; m < g_LoadedMeshes.size(); m++) {
 
-				if (render_distance && distance > 1000)
-					continue;
+				
 
 				
 				if (g_LoadedMeshes[m]->GetAlpha() == true)
@@ -361,13 +363,14 @@ void RenderScene(DXRender *render, Camera *camera)
 						g_MapObjects[index].rot[0], g_MapObjects[index].rot[1], g_MapObjects[index].rot[2], g_MapObjects[index].rot[3]
 					);
 					g_LoadedMeshes[m]->Render(render, camera);
+
+					renderCount++;
 				}
 			}
 
-			renderCount++;
+			
 		}
 	}
-
 
 	// Рисуем прозраные объекты
 	for (int i = 0; i < g_MapObjects.size(); i++) {
@@ -376,7 +379,7 @@ void RenderScene(DXRender *render, Camera *camera)
 		x = g_MapObjects[i].posX, y = g_MapObjects[i].posY, z = g_MapObjects[i].posZ;
 		//m_modellist.GetData(i, x, y, z);
 
-		bool renderModel = m_frustum.CheckSphere(x, y, z, 100.0f);
+		bool renderModel = m_frustum.CheckSphere(x, y, z, 50.0f);
 
 		if (renderModel) {
 
@@ -388,9 +391,6 @@ void RenderScene(DXRender *render, Camera *camera)
 				// Проходимся по загруженным моделям
 
 			for (int m = 0; m < g_LoadedMeshes.size(); m++) {
-
-				if (render_distance && distance > 100)
-					continue;
 
 
 				if (g_LoadedMeshes[m]->GetAlpha() == false)
@@ -406,12 +406,17 @@ void RenderScene(DXRender *render, Camera *camera)
 						g_MapObjects[index].rot[0], g_MapObjects[index].rot[1], g_MapObjects[index].rot[2], g_MapObjects[index].rot[3]
 					);
 					g_LoadedMeshes[m]->Render(render, camera);
+
+					renderCount++;
 				}
 			}
 		}
 	}
 
+	printf("renderCount = %d\n", renderCount);
+
 	render->RenderEnd();
+	
 }
 
 void LoadIDEFile(const char* filepath)
