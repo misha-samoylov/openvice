@@ -1,6 +1,6 @@
 #include "GLRender.h"
 
-int main()
+/*int main()
 {
 	GLRender app;
 
@@ -14,4 +14,4 @@ int main()
 	app.loop();
 
 	return 0;
-}
+}*/

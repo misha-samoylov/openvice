@@ -558,7 +558,7 @@ void LoadIPLFile(const char *filepath)
 	fclose(fp);
 }
 
-int WinM()
+int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 {
 	if (!DirectX::XMVerifyCPUSupport()) {
 		MessageBox(NULL, L"You CPU doesn't support DirectXMath.", L"Error", MB_OK);
@@ -566,10 +566,10 @@ int WinM()
 	}
 
 	Window* gameWindow = new Window();
-	//gameWindow->Init(hInstance, nCmdShow, WINDOW_WIDTH, WINDOW_HEIGHT, WINDOW_TITLE);
+	gameWindow->Init(hInstance, nCmdShow, WINDOW_WIDTH, WINDOW_HEIGHT, WINDOW_TITLE);
 
 	Input* gameInput = new Input();
-	//gameInput->Init(hInstance, gameWindow->GetHandleWindow());
+	gameInput->Init(hInstance, gameWindow->GetHandleWindow());
 
 	Camera* gameCamera = new Camera();
 	gameCamera->Init(WINDOW_WIDTH, WINDOW_HEIGHT);
