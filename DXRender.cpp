@@ -282,7 +282,7 @@ void DXRender::Cleanup()
 void DXRender::RenderStart()
 {
 	// Очищаем задний буфер
-	float clearColor[4] = { 0.21, 0.25, 0.31, 1.0f };
+	float clearColor[4] = { 0.49804f, 0.78431f, 0.94510f, 1.0f };
 	m_pDeviceContext->ClearRenderTargetView(m_pRenderTargetView, clearColor);
 
 	// Очищаем буфер глубин до едицины (максимальная глубина)
