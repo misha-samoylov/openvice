@@ -18,8 +18,28 @@ HRESULT Mesh::CreateConstBuffer(DXRender *pRender)
 	return hr;
 }
 
+// After rendering, check the occlusion query result
+void Mesh::CheckOcclusionQueryResult(DXRender* pRender)
+{
+	UINT64 pixelCount = 0;
+	while (pRender->GetDeviceContext()->GetData(occlusionQuery, &pixelCount, sizeof(pixelCount), 0) == S_OK) {
+		// This means the query result is ready
+		if (pixelCount > 0) {
+			m_pixelCount = pixelCount;
+			printf("Object is visible (pixels drawn: %d)\n", (int)pixelCount);
+		}
+		else {
+			printf("Object is occluded\n");
+		}
+		break; // Exit the while once we receive the data
+	}
+}
+
 void Mesh::Cleanup()
 {
+	if (occlusionQuery) occlusionQuery->Release();
+
+
 	/* clear buffers */
 	if (m_pVertexBuffer)
 		m_pVertexBuffer->Release();
@@ -46,6 +66,10 @@ void Mesh::Cleanup()
 
 void Mesh::Render(DXRender* pRender, Camera *pCamera)
 {
+	// Begin the occlusion query
+	pRender->GetDeviceContext()->Begin(occlusionQuery);
+
+
 	pRender->GetDeviceContext()->IASetInputLayout(m_pVertexLayout);
 
 	/* set index buffer */
@@ -77,6 +101,10 @@ void Mesh::Render(DXRender* pRender, Camera *pCamera)
 
 	/* render indexed vertices */
 	pRender->GetDeviceContext()->DrawIndexed(m_countIndices, 0, 0);
+
+
+	pRender->GetDeviceContext()->End(occlusionQuery);
+
 }
 
 void Mesh::SetPosition(float x, float y, float z,
@@ -366,6 +394,16 @@ HRESULT Mesh::Init(DXRender*pRender, float *pVertices, int verticesCount, unsign
 	}
 
 	m_pVSBlob->Release();
+
+	D3D11_QUERY_DESC queryDesc;
+	queryDesc.Query = D3D11_QUERY_OCCLUSION;
+	queryDesc.MiscFlags = 0;
+
+	hr = pRender->GetDevice()->CreateQuery(&queryDesc, &occlusionQuery);
+	if (FAILED(hr)) {
+		printf("Failed to create occlusion query\n");
+		MessageBeep(2);;
+	}
 
 	return hr;
 }

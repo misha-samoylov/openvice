@@ -66,6 +66,10 @@ public:
 	void SetAlpha(bool a) { m_hasAlpha = a; }
 	bool GetAlpha() { return m_hasAlpha; }
 
+	void CheckOcclusionQueryResult(DXRender* pRender);
+
+	UINT64 m_pixelCount;
+
 private:
 	HRESULT CreateConstBuffer(DXRender *pRender);
 	HRESULT CreatePixelShader(DXRender *pRender);
@@ -106,4 +110,6 @@ private:
 	int m_meshId;
 
 	bool m_hasAlpha;
+
+	ID3D11Query* occlusionQuery;
 };

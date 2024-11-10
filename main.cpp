@@ -29,6 +29,8 @@
 
 using namespace DirectX;
 
+int frameCount = 0;
+
 /* IPL file contains model position */
 struct IPLFile {
 	int id;
@@ -345,11 +347,11 @@ void RenderScene(DXRender *render, Camera *camera)
 
 			for (int m = 0; m < g_LoadedMeshes.size(); m++) {
 
-				
-
-				
 				if (g_LoadedMeshes[m]->GetAlpha() == true)
 					continue;
+
+				if (frameCount % 2)
+					g_LoadedMeshes[m]->CheckOcclusionQueryResult(render);
 
 				int index = i;
 				int modelId = g_MapObjects[i].id;
@@ -364,6 +366,10 @@ void RenderScene(DXRender *render, Camera *camera)
 					);
 					g_LoadedMeshes[m]->Render(render, camera);
 
+					
+
+					break;
+
 					renderCount++;
 				}
 			}
@@ -371,6 +377,10 @@ void RenderScene(DXRender *render, Camera *camera)
 			
 		}
 	}
+
+	render->RenderEnd();
+
+	return;
 
 	// Рисуем прозраные объекты
 	for (int i = 0; i < g_MapObjects.size(); i++) {
@@ -404,6 +414,9 @@ void RenderScene(DXRender *render, Camera *camera)
 				if (g_LoadedMeshes[m]->GetAlpha() == false)
 					continue;
 
+				if (frameCount % 2)
+					g_LoadedMeshes[m]->CheckOcclusionQueryResult(render);
+
 				// Если нашли модель, то ставим ей координаты и рисуем
 				if (modelId == g_LoadedMeshes[m]->GetId()) {
 
@@ -415,13 +428,15 @@ void RenderScene(DXRender *render, Camera *camera)
 					);
 					g_LoadedMeshes[m]->Render(render, camera);
 
+
+					
 					renderCount++;
 				}
 			}
 		}
 	}
 
-	printf("renderCount = %d\n", renderCount);
+	//printf("renderCount = %d\n", renderCount);
 
 	render->RenderEnd();
 	
@@ -600,7 +615,7 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 	);
 
 	char maps[][24] = {
-		{ "airport" },
+		/*{ "airport" },
 		{ "airportN" },
 		{ "bank" },
 		{ "bar" },
@@ -610,9 +625,9 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 		{ "concerth"},
 		{ "docks"},
 		{ "downtown"},
-		{ "downtows"},
+		{ "downtows"},*/
 		{ "golf" },
-		{ "haiti" },
+		/*{ "haiti" },
 		{ "haitiN" },
 		{ "hotel" },
 		{ "islandsf" },
@@ -630,7 +645,7 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 		{ "stripclb" },
 		{ "washintn" },
 		{ "washints" },
-		{ "yacht" }
+		{ "yacht" }*/
 	};
 
 	/* Load map models and their textures */
@@ -706,7 +721,7 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 	mouseLastState.lX = gameInput->GetMouseSpeedX();
 	mouseLastState.lY = gameInput->GetMouseSpeedY();
 
-	int frameCount = 0;
+	
 	double frameTime;
 	int fps = 0;
 
