@@ -21,17 +21,40 @@ HRESULT Mesh::CreateConstBuffer(DXRender *pRender)
 // After rendering, check the occlusion query result
 void Mesh::CheckOcclusionQueryResult(DXRender* pRender)
 {
-	UINT64 pixelCount = 0;
-	while (pRender->GetDeviceContext()->GetData(occlusionQuery, &pixelCount, sizeof(pixelCount), 0) == S_OK) {
-		// This means the query result is ready
-		if (pixelCount > 0) {
-			m_pixelCount = pixelCount;
-			printf("Object is visible (pixels drawn: %d)\n", (int)pixelCount);
+	//UINT64 pixelCount = 0;
+	//while (pRender->GetDeviceContext()->GetData(occlusionQuery, &pixelCount, sizeof(pixelCount), 0) == S_OK) {
+	//	// This means the query result is ready
+	//	if (pixelCount > 0) {
+	//		m_pixelCount = pixelCount;
+	//		printf("Object is visible (pixels drawn: %d)\n", (int)pixelCount);
+	//	}
+	//	else {
+	//		printf("Object is occluded\n");
+	//	}
+	//	break; // Exit the while once we receive the data
+	//}
+
+	// Check the result of the query
+	UINT numPixelsPassed = 0;
+	HRESULT hr = pRender->GetDeviceContext()->GetData(occlusionQuery, &numPixelsPassed, sizeof(numPixelsPassed), 0);
+
+	if (hr == S_OK) {
+		// The query is complete and we have a result
+		if (numPixelsPassed > 0) {
+			printf("Some pixels passed the depth test.\n");
+			// You can render other objects that depend on this result
 		}
 		else {
-			printf("Object is occluded\n");
+			printf("No pixels passed the depth test.\n");
+			// Skip rendering other objects if they are not visible
 		}
-		break; // Exit the while once we receive the data
+	}
+	else if (hr == S_FALSE) {
+		// The query is still in progress, wait for it to finish
+		//printf("Query still in progress.\n");
+	}
+	else {
+		//printf("Failed to get query data.\n");
 	}
 }
 
@@ -396,7 +419,7 @@ HRESULT Mesh::Init(DXRender*pRender, float *pVertices, int verticesCount, unsign
 	m_pVSBlob->Release();
 
 	D3D11_QUERY_DESC queryDesc;
-	queryDesc.Query = D3D11_QUERY_OCCLUSION;
+	queryDesc.Query = D3D11_QUERY_OCCLUSION_PREDICATE;
 	queryDesc.MiscFlags = 0;
 
 	hr = pRender->GetDevice()->CreateQuery(&queryDesc, &occlusionQuery);

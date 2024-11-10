@@ -512,9 +512,10 @@ void LoadIPLFile(const char *filepath)
 	}
 
 	bool isObjs = false;
-
+	int i = 0;
 	while (!feof(fp)) {
 		if (fgets(str, 512, fp)) {
+			
 
 			if (strcmp(str, "inst\n") == 0) {
 				isObjs = true;
@@ -578,6 +579,10 @@ void LoadIPLFile(const char *filepath)
 				iplfile.rot[3] = rot[3]; // w
 
 				g_MapObjects.push_back(iplfile);
+
+				i++;
+
+				if (i > 5) break;
 			}
 		}
 			
