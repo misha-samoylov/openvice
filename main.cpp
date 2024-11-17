@@ -335,7 +335,7 @@ inline float DistanceSquared(XMVECTOR v1, XMVECTOR v2)
 
 void RenderScene(DXRender *render, Camera *camera)
 {
-	g_frustum.ConstructFrustum(200.0f, camera->GetProjection(), camera->GetView());
+	g_frustum.ConstructFrustum(400.0f, camera->GetProjection(), camera->GetView());
 
 	render->RenderStart();
 
