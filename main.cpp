@@ -29,6 +29,7 @@ using namespace DirectX;
 
 int frameCount = 0;
 int render_distance = true;
+Window* window = new Window();
 Frustum g_frustum;
 
 /* IPL file contains model position */
@@ -412,21 +413,24 @@ void RenderScene(DXRender *render, Camera *camera)
 	render->RenderEnd();
 }
 
+/* IDE file contains information: dff_file txd_file */
 void LoadIDEFile(const char* filepath)
 {
+	printf("[Info] Loading: %s\n", filepath);
+
 	FILE* fp;
 	char str[512];
+	bool isObjs = false;
+
 	if ((fp = fopen(filepath, "r")) == NULL) {
-		printf("Cannot open file.\n");
+		printf("[Error] Cannot open file: %s\n", filepath);
 		return;
 	}
-
-	bool isObjs = false;
 
 	while (!feof(fp)) {
 		if (fgets(str, 512, fp)) {
 
-			if (strcmp(str, "tobj\n") == 0 || strcmp(str, "objs\n")) {
+			if (strcmp(str, "objs\n")) {
 				isObjs = true;
 			}
 
@@ -435,27 +439,12 @@ void LoadIDEFile(const char* filepath)
 			}
 
 			int id = 0;
-			char modelName[64];
-			char textureArchiveName[64];
-
-			int interior = 0;
-			float posX = 0, posY = 0, posZ = 0;
-			float scale[3];
-			float rot[4];
+			char modelName[MAX_LENGTH_FILENAME];
+			char textureArchiveName[MAX_LENGTH_FILENAME];
 
 			int values = sscanf(str, "%d, %64[^,], %64[^,]", &id, modelName, textureArchiveName);
 
-			// printf("%s", str);
 			if (values == 3 && isObjs) {
-
-				// Добавляем .dff окончание, так как там указано без DFF формата
-				//modelNameq = modelNameq + ".dff";
-
-				//std::string mName = modelName;
-				//mName = mName + ".dff";
-
-				//std::string taName = textureArchiveName;
-				//taName = taName + ".txd";
 
 				struct IDEFile idf;
 
@@ -466,7 +455,6 @@ void LoadIDEFile(const char* filepath)
 				g_ideFile.push_back(idf);
 			}
 		}
-
 	}
 
 	fclose(fp);
@@ -474,7 +462,7 @@ void LoadIDEFile(const char* filepath)
 
 void LoadIPLFile(const char *filepath)
 {
-	printf("[Info] Loading %s\n", filepath);
+	printf("[Info] Loading: %s\n", filepath);
 
 	FILE* fp;
 	char str[512];
@@ -566,7 +554,7 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 		return EXIT_FAILURE;
 	}
 
-	Window* window = new Window();
+	
 	window->Init(hInstance, nCmdShow, WINDOW_WIDTH, WINDOW_HEIGHT, WINDOW_TITLE);
 
 	Input* input = new Input();
@@ -619,18 +607,17 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 	};
 
 	/* Load map models and their textures */
-	LoadIDEFile("C:/Games/Grand Theft Auto Vice City/data/maps/generic.ide");
-
 	for (int i = 0; i < sizeof(maps) / sizeof(maps[0]); i++) {
-		std::string path;
-		path = "C:/Games/Grand Theft Auto Vice City/data/maps/";
-		path += maps[i];
-		path += "/";
-		path += maps[i];
-		path += ".ide";
-
-		LoadIDEFile(path.c_str());
+		char path[256];
+		strcpy(path, "C:/Games/Grand Theft Auto Vice City/data/maps/");
+		strcat(path, maps[i]);
+		strcat(path, "/");
+		strcat(path, maps[i]);
+		strcat(path, ".ide");
+		LoadIDEFile(path);
 	}
+
+	LoadIDEFile("C:/Games/Grand Theft Auto Vice City/data/maps/generic.ide");
 
 	/* Load from IDE file only archives textures */
 	std::vector<string> textures;
@@ -651,14 +638,13 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 	}
 
 	for (int i = 0; i < sizeof(maps) / sizeof(maps[0]); i++) {
-		std::string path;
-		path = "C:/Games/Grand Theft Auto Vice City/data/maps/";
-		path += maps[i];
-		path += "/";
-		path += maps[i];
-		path += ".ipl";
-
-		LoadIPLFile(path.c_str());
+		char path[256];
+		strcpy(path, "C:/Games/Grand Theft Auto Vice City/data/maps/");
+		strcat(path, maps[i]);
+		strcat(path, "/");
+		strcat(path, maps[i]);
+		strcat(path, ".ipl");
+		LoadIPLFile(path);
 	}
 
 	printf("[Info] %s loaded\n", PROJECT_NAME);
