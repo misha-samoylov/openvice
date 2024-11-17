@@ -20,7 +20,6 @@
 #include "Utils.hpp"
 #include "Frustum.h"
 
-#define PROJECT_NAME "openvice"
 #define WINDOW_WIDTH 1024
 #define WINDOW_HEIGHT 768
 #define WINDOW_TITLE L"openvice"
@@ -29,7 +28,6 @@ using namespace DirectX;
 
 int frameCount = 0;
 int render_distance = true;
-Window* window = new Window();
 Frustum g_frustum;
 
 /* IPL file contains model position */
@@ -550,11 +548,11 @@ void LoadIPLFile(const char *filepath)
 int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPSTR lpCmdLine, _In_ int nCmdShow)
 {
 	if (!DirectX::XMVerifyCPUSupport()) {
-		MessageBox(NULL, L"You CPU doesn't support DirectXMath.", L"Error", MB_OK);
+		MessageBox(NULL, L"You CPU doesn't support DirectXMath", L"Error", MB_OK);
 		return EXIT_FAILURE;
 	}
 
-	
+	Window* window = new Window();
 	window->Init(hInstance, nCmdShow, WINDOW_WIDTH, WINDOW_HEIGHT, WINDOW_TITLE);
 
 	Input* input = new Input();
@@ -572,7 +570,7 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 	ImgLoader* imgLoader = new ImgLoader();
 	imgLoader->Open(imgPath, dirPath);
 
-	char maps[][24] = {
+	char maps[][MAX_LENGTH_FILENAME] = {
 		{ "airport" },
 		{ "airportN" },
 		{ "bank" },
@@ -647,7 +645,7 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 		LoadIPLFile(path);
 	}
 
-	printf("[Info] %s loaded\n", PROJECT_NAME);
+	printf("[Info] %s loaded\n", WINDOW_TITLE);
 
 	float moveLeftRight = 0.0f;
 	float moveBackForward = 0.0f;
@@ -753,6 +751,8 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 	render->Cleanup();
 	camera->Cleanup();
 	input->Cleanup();
+
+	// TODO cleanup Models
 
 	for (int i = 0; i < g_LoadedMeshes.size(); i++) {
 		g_LoadedMeshes[i]->Cleanup();
