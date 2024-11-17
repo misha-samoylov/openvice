@@ -418,6 +418,7 @@ HRESULT Mesh::Init(DXRender*pRender, float *pVertices, int verticesCount, unsign
 
 	m_pVSBlob->Release();
 
+	/* occlusion query */
 	D3D11_QUERY_DESC queryDesc;
 	queryDesc.Query = D3D11_QUERY_OCCLUSION_PREDICATE;
 	queryDesc.MiscFlags = 0;
@@ -425,7 +426,6 @@ HRESULT Mesh::Init(DXRender*pRender, float *pVertices, int verticesCount, unsign
 	hr = pRender->GetDevice()->CreateQuery(&queryDesc, &occlusionQuery);
 	if (FAILED(hr)) {
 		printf("Failed to create occlusion query\n");
-		MessageBeep(2);;
 	}
 
 	return hr;

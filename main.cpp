@@ -28,16 +28,20 @@
 using namespace DirectX;
 
 int frameCount = 0;
+int render_distance = true;
+Frustum g_frustum;
 
 /* IPL file contains model position */
 struct IPLFile {
 	int id;
 	char modelName[MAX_LENGTH_FILENAME];
 	int interior;
-	float posX, posY, posZ;
+	float x, y, z;
 	float scale[3];
-	float rot[4];
+	float rotation[4];
 };
+
+int countObjectsInMap = 0;
 
 /* IDE file contains model name and their texture name */
 struct IDEFile {
@@ -66,9 +70,6 @@ std::vector<IDEFile> g_ideFile;
 std::vector<IPLFile> g_MapObjects;
 std::vector<Mesh*> g_LoadedMeshes;
 
-//std::vector<Mesh*> g_transparentMeshes;
-//std::vector<Mesh*> g_notTransparentMeshes;
-
 std::vector<GameMaterial> g_Textures;
 
 
@@ -87,11 +88,11 @@ void LoadAllTexturesFromTXDFile(ImgLoader *pImgLoader, const char *filename)
 
 	int fileId = pImgLoader->GetFileIndexByName(result_name);
 	if (fileId == -1) {
-		printf("[ERROR] Cannot find file %s in IMG archive\n", result_name);
+		// printf("[Error] Cannot find file %s in IMG archive\n", result_name);
 		return;
 	}
 
-	printf("[OK] Finded file %s in IMG archive\n", result_name);
+	// printf("[Info] Loading file %s from IMG archive\n", filename);
 
 	char *fileBuffer = (char*)pImgLoader->GetFileById(fileId);
 
@@ -102,7 +103,7 @@ void LoadAllTexturesFromTXDFile(ImgLoader *pImgLoader, const char *filename)
 	/* Loop for every texture in TXD file */
 	for (uint32_t i = 0; i < txd.texList.size(); i++) {
 		NativeTexture &t = txd.texList[i];
-		printf("%s %s %d %d %d %d\n", t.name, t.maskName.c_str(), t.width[0], t.height[0], t.depth, t.rasterFormat);
+		// printf("%s %s %d %d %d %d\n", t.name, t.maskName.c_str(), t.width[0], t.height[0], t.depth, t.rasterFormat);
 		
 		uint8_t* texelsToArray = t.texels[0];
 		size_t len = t.dataSizes[0];
@@ -122,7 +123,7 @@ void LoadAllTexturesFromTXDFile(ImgLoader *pImgLoader, const char *filename)
 		m.depth = t.depth;
 		m.hasAlpha = t.hasAlpha;
 
-		printf("[OK] Loaded texture name %s from TXD file %s\n", t.name, result_name);
+		// printf("[OK] Loaded texture name %s from TXD file %s\n", t.name, result_name);
 
 		g_Textures.push_back(m);
 	}
@@ -132,18 +133,20 @@ void LoadAllTexturesFromTXDFile(ImgLoader *pImgLoader, const char *filename)
 
 int LoadFileDFFWithName(ImgLoader* pImgLoader, DXRender* render, char *name, int modelId)
 {
+	// printf("[Info] Loading mesh: %s\n", name);
+
 	char result_name[MAX_LENGTH_FILENAME + 4];
 	strcpy(result_name, name);
 	strcat(result_name, ".dff");
 
 	int fileId = pImgLoader->GetFileIndexByName(result_name);
 	if (fileId == -1) {
-		printf("[ERROR] Cannot find %s.dff in IMG archive\n", result_name);
+		printf("[Error] Cannot find %s.dff in IMG archive\n", name);
 		return 1;
 	}
 
 	if (strstr(result_name, "LOD") != NULL) {
-		printf("[NOTICE] Skip loading LOD file: %s\n", result_name);
+		// printf("[Notice] Skip loading LOD file: %s\n", result_name);
 		return 1;
 	}
 
@@ -231,7 +234,7 @@ int LoadFileDFFWithName(ImgLoader* pImgLoader, DXRender* render, char *name, int
 
 			Mesh* mesh = new Mesh();
 
-			printf("Loading mesh\n");
+
 			mesh->Init(
 				render, 
 				meshVertexData,
@@ -240,7 +243,6 @@ int LoadFileDFFWithName(ImgLoader* pImgLoader, DXRender* render, char *name, int
 				clump->GetGeometryList()[index]->splits[i].m_numIndices,
 				topology
 			);
-			printf("Loaded mesh\n");
 
 			uint32_t materialIndex = clump->GetGeometryList()[index]->splits[i].matIndex;
 
@@ -288,7 +290,7 @@ int LoadFileDFFWithName(ImgLoader* pImgLoader, DXRender* render, char *name, int
 		}
 	}
 
-	printf("clear clump\n");
+	// printf("clear clump\n");
 	clump->Clear();
 	delete clump;
 
@@ -304,35 +306,22 @@ inline float DistanceSquared(XMVECTOR v1, XMVECTOR v2)
 	return XMVectorGetX(XMVector3LengthSq(XMVectorSubtract(v1, v2)));
 }
 
-
-int render_distance = true;
-
 void RenderScene(DXRender *render, Camera *camera)
 {
+	g_frustum.ConstructFrustum(200.0f, camera->GetProjection(), camera->GetView());
+
 	render->RenderStart();
-
-	float distance = 0;
-
-	Frustum m_frustum;
-	m_frustum.ConstructFrustum(200.0f, camera->GetProjection(), camera->GetView());
 
 	int renderCount = 0;
 
-	/* Рисуем сперва не прозрачные объекты */
-	for (int i = 0; i < g_MapObjects.size(); i++) {
+	// Render not transparent objects
+	for (int i = 0; i < countObjectsInMap; i++) {
 
-		XMVECTOR cameraPos = camera->GetPosition();
-		XMVECTOR objectPos = XMVectorSet(g_MapObjects[i].posX, g_MapObjects[i].posY, g_MapObjects[i].posZ, 0.0f);
-		distance = Distance(cameraPos, objectPos);
+		float x = g_MapObjects[i].x;
+		float y = g_MapObjects[i].y;
+		float z = g_MapObjects[i].z;
 
-		//if (render_distance && distance > 400)
-		//	continue;
-
-		float x, y, z;
-		x = g_MapObjects[i].posX, y = g_MapObjects[i].posY, z = g_MapObjects[i].posZ;
-		//m_modellist.GetData(i, x, y, z);
-
-		bool renderModel = m_frustum.CheckCube(x, y, z, 50.0f);
+		bool renderModel = g_frustum.CheckCube(x, y, z, 50.0f);
 
 		if (renderModel) {
 			
@@ -341,47 +330,32 @@ void RenderScene(DXRender *render, Camera *camera)
 				if (g_LoadedMeshes[m]->GetAlpha() == true)
 					continue;
 
-				//if (frameCount % 2)
-				//	g_LoadedMeshes[m]->CheckOcclusionQueryResult(render);
-
 				int index = i;
 				int modelId = g_MapObjects[i].id;
 
-				// Если нашли модель, то ставим ей координаты и рисуем
 				if (modelId == g_LoadedMeshes[m]->GetId()) {
 					g_LoadedMeshes[m]->SetPosition(
-						g_MapObjects[index].posX, g_MapObjects[index].posY, g_MapObjects[index].posZ,
+						g_MapObjects[index].x, g_MapObjects[index].y, g_MapObjects[index].z,
 						g_MapObjects[index].scale[0], g_MapObjects[index].scale[1], g_MapObjects[index].scale[2],
 
-						g_MapObjects[index].rot[0], g_MapObjects[index].rot[1], g_MapObjects[index].rot[2], g_MapObjects[index].rot[3]
+						g_MapObjects[index].rotation[0], g_MapObjects[index].rotation[1], g_MapObjects[index].rotation[2], g_MapObjects[index].rotation[3]
 					);
 					g_LoadedMeshes[m]->Render(render, camera);
 
-				
 					renderCount++;
 				}
 			}
-
-			
 		}
 	}
 
-	// Рисуем прозраные объекты
-	for (int i = 0; i < g_MapObjects.size(); i++) {
+	// Render transparent objects
+	for (int i = 0; i < countObjectsInMap; i++) {
 
-		XMVECTOR cameraPos = camera->GetPosition();
-		XMVECTOR objectPos = XMVectorSet(g_MapObjects[i].posX, g_MapObjects[i].posY, g_MapObjects[i].posZ, 0.0f);
-		distance = Distance(cameraPos, objectPos);
+		float x = g_MapObjects[i].x;
+		float y = g_MapObjects[i].y;
+		float z = g_MapObjects[i].z;
 
-		//if (render_distance && distance > 400)
-		//	continue;
-
-
-		float x, y, z;
-		x = g_MapObjects[i].posX, y = g_MapObjects[i].posY, z = g_MapObjects[i].posZ;
-		//m_modellist.GetData(i, x, y, z);
-
-		bool renderModel = m_frustum.CheckSphere(x, y, z, 50.0f);
+		bool renderModel = g_frustum.CheckSphere(x, y, z, 50.0f);
 
 		if (renderModel) {
 
@@ -393,17 +367,13 @@ void RenderScene(DXRender *render, Camera *camera)
 				if (g_LoadedMeshes[m]->GetAlpha() == false)
 					continue;
 
-				//if (frameCount % 2)
-				//	g_LoadedMeshes[m]->CheckOcclusionQueryResult(render);
-
-				// Если нашли модель, то ставим ей координаты и рисуем
 				if (modelId == g_LoadedMeshes[m]->GetId()) {
 
 					g_LoadedMeshes[m]->SetPosition(
-						g_MapObjects[index].posX, g_MapObjects[index].posY, g_MapObjects[index].posZ,
+						g_MapObjects[index].x, g_MapObjects[index].y, g_MapObjects[index].z,
 						g_MapObjects[index].scale[0], g_MapObjects[index].scale[1], g_MapObjects[index].scale[2],
 
-						g_MapObjects[index].rot[0], g_MapObjects[index].rot[1], g_MapObjects[index].rot[2], g_MapObjects[index].rot[3]
+						g_MapObjects[index].rotation[0], g_MapObjects[index].rotation[1], g_MapObjects[index].rotation[2], g_MapObjects[index].rotation[3]
 					);
 					g_LoadedMeshes[m]->Render(render, camera);
 
@@ -413,10 +383,9 @@ void RenderScene(DXRender *render, Camera *camera)
 		}
 	}
 
-	printf("renderCount = %d\n", renderCount);
+	printf("[Info] Rendered meshes: %d\n", renderCount);
 
 	render->RenderEnd();
-	
 }
 
 void LoadIDEFile(const char* filepath)
@@ -452,7 +421,7 @@ void LoadIDEFile(const char* filepath)
 
 			int values = sscanf(str, "%d, %64[^,], %64[^,]", &id, modelName, textureArchiveName);
 
-			printf("%s", str);
+			// printf("%s", str);
 			if (values == 3 && isObjs) {
 
 				// Добавляем .dff окончание, так как там указано без DFF формата
@@ -481,26 +450,26 @@ void LoadIDEFile(const char* filepath)
 
 void LoadIPLFile(const char *filepath)
 {
+	printf("[Info] Loading %s\n", filepath);
+
 	FILE* fp;
 	char str[512];
 	if ((fp = fopen(filepath, "r")) == NULL) {
-		printf("Cannot open file.\n");
+		printf("Cannot open file %s\n", filepath);
 		return;
 	}
 
-	bool isObjs = false;
-
+	bool isObject = false;
+	
 	while (!feof(fp)) {
 		if (fgets(str, 512, fp)) {
-			
-
 			if (strcmp(str, "inst\n") == 0) {
-				isObjs = true;
+				isObject = true;
 			}
 
 			if (strcmp(str, "end\n") == 0) {
-				if (isObjs) {
-					isObjs = false;
+				if (isObject) {
+					isObject = false;
 				}
 			}
 
@@ -523,17 +492,18 @@ void LoadIPLFile(const char *filepath)
 				&rot[0], &rot[1], &rot[2], &rot[3]
 			);
 
-			if (values == 13 && isObjs) {
-				printf("%s", str);
+			if (strstr(modelName, "LOD") != NULL) {
+				continue;
+			}
 
-				// Добавляем .dff окончание, так как там указано без DFF формата
-				//modelNameq = modelNameq + ".dff";
+			if (values == 13 && isObject) {
 
 				struct IPLFile iplfile;
+
 				iplfile.id = id;
 				strcpy(iplfile.modelName, modelName);
+				
 				iplfile.interior = interior;
-
 				/*
 				 * Меняем положение модели в пространстве так как наша камера
 				 * в Left Handed Coordinates, а движок GTA в своей координатной системе:
@@ -542,23 +512,24 @@ void LoadIPLFile(const char *filepath)
 				 * Z – up/down direction
 				 * @see https://gtamods.com/wiki/Map_system
 				*/
-				iplfile.posX = posX;
-				iplfile.posY = posZ;
-				iplfile.posZ = posY;
+				iplfile.x = posX;
+				iplfile.y = posZ;
+				iplfile.z = posY;
 
 				iplfile.scale[0] = scale[0]; // y
 				iplfile.scale[1] = scale[2]; // z
 				iplfile.scale[2] = scale[1]; // x
 
-				iplfile.rot[0] = rot[0]; // y
-				iplfile.rot[1] = rot[2]; // z
-				iplfile.rot[2] = rot[1]; // x
-				iplfile.rot[3] = rot[3]; // w
+				iplfile.rotation[0] = rot[0]; // y
+				iplfile.rotation[1] = rot[2]; // z
+				iplfile.rotation[2] = rot[1]; // x
+				iplfile.rotation[3] = rot[3]; // w
+
+				countObjectsInMap++;
 
 				g_MapObjects.push_back(iplfile);
 			}
 		}
-			
 	}
 
 	fclose(fp);
@@ -571,26 +542,23 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 		return EXIT_FAILURE;
 	}
 
-	Window* gameWindow = new Window();
-	gameWindow->Init(hInstance, nCmdShow, WINDOW_WIDTH, WINDOW_HEIGHT, WINDOW_TITLE);
+	Window* window = new Window();
+	window->Init(hInstance, nCmdShow, WINDOW_WIDTH, WINDOW_HEIGHT, WINDOW_TITLE);
 
-	Input* gameInput = new Input();
-	gameInput->Init(hInstance, gameWindow->GetHandleWindow());
+	Input* input = new Input();
+	input->Init(hInstance, window->GetHandleWindow());
 
-	Camera* gameCamera = new Camera();
-	gameCamera->Init(WINDOW_WIDTH, WINDOW_HEIGHT);
+	Camera* camera = new Camera();
+	camera->Init(WINDOW_WIDTH, WINDOW_HEIGHT);
 
-	DXRender* gameRender = new DXRender();
-	gameRender->Init(gameWindow->GetHandleWindow());
+	DXRender* render = new DXRender();
+	render->Init(window->GetHandleWindow());
 
 	TCHAR imgPath[] = L"C:/Games/Grand Theft Auto Vice City/models/gta3.img";
 	TCHAR dirPath[] = L"C:/Games/Grand Theft Auto Vice City/models/gta3.dir";
 
 	ImgLoader* imgLoader = new ImgLoader();
-	imgLoader->Open(
-		imgPath,
-		dirPath
-	);
+	imgLoader->Open(imgPath, dirPath);
 
 	char maps[][24] = {
 		{ "airport" },
@@ -655,7 +623,7 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 
 	/* Loading models. IDE file doesn't contain dublicate models */
 	for (int i = 0; i < g_ideFile.size(); i++) {
-		LoadFileDFFWithName(imgLoader, gameRender, g_ideFile[i].modelName, g_ideFile[i].objectId);
+		LoadFileDFFWithName(imgLoader, render, g_ideFile[i].modelName, g_ideFile[i].objectId);
 	}
 
 	for (int i = 0; i < sizeof(maps) / sizeof(maps[0]); i++) {
@@ -668,7 +636,7 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 
 		LoadIPLFile(path.c_str());
 	}
-	
+
 	printf("[Info] %s loaded\n", PROJECT_NAME);
 
 	float moveLeftRight = 0.0f;
@@ -680,11 +648,11 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 	DIMOUSESTATE mouseLastState;
 	DIMOUSESTATE mouseCurrState;
 
-	mouseCurrState.lX = gameInput->GetMouseSpeedX();
-	mouseCurrState.lY = gameInput->GetMouseSpeedY();
+	mouseCurrState.lX = input->GetMouseSpeedX();
+	mouseCurrState.lY = input->GetMouseSpeedY();
 
-	mouseLastState.lX = gameInput->GetMouseSpeedX();
-	mouseLastState.lY = gameInput->GetMouseSpeedY();
+	mouseLastState.lX = input->GetMouseSpeedX();
+	mouseLastState.lY = input->GetMouseSpeedY();
 
 	
 	double frameTime;
@@ -709,50 +677,50 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 
 			frameTime = Utils::GetFrameTime();
 
-			gameInput->Detect();
+			input->Detect();
 
 			float speed = 10.0f * frameTime;
 
-			if (gameInput->IsKey(DIK_ESCAPE)) {
+			if (input->IsKey(DIK_ESCAPE)) {
 				PostQuitMessage(EXIT_SUCCESS);
 			}
 
-			if (gameInput->IsKey(DIK_LSHIFT)) {
+			if (input->IsKey(DIK_LSHIFT)) {
 				speed *= 50;
 			}
 
-			if (gameInput->IsKey(DIK_F1)) {
-				gameRender->ChangeRasterizerStateToWireframe();
+			if (input->IsKey(DIK_F1)) {
+				render->ChangeRasterizerStateToWireframe();
 				printf("Changed render to wireframe\n");
 			}
 
-			if (gameInput->IsKey(DIK_F2)) {
-				gameRender->ChangeRasterizerStateToSolid();
+			if (input->IsKey(DIK_F2)) {
+				render->ChangeRasterizerStateToSolid();
 				printf("Changed render to solid\n");
 			}
 
-			if (gameInput->IsKey(DIK_W)) {
+			if (input->IsKey(DIK_W)) {
 				moveBackForward += speed;
 			}
 
-			if (gameInput->IsKey(DIK_A)) {
+			if (input->IsKey(DIK_A)) {
 				moveLeftRight -= speed;
 			}
 
-			if (gameInput->IsKey(DIK_S)) {
+			if (input->IsKey(DIK_S)) {
 				moveBackForward -= speed;
 			}
 
-			if (gameInput->IsKey(DIK_D)) {
+			if (input->IsKey(DIK_D)) {
 				moveLeftRight += speed;
 			}
 
-			if (gameInput->IsKey(DIK_NUMPAD0)) {
+			if (input->IsKey(DIK_NUMPAD0)) {
 				render_distance = !render_distance;
 			}
 
-			mouseCurrState.lX = gameInput->GetMouseSpeedX();
-			mouseCurrState.lY = gameInput->GetMouseSpeedY();
+			mouseCurrState.lX = input->GetMouseSpeedX();
+			mouseCurrState.lY = input->GetMouseSpeedY();
 
 			if ((mouseCurrState.lX != mouseLastState.lX)
 				|| (mouseCurrState.lY != mouseLastState.lY)) {
@@ -763,27 +731,27 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 				mouseLastState = mouseCurrState;
 			}
 
-			gameCamera->Update(camPitch, camYaw, moveLeftRight, moveBackForward);
+			camera->Update(camPitch, camYaw, moveLeftRight, moveBackForward);
 
-			RenderScene(gameRender, gameCamera);
+			RenderScene(render, camera);
 
 			moveLeftRight = 0.0f;
 			moveBackForward = 0.0f;
 		}
 	}
 
-	gameRender->Cleanup();
-	gameCamera->Cleanup();
-	gameInput->Cleanup();
+	render->Cleanup();
+	camera->Cleanup();
+	input->Cleanup();
 
 	for (int i = 0; i < g_LoadedMeshes.size(); i++) {
 		g_LoadedMeshes[i]->Cleanup();
 		delete g_LoadedMeshes[i];
 	}
 
-	delete gameCamera;
-	delete gameInput;
-	delete gameRender;
+	delete camera;
+	delete input;
+	delete render;
 
 	imgLoader->Cleanup();
 	delete imgLoader;

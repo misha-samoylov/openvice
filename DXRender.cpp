@@ -186,10 +186,10 @@ HRESULT DXRender::Init(HWND hWnd)
 	sd.BufferDesc.RefreshRate.Numerator = 60; /* screen refresh rate */
 	sd.BufferDesc.RefreshRate.Denominator = 1;
 	sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT; /* target is back buffer */
-	sd.OutputWindow = hWnd; // Указываем окно
+	sd.OutputWindow = hWnd; // Set window
 	sd.SampleDesc.Count = 1;
 	sd.SampleDesc.Quality = 0;
-	sd.Windowed = TRUE; // Оконный режим
+	sd.Windowed = TRUE; // Window mode
 
 	D3D_FEATURE_LEVEL featureLevels[] = {
 		D3D_FEATURE_LEVEL_11_0
@@ -310,6 +310,6 @@ void DXRender::RenderStart()
 
 void DXRender::RenderEnd()
 {
-	// Показываем задний буфер на экран
 	m_pSwapChain->Present(0, 0);
+	// m_pSwapChain->Present(1, 0);
 }

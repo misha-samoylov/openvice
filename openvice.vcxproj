@@ -92,7 +92,7 @@
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
       <ConformanceMode>true</ConformanceMode>
-      <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;_XM_SSE_INTRINSICS_;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <LanguageStandard>stdcpp14</LanguageStandard>
       <CompileAs>CompileAsCpp</CompileAs>
       <AdditionalIncludeDirectories>C:\Users\misha\Documents\GitHub\DirectXTex\DirectXTex;C:\Users\misha\Downloads\glfw-3.4.bin.WIN64\include;C:\Users\misha\Downloads\glad\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>

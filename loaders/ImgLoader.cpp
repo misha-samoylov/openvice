@@ -123,7 +123,7 @@ char *ImgLoader::GetFileById(uint32_t id)
 	fileSize = m_pFilesDir[id].size * IMG_BLOCK_SIZE;
 	fileOffset = m_pFilesDir[id].offset * IMG_BLOCK_SIZE;
 
-	printf("[NOTICE] ImgLoader: Loading %s file\n", m_pFilesDir[id].name);
+	printf("[Info] ImgLoader: Loading %s file\n", m_pFilesDir[id].name);
 
 	return &m_dataPtrImg[fileOffset];
 }
@@ -145,7 +145,7 @@ int ImgLoader::GetFileIndexByName(const char *name)
 	}
 
 	if (index == -1)
-		printf("File %s is not found in IMG archive\n", name);
+		printf("[Error] File %s is not found in IMG archive\n", name);
 
 	return index;
 }
