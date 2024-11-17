@@ -7,7 +7,7 @@ void Camera::Init(float width, float height)
 	m_cameraUp = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
 
 	m_cameraView = XMMatrixLookAtLH(m_cameraPosition, m_cameraTarget, m_cameraUp);
-	m_cameraProjection = XMMatrixPerspectiveFovLH(0.4f * 3.14f, (float)width / height, 0.1f, 50000.0f);
+	m_cameraProjection = XMMatrixPerspectiveFovLH(0.4f * 3.14f, (float)width / height, 0.1f, 200.0f);
 
 	m_defaultForward = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
 	m_defaultRight = XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f);

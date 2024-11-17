@@ -314,7 +314,7 @@ void RenderScene(DXRender *render, Camera *camera)
 	float distance = 0;
 
 	Frustum m_frustum;
-	m_frustum.ConstructFrustum(1000.0f, camera->GetProjection(), camera->GetView());
+	m_frustum.ConstructFrustum(200.0f, camera->GetProjection(), camera->GetView());
 
 	int renderCount = 0;
 
@@ -413,7 +413,7 @@ void RenderScene(DXRender *render, Camera *camera)
 		}
 	}
 
-	//printf("renderCount = %d\n", renderCount);
+	printf("renderCount = %d\n", renderCount);
 
 	render->RenderEnd();
 	
