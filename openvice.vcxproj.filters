@@ -84,9 +84,6 @@
     <ClCompile Include="Frustum.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="GLRender.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\..\Downloads\glad\src\glad.c">
       <Filter>Source Files\glad</Filter>
     </ClCompile>
@@ -132,9 +129,6 @@
       <Filter>Header Files\renderware</Filter>
     </ClInclude>
     <ClInclude Include="Frustum.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="GLRender.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

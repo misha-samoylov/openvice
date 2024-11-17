@@ -90,7 +90,7 @@ void Mesh::Cleanup()
 void Mesh::Render(DXRender* pRender, Camera *pCamera)
 {
 	// Begin the occlusion query
-	pRender->GetDeviceContext()->Begin(occlusionQuery);
+	//pRender->GetDeviceContext()->Begin(occlusionQuery);
 
 
 	pRender->GetDeviceContext()->IASetInputLayout(m_pVertexLayout);
@@ -126,7 +126,7 @@ void Mesh::Render(DXRender* pRender, Camera *pCamera)
 	pRender->GetDeviceContext()->DrawIndexed(m_countIndices, 0, 0);
 
 
-	pRender->GetDeviceContext()->End(occlusionQuery);
+	//pRender->GetDeviceContext()->End(occlusionQuery);
 
 }
 

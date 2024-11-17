@@ -8,8 +8,6 @@
 #include <windows.h>
 #include <DirectXMath.h>
 
-#include "GLRender.h"
-
 #include "renderware.h"
 
 #include "loaders/ImgLoader.hpp"
@@ -316,7 +314,7 @@ void RenderScene(DXRender *render, Camera *camera)
 	float distance = 0;
 
 	Frustum m_frustum;
-	m_frustum.ConstructFrustum(300.0f, camera->GetProjection(), camera->GetView());
+	m_frustum.ConstructFrustum(1000.0f, camera->GetProjection(), camera->GetView());
 
 	int renderCount = 0;
 
@@ -327,8 +325,8 @@ void RenderScene(DXRender *render, Camera *camera)
 		XMVECTOR objectPos = XMVectorSet(g_MapObjects[i].posX, g_MapObjects[i].posY, g_MapObjects[i].posZ, 0.0f);
 		distance = Distance(cameraPos, objectPos);
 
-		if (render_distance && distance > 400)
-			continue;
+		//if (render_distance && distance > 400)
+		//	continue;
 
 		float x, y, z;
 		x = g_MapObjects[i].posX, y = g_MapObjects[i].posY, z = g_MapObjects[i].posZ;
@@ -338,20 +336,13 @@ void RenderScene(DXRender *render, Camera *camera)
 
 		if (renderModel) {
 			
-			//int index = g_MapObjects[i].index;
-			//int modelId = g_MapObjects[i].modelId;
-
-		// Получаем местоположения объектов на карте
-		//for (int i = 0; i < g_MapObjects.size(); i++) {
-			// Проходимся по загруженным моделям
-
 			for (int m = 0; m < g_LoadedMeshes.size(); m++) {
 
 				if (g_LoadedMeshes[m]->GetAlpha() == true)
 					continue;
 
-				if (frameCount % 2)
-					g_LoadedMeshes[m]->CheckOcclusionQueryResult(render);
+				//if (frameCount % 2)
+				//	g_LoadedMeshes[m]->CheckOcclusionQueryResult(render);
 
 				int index = i;
 				int modelId = g_MapObjects[i].id;
@@ -366,10 +357,7 @@ void RenderScene(DXRender *render, Camera *camera)
 					);
 					g_LoadedMeshes[m]->Render(render, camera);
 
-					
-
-					break;
-
+				
 					renderCount++;
 				}
 			}
@@ -378,10 +366,6 @@ void RenderScene(DXRender *render, Camera *camera)
 		}
 	}
 
-	render->RenderEnd();
-
-	return;
-
 	// Рисуем прозраные объекты
 	for (int i = 0; i < g_MapObjects.size(); i++) {
 
@@ -389,8 +373,8 @@ void RenderScene(DXRender *render, Camera *camera)
 		XMVECTOR objectPos = XMVectorSet(g_MapObjects[i].posX, g_MapObjects[i].posY, g_MapObjects[i].posZ, 0.0f);
 		distance = Distance(cameraPos, objectPos);
 
-		if (render_distance && distance > 400)
-			continue;
+		//if (render_distance && distance > 400)
+		//	continue;
 
 
 		float x, y, z;
@@ -404,18 +388,13 @@ void RenderScene(DXRender *render, Camera *camera)
 			int index = i;
 			int modelId = g_MapObjects[i].id;
 
-			// Получаем местоположения объектов на карте
-			//for (int i = 0; i < g_MapObjects.size(); i++) {
-				// Проходимся по загруженным моделям
-
 			for (int m = 0; m < g_LoadedMeshes.size(); m++) {
-
 
 				if (g_LoadedMeshes[m]->GetAlpha() == false)
 					continue;
 
-				if (frameCount % 2)
-					g_LoadedMeshes[m]->CheckOcclusionQueryResult(render);
+				//if (frameCount % 2)
+				//	g_LoadedMeshes[m]->CheckOcclusionQueryResult(render);
 
 				// Если нашли модель, то ставим ей координаты и рисуем
 				if (modelId == g_LoadedMeshes[m]->GetId()) {
@@ -428,8 +407,6 @@ void RenderScene(DXRender *render, Camera *camera)
 					);
 					g_LoadedMeshes[m]->Render(render, camera);
 
-
-					
 					renderCount++;
 				}
 			}
@@ -512,7 +489,7 @@ void LoadIPLFile(const char *filepath)
 	}
 
 	bool isObjs = false;
-	int i = 0;
+
 	while (!feof(fp)) {
 		if (fgets(str, 512, fp)) {
 			
@@ -579,10 +556,6 @@ void LoadIPLFile(const char *filepath)
 				iplfile.rot[3] = rot[3]; // w
 
 				g_MapObjects.push_back(iplfile);
-
-				i++;
-
-				if (i > 5) break;
 			}
 		}
 			
@@ -620,7 +593,7 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 	);
 
 	char maps[][24] = {
-		/*{ "airport" },
+		{ "airport" },
 		{ "airportN" },
 		{ "bank" },
 		{ "bar" },
@@ -630,9 +603,9 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 		{ "concerth"},
 		{ "docks"},
 		{ "downtown"},
-		{ "downtows"},*/
+		{ "downtows"},
 		{ "golf" },
-		/*{ "haiti" },
+		{ "haiti" },
 		{ "haitiN" },
 		{ "hotel" },
 		{ "islandsf" },
@@ -650,7 +623,7 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 		{ "stripclb" },
 		{ "washintn" },
 		{ "washints" },
-		{ "yacht" }*/
+		{ "yacht" }
 	};
 
 	/* Load map models and their textures */
@@ -666,12 +639,6 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 
 		LoadIDEFile(path.c_str());
 	}
-
-	//LoadIDEFile("C:/Games/Grand Theft Auto Vice City/data/maps/bridge/bridge.ide");
-	//LoadIDEFile("C:/Games/Grand Theft Auto Vice City/data/maps/bank/bank.ide");
-	//LoadIDEFile("C:/Games/Grand Theft Auto Vice City/data/maps/downtown/downtown.ide");
-	//LoadIDEFile("C:/Games/Grand Theft Auto Vice City/data/maps/littleha/littleha.ide");
-
 
 	/* Load from IDE file only archives textures */
 	std::vector<string> textures;
@@ -691,13 +658,6 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 		LoadFileDFFWithName(imgLoader, gameRender, g_ideFile[i].modelName, g_ideFile[i].objectId);
 	}
 
-
-	/* Load model placement */
-	//LoadIPLFile("C:/Games/Grand Theft Auto Vice City/data/maps/bridge/bridge.ipl");
-	//LoadIPLFile("C:/Games/Grand Theft Auto Vice City/data/maps/bank/bank.ipl");
-	//LoadIPLFile("C:/Games/Grand Theft Auto Vice City/data/maps/downtown/downtown.ipl");
-	//LoadIPLFile("C:/Games/Grand Theft Auto Vice City/data/maps/littleha/littleha.ipl");
-
 	for (int i = 0; i < sizeof(maps) / sizeof(maps[0]); i++) {
 		std::string path;
 		path = "C:/Games/Grand Theft Auto Vice City/data/maps/";
@@ -709,7 +669,7 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 		LoadIPLFile(path.c_str());
 	}
 	
-	printf("[OK] %s Loaded\n", PROJECT_NAME);
+	printf("[Info] %s loaded\n", PROJECT_NAME);
 
 	float moveLeftRight = 0.0f;
 	float moveBackForward = 0.0f;

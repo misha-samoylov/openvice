@@ -148,7 +148,6 @@
     <ClCompile Include="loaders\LightList.cpp" />
     <ClCompile Include="Mesh.cpp" />
     <ClCompile Include="DXRender.cpp" />
-    <ClCompile Include="GLRender.cpp" />
     <ClCompile Include="Utils.cpp" />
     <ClCompile Include="Window.cpp" />
     <ClCompile Include="loaders\Clump.cpp" />
@@ -161,7 +160,6 @@
   <ItemGroup>
     <ClInclude Include="Camera.hpp" />
     <ClInclude Include="Frustum.h" />
-    <ClInclude Include="GLRender.h" />
     <ClInclude Include="Input.hpp" />
     <ClInclude Include="loaders\AtomicList.h" />
     <ClInclude Include="loaders\FrameList.h" />
