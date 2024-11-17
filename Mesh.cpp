@@ -1,10 +1,6 @@
 ﻿#include "Mesh.hpp"
 
-#include <DirectXTex.h>
-
-using namespace DirectX;
-
-HRESULT Mesh::CreateConstBuffer(GameRender *pRender)
+HRESULT Mesh::CreateConstBuffer(DXRender *pRender)
 {
 	HRESULT hr;
 
@@ -22,8 +18,51 @@ HRESULT Mesh::CreateConstBuffer(GameRender *pRender)
 	return hr;
 }
 
+// After rendering, check the occlusion query result
+void Mesh::CheckOcclusionQueryResult(DXRender* pRender)
+{
+	//UINT64 pixelCount = 0;
+	//while (pRender->GetDeviceContext()->GetData(occlusionQuery, &pixelCount, sizeof(pixelCount), 0) == S_OK) {
+	//	// This means the query result is ready
+	//	if (pixelCount > 0) {
+	//		m_pixelCount = pixelCount;
+	//		printf("Object is visible (pixels drawn: %d)\n", (int)pixelCount);
+	//	}
+	//	else {
+	//		printf("Object is occluded\n");
+	//	}
+	//	break; // Exit the while once we receive the data
+	//}
+
+	// Check the result of the query
+	UINT numPixelsPassed = 0;
+	HRESULT hr = pRender->GetDeviceContext()->GetData(occlusionQuery, &numPixelsPassed, sizeof(numPixelsPassed), 0);
+
+	if (hr == S_OK) {
+		// The query is complete and we have a result
+		if (numPixelsPassed > 0) {
+			printf("Some pixels passed the depth test.\n");
+			// You can render other objects that depend on this result
+		}
+		else {
+			printf("No pixels passed the depth test.\n");
+			// Skip rendering other objects if they are not visible
+		}
+	}
+	else if (hr == S_FALSE) {
+		// The query is still in progress, wait for it to finish
+		//printf("Query still in progress.\n");
+	}
+	else {
+		//printf("Failed to get query data.\n");
+	}
+}
+
 void Mesh::Cleanup()
 {
+	if (occlusionQuery) occlusionQuery->Release();
+
+
 	/* clear buffers */
 	if (m_pVertexBuffer)
 		m_pVertexBuffer->Release();
@@ -31,6 +70,11 @@ void Mesh::Cleanup()
 		m_pIndexBuffer->Release();
 	if (m_pObjectBuffer)
 		m_pObjectBuffer->Release();
+
+	if (m_pTexture)
+		m_pTexture->Release();
+	if (m_pTextureSampler)
+		m_pTextureSampler->Release();
 
 	/* clear layout */
 	if (m_pVertexLayout)
@@ -43,8 +87,12 @@ void Mesh::Cleanup()
 		m_pPixelShader->Release();
 }
 
-void Mesh::Render(GameRender * pRender, GameCamera *pCamera)
+void Mesh::Render(DXRender* pRender, Camera *pCamera)
 {
+	// Begin the occlusion query
+	//pRender->GetDeviceContext()->Begin(occlusionQuery);
+
+
 	pRender->GetDeviceContext()->IASetInputLayout(m_pVertexLayout);
 
 	/* set index buffer */
@@ -70,22 +118,24 @@ void Mesh::Render(GameRender * pRender, GameCamera *pCamera)
 	pRender->GetDeviceContext()->UpdateSubresource(m_pObjectBuffer, 0, NULL, &m_objectConstBuffer, 0, 0);
 	pRender->GetDeviceContext()->VSSetConstantBuffers(0, 1, &m_pObjectBuffer);
 
-
-	///////////////**************new**************////////////////////
+	/* pixel shader */
 	pRender->GetDeviceContext()->PSSetShaderResources(0, 1, &m_pTexture);
 	pRender->GetDeviceContext()->PSSetSamplers(0, 1, &m_pTextureSampler);
-	///////////////**************new**************////////////////////
 
 	/* render indexed vertices */
 	pRender->GetDeviceContext()->DrawIndexed(m_countIndices, 0, 0);
+
+
+	//pRender->GetDeviceContext()->End(occlusionQuery);
+
 }
 
 void Mesh::SetPosition(float x, float y, float z,
 	float scaleX, float scaleY, float scaleZ,
 	float rotx, float roty, float rotz, float rotr)
 {
-	XMVECTOR vector = XMVectorSet(0, 0, 0, 0);
-	XMMATRIX modelRotation = XMMatrixRotationRollPitchYawFromVector(vector);
+	XMVECTOR vector = XMVectorSet(rotx, roty, rotz, rotr);
+	XMMATRIX modelRotation = XMMatrixRotationQuaternion(vector);
 
 	XMMATRIX modelPosition = XMMatrixIdentity();
 	XMMATRIX modelScale = XMMatrixScaling(scaleX, scaleY, scaleZ);
@@ -94,23 +144,12 @@ void Mesh::SetPosition(float x, float y, float z,
 	m_World = modelRotation * modelPosition * modelScale * modelTranslation;
 }
 
-#include <stdlib.h>
-#include<iostream>
-#include<cstdlib>
 
-HRESULT Mesh::SetDataDDS(GameRender* pRender, uint8_t* source, size_t size, uint32_t width, uint32_t height, uint32_t dxtCompression, uint32_t depth)
+HRESULT Mesh::SetDataDDS(DXRender* pRender, uint8_t* pDataSourceDDS, size_t fileSizeDDS, uint32_t width, uint32_t height, uint32_t dxtCompression, uint32_t depth)
 {
 	HRESULT hr;
 
-	//tgaFileSource = source;
-	//tgaFileSize = size;
-
-	///////////////**************new**************////////////////////
-	//hr = CreateDDSTextureFromFile(pRender->GetDevice(), L"C:/Users/john/Documents/GitHub/openvice/test-dxt5.dds", nullptr, &CubesTexture);
-	//if (FAILED(hr)) {
-	//	printf("Error: cannot create dds file\n");
-	//}
-
+	/* Manual create DDS file */
 	struct DDS_File dds;
 	dds.dwMagic = DDS_MAGIC;
 	dds.header.size = sizeof(struct DDS_HEADER);
@@ -124,6 +163,7 @@ HRESULT Mesh::SetDataDDS(GameRender* pRender, uint8_t* source, size_t size, uint
 	dds.header.ddspf.flags = DDS_FOURCC; // DDS_PAL8; // TODO: use DDS_HEADER_FLAGS_VOLUME for depth
 	//dds.header.depth = depth; // TODO: is working?
 	switch (dxtCompression) {
+	default:
 	case 1:
 		dds.header.ddspf.fourCC = FOURCC_DXT1;
 		break;
@@ -133,16 +173,17 @@ HRESULT Mesh::SetDataDDS(GameRender* pRender, uint8_t* source, size_t size, uint
 	case 4:
 		dds.header.ddspf.fourCC = FOURCC_DXT4;
 		break;
-	default:
-		dds.header.ddspf.fourCC = FOURCC_DXT1;
-		break;
 	}
 	// ddsd.ddpfPixelFormat.dwFourCC = bpp == 24 ? FOURCC_DXT1 : FOURCC_DXT5;
 
-	size_t len = sizeof(dds) + size;
+	size_t len = sizeof(dds) + fileSizeDDS;
 	uint8_t* buf = (uint8_t*)malloc(len);
 	memcpy(buf, &dds, sizeof(dds));
-	memcpy(buf + 1*sizeof(dds), source , size);
+	memcpy(
+		buf + sizeof(dds), // buf + offset
+		pDataSourceDDS,
+		fileSizeDDS
+	);
 
 	// Providing a seed value
 	/*srand((unsigned)time(NULL));
@@ -163,13 +204,21 @@ HRESULT Mesh::SetDataDDS(GameRender* pRender, uint8_t* source, size_t size, uint
 	hr = LoadFromDDSMemory(buf, len, DDS_FLAGS_NONE, nullptr, image);
 	//hr = LoadFromDDSFile(L"test.dds", DDS_FLAGS_FORCE_DX9_LEGACY, nullptr, image);
 	if (FAILED(hr)) {
-		printf("Error: cannot load tga file\n");
+		printf("Error: cannot load dds file\n");
 	}
 
 	//ID3D11ShaderResourceView* pSRV = nullptr;
-	hr = CreateShaderResourceView(pRender->GetDevice(),
-		image.GetImages(), image.GetImageCount(),
-		image.GetMetadata(), &m_pTexture);
+	hr = CreateShaderResourceView(
+		pRender->GetDevice(),
+		image.GetImages(), 
+		image.GetImageCount(),
+		image.GetMetadata(),
+		&m_pTexture
+	);
+
+	free(buf); /* After created texture we can free memory */
+
+	// TODO: Free m_pTexture
 
 	if (FAILED(hr)) {
 		printf("Error: cannot CreateShaderResourceView dds file\n");
@@ -194,7 +243,7 @@ HRESULT Mesh::SetDataDDS(GameRender* pRender, uint8_t* source, size_t size, uint
 }
 
 
-HRESULT Mesh::CreatePixelShader(GameRender *pRender)
+HRESULT Mesh::CreatePixelShader(DXRender*pRender)
 {
 	HRESULT hr;
 
@@ -222,7 +271,7 @@ HRESULT Mesh::CreatePixelShader(GameRender *pRender)
 	return hr;
 }
 
-HRESULT Mesh::CreateVertexShader(GameRender *pRender)
+HRESULT Mesh::CreateVertexShader(DXRender*pRender)
 {
 	HRESULT hr;
 
@@ -244,7 +293,7 @@ HRESULT Mesh::CreateVertexShader(GameRender *pRender)
 	return hr;
 }
 
-HRESULT Mesh::CreateInputLayout(GameRender *pRender)
+HRESULT Mesh::CreateInputLayout(DXRender*pRender)
 {
 	// Указываем форму данных в вершинном шейдере
 	HRESULT hr;
@@ -280,9 +329,13 @@ HRESULT Mesh::CreateInputLayout(GameRender *pRender)
 	return hr;
 }
 
-HRESULT Mesh::CreateDataBuffer(GameRender * pRender,
-	float *vertices, int verticesCount,	unsigned int *indices, int indicesCount)
-{
+HRESULT Mesh::CreateDataBuffer(
+	DXRender* pRender,
+	float *pVertices, 
+	int verticesCount,	
+	unsigned int *pIndices, 
+	int indicesCount
+) {
 	HRESULT hr;
 
 	/* vertices: fill in a buffer description */
@@ -295,7 +348,7 @@ HRESULT Mesh::CreateDataBuffer(GameRender * pRender,
 	/* vertices: define the resource data */
 	D3D11_SUBRESOURCE_DATA datav; /* buffer data */
 	ZeroMemory(&datav, sizeof(datav));
-	datav.pSysMem = vertices; /* pointer to data */
+	datav.pSysMem = pVertices; /* pointer to data */
 
 	hr = pRender->GetDevice()->CreateBuffer(&bdv, &datav, &m_pVertexBuffer);
 
@@ -314,7 +367,7 @@ HRESULT Mesh::CreateDataBuffer(GameRender * pRender,
 	/* indices: define the resource data */
 	D3D11_SUBRESOURCE_DATA datai;
 	ZeroMemory(&datai, sizeof(datai));
-	datai.pSysMem = indices; /* pointer to data */
+	datai.pSysMem = pIndices; /* pointer to data */
 
 	hr = pRender->GetDevice()->CreateBuffer(&bdi, &datai, &m_pIndexBuffer);
 
@@ -324,8 +377,10 @@ HRESULT Mesh::CreateDataBuffer(GameRender * pRender,
 	return hr;
 }
 
-HRESULT Mesh::Init(GameRender *pRender, float *pVertices, int verticesCount, unsigned int *pIndices, int indicesCount, D3D_PRIMITIVE_TOPOLOGY topology) {
+HRESULT Mesh::Init(DXRender*pRender, float *pVertices, int verticesCount, unsigned int *pIndices, int indicesCount, D3D_PRIMITIVE_TOPOLOGY topology) {
 	HRESULT hr;
+
+	m_hasAlpha = false;
 
 	m_pVSBlob = NULL;
 
@@ -362,6 +417,16 @@ HRESULT Mesh::Init(GameRender *pRender, float *pVertices, int verticesCount, uns
 	}
 
 	m_pVSBlob->Release();
+
+	/* occlusion query */
+	D3D11_QUERY_DESC queryDesc;
+	queryDesc.Query = D3D11_QUERY_OCCLUSION_PREDICATE;
+	queryDesc.MiscFlags = 0;
+
+	hr = pRender->GetDevice()->CreateQuery(&queryDesc, &occlusionQuery);
+	if (FAILED(hr)) {
+		printf("Failed to create occlusion query\n");
+	}
 
 	return hr;
 }

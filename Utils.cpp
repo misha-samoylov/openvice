@@ -1,6 +1,6 @@
-#include "GameUtils.hpp"
+#include "Utils.hpp"
 
-void GameUtils::StartTimer()
+void Utils::StartTimer()
 {
 	LARGE_INTEGER frequencyCount;
 	QueryPerformanceFrequency(&frequencyCount);
@@ -11,14 +11,14 @@ void GameUtils::StartTimer()
 	g_counterStart = frequencyCount.QuadPart;
 }
 
-double GameUtils::GetTime()
+double Utils::GetTime()
 {
 	LARGE_INTEGER currentTime;
 	QueryPerformanceCounter(&currentTime);
 	return double(currentTime.QuadPart - g_counterStart) / g_countsPerSecond;
 }
 
-double GameUtils::GetFrameTime()
+double Utils::GetFrameTime()
 {
 	LARGE_INTEGER currentTime;
 	__int64 tickCount;
@@ -33,7 +33,7 @@ double GameUtils::GetFrameTime()
 	return float(tickCount) / g_countsPerSecond;
 }
 
-HRESULT GameUtils::CompileShaderFromFile(LPCWSTR szFileName, LPCSTR szEntryPoint, LPCSTR szShaderModel, ID3DBlob** ppBlobOut)
+HRESULT Utils::CompileShaderFromFile(LPCWSTR szFileName, LPCSTR szEntryPoint, LPCSTR szShaderModel, ID3DBlob** ppBlobOut)
 {
 	HRESULT hr;
 	DWORD dwShaderFlags = D3DCOMPILE_ENABLE_STRICTNESS;

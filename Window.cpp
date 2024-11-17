@@ -1,11 +1,11 @@
-#include "GameWindow.hpp"
+#include "Window.hpp"
 
-HWND GameWindow::GetHandleWindow()
+HWND Window::GetHandleWindow()
 {
 	return m_hWnd;
 }
 
-HRESULT GameWindow::Init(HINSTANCE hInstance, int nCmdShow, 
+HRESULT Window::Init(HINSTANCE hInstance, int nCmdShow, 
 	int width, int height, LPCWSTR windowTitle)
 {
 	HRESULT hr;
@@ -21,17 +21,17 @@ HRESULT GameWindow::Init(HINSTANCE hInstance, int nCmdShow,
 	return hr;
 }
 
-void GameWindow::Cleanup()
+void Window::Cleanup()
 {
 }
 
-HRESULT GameWindow::CreateWindowApp(HINSTANCE hInstance, int nCmdShow, 
+HRESULT Window::CreateWindowApp(HINSTANCE hInstance, int nCmdShow, 
 	int width, int height, LPCWSTR windowTitle)
 {
 	LPCWSTR CLASS_NAME = L"OpenViceWndClass";
 
 	WNDCLASS wc = { 0 };
-	wc.lpfnWndProc = GameWindow::WndProc;
+	wc.lpfnWndProc = Window::WndProc;
 	wc.hInstance = hInstance;
 	wc.lpszClassName = CLASS_NAME;
 	wc.style = CS_HREDRAW | CS_VREDRAW;
@@ -70,7 +70,7 @@ HRESULT GameWindow::CreateWindowApp(HINSTANCE hInstance, int nCmdShow,
 	return S_OK;
 }
 
-void GameWindow::ShowConsole()
+void Window::ShowConsole()
 {
 	FILE* conin = stdin;
 	FILE* conout = stdout;
@@ -83,7 +83,7 @@ void GameWindow::ShowConsole()
 	SetConsoleTitle(L"appconsole");
 }
 
-LRESULT CALLBACK GameWindow::WndProc(HWND hwnd, UINT message, WPARAM wp, LPARAM lp)
+LRESULT CALLBACK Window::WndProc(HWND hwnd, UINT message, WPARAM wp, LPARAM lp)
 {
 	PAINTSTRUCT ps;
 	HDC hdc;

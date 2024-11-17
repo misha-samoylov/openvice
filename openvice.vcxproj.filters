@@ -25,13 +25,16 @@
     <Filter Include="Source Files\loaders">
       <UniqueIdentifier>{0a1a7b11-40fc-47a9-8d11-ee9d1e3862e8}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Header Files\renderware">
+      <UniqueIdentifier>{a0a93a25-79fe-4c43-ad14-9229f64f7954}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\glad">
+      <UniqueIdentifier>{2c1f13e3-ec18-46fb-be01-e6fb157001be}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
       <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="dffread.cpp">
-      <Filter>Source Files\renderware</Filter>
     </ClCompile>
     <ClCompile Include="renderware.cpp">
       <Filter>Source Files\renderware</Filter>
@@ -42,22 +45,22 @@
     <ClCompile Include="uvanim.cpp">
       <Filter>Source Files\renderware</Filter>
     </ClCompile>
-    <ClCompile Include="GameInput.cpp">
+    <ClCompile Include="Input.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="GameCamera.cpp">
+    <ClCompile Include="Camera.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="GameRender.cpp">
+    <ClCompile Include="DXRender.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="Mesh.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="GameWindow.cpp">
+    <ClCompile Include="Window.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="GameUtils.cpp">
+    <ClCompile Include="Utils.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="loaders\ImgLoader.cpp">
@@ -66,27 +69,42 @@
     <ClCompile Include="loaders\Clump.cpp">
       <Filter>Source Files\loaders</Filter>
     </ClCompile>
+    <ClCompile Include="loaders\FrameList.cpp">
+      <Filter>Source Files\loaders</Filter>
+    </ClCompile>
+    <ClCompile Include="loaders\LightList.cpp">
+      <Filter>Source Files\loaders</Filter>
+    </ClCompile>
+    <ClCompile Include="loaders\AtomicList.cpp">
+      <Filter>Source Files\loaders</Filter>
+    </ClCompile>
+    <ClCompile Include="loaders\Geometry.cpp">
+      <Filter>Source Files\loaders</Filter>
+    </ClCompile>
+    <ClCompile Include="Frustum.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\Downloads\glad\src\glad.c">
+      <Filter>Source Files\glad</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="renderware.h">
-      <Filter>Source Files\renderware</Filter>
-    </ClInclude>
-    <ClInclude Include="GameUtils.hpp">
+    <ClInclude Include="Utils.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="GameRender.hpp">
+    <ClInclude Include="DXRender.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Mesh.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="GameInput.hpp">
+    <ClInclude Include="Input.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="GameCamera.hpp">
+    <ClInclude Include="Camera.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="GameWindow.hpp">
+    <ClInclude Include="Window.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="loaders\Clump.h">
@@ -94,6 +112,24 @@
     </ClInclude>
     <ClInclude Include="loaders\ImgLoader.hpp">
       <Filter>Header Files\loaders</Filter>
+    </ClInclude>
+    <ClInclude Include="loaders\FrameList.h">
+      <Filter>Header Files\loaders</Filter>
+    </ClInclude>
+    <ClInclude Include="loaders\LightList.h">
+      <Filter>Header Files\loaders</Filter>
+    </ClInclude>
+    <ClInclude Include="loaders\AtomicList.h">
+      <Filter>Header Files\loaders</Filter>
+    </ClInclude>
+    <ClInclude Include="loaders\Geometry.h">
+      <Filter>Header Files\loaders</Filter>
+    </ClInclude>
+    <ClInclude Include="renderware.h">
+      <Filter>Header Files\renderware</Filter>
+    </ClInclude>
+    <ClInclude Include="Frustum.h">
+      <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

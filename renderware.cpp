@@ -1,5 +1,3 @@
-#include <cstdlib>
-
 #include "renderware.h"
 
 bool HeaderInfo::read(char *bytes, size_t *offset)
@@ -48,8 +46,8 @@ bool HeaderInfo::findChunk(char *bytes, size_t *offset, uint32_t type)
 
 void ChunkNotFound(CHUNK_TYPE chunk, uint32_t address)
 {
-	cerr << "chunk " << hex << chunk << " not found at 0x";
-	cerr << hex << address << endl;
+	std::cerr << "chunk " << std::hex << chunk << " not found at 0x";
+	std::cerr << std::hex << address << std::endl;
 	exit(1);
 }
 

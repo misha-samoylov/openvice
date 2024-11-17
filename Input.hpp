@@ -5,7 +5,7 @@
 #pragma comment(lib, "dinput8.lib")
 #pragma comment(lib, "dxguid.lib")
 
-class GameInput
+class Input
 {
 public:
 	HRESULT Init(HINSTANCE hInstance, HWND hWnd);

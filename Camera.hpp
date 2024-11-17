@@ -4,7 +4,7 @@
 
 using namespace DirectX;
 
-class GameCamera
+class Camera
 {
 public:
 	void Init(float width, float height);
@@ -14,6 +14,8 @@ public:
 
 	XMMATRIX GetView();
 	XMMATRIX GetProjection();
+
+	XMVECTOR GetPosition();
 
 private:
 	XMVECTOR m_cameraPosition;

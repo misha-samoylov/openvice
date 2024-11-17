@@ -1,7 +1,7 @@
-#include "GameInput.hpp"
+#include "Input.hpp"
 
 
-HRESULT GameInput::Init(HINSTANCE hInstance, HWND hwnd)
+HRESULT Input::Init(HINSTANCE hInstance, HWND hwnd)
 {
 	HRESULT hr;
 
@@ -40,7 +40,7 @@ HRESULT GameInput::Init(HINSTANCE hInstance, HWND hwnd)
 	return hr;
 }
 
-bool GameInput::IsKey(BYTE key)
+bool Input::IsKey(BYTE key)
 {
 	if (m_keyboardState[key] & 0x80)
 		return true;
@@ -48,7 +48,7 @@ bool GameInput::IsKey(BYTE key)
 	return false;
 }
 
-HRESULT GameInput::Detect()
+HRESULT Input::Detect()
 {
 	HRESULT hr;
 
@@ -66,17 +66,17 @@ HRESULT GameInput::Detect()
 	return hr;
 }
 
-float GameInput::GetMouseSpeedX()
+float Input::GetMouseSpeedX()
 {
 	return (float)m_mouseCurrState.lX;
 }
 
-float GameInput::GetMouseSpeedY()
+float Input::GetMouseSpeedY()
 {
 	return (float)m_mouseCurrState.lY;
 }
 
-void GameInput::Cleanup()
+void Input::Cleanup()
 {
 	m_pDIKeyboard->Unacquire();
 	m_pDIMouse->Unacquire();

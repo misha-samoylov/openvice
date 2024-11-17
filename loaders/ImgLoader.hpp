@@ -5,18 +5,21 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <Windows.h>
+
+#define MAX_LENGTH_FILENAME 24
 #define IMG_BLOCK_SIZE 2048
 
-struct dirEntry {
+struct DirEntry {
 	uint32_t offset;
 	uint32_t size;
-	char name[24];
+	char name[MAX_LENGTH_FILENAME];
 };
 
 class ImgLoader
 {
 public:
-	int Open(const char *filepathImg, const char *filepathDir);
+	int Open(TCHAR* filepath, TCHAR* filepathDir);
 	void Cleanup();
 
 	char* GetFilenameById(uint32_t id);
@@ -27,15 +30,19 @@ public:
 	int32_t GetFileSize(uint32_t id);
 
 private:
-	int OpenFileDir(const char *filepathDir);
+	int OpenFileDir(TCHAR* filepath);
 	void DumpFileDir();
-	int OpenFileImg(const char *filepathImg);
+	int OpenFileImg(TCHAR* filepath);
 	void CleanupFileDir();
 	void CleanupFileImg();
 
-	struct dirEntry *m_pFilesDir;
-	FILE *m_pFileImg;
-	FILE *m_pFileDir;
-
+	HANDLE m_hFileDir;
+	HANDLE m_hMappingDir;
+	unsigned char* m_dataPtrDir;
+	struct DirEntry *m_pFilesDir;
 	int m_countFiles;
+	
+	HANDLE m_hFileImg;
+	HANDLE m_hMappingImg;
+	char* m_dataPtrImg;
 };

@@ -1,33 +1,34 @@
-#include "GameRender.hpp"
+#include "DXRender.hpp"
 
-ID3D11Device *GameRender::GetDevice()
+ID3D11Device *DXRender::GetDevice()
 {
 	return m_pDevice;
 }
 
-ID3D11DeviceContext *GameRender::GetDeviceContext()
+ID3D11DeviceContext * DXRender::GetDeviceContext()
 {
 	return m_pDeviceContext;
 }
 
-HRESULT GameRender::ChangeRasterizerStateToWireframe()
+HRESULT DXRender::ChangeRasterizerStateToWireframe()
 {
 	HRESULT hr;
 
 	D3D11_RASTERIZER_DESC wfdesc;
 	ZeroMemory(&wfdesc, sizeof(D3D11_RASTERIZER_DESC));
 	wfdesc.FillMode = D3D11_FILL_WIREFRAME;
-	wfdesc.CullMode = D3D11_CULL_BACK;
+	wfdesc.CullMode = D3D11_CULL_NONE;
 
-	hr = m_pDevice->CreateRasterizerState(&wfdesc, &m_pWireframe);
+	// Создаем растеризатор с данными настройками
+	hr = m_pDevice->CreateRasterizerState(&wfdesc, &m_pRasterizerState);
 
 	// Включаем указанные настройки растеризации
-	m_pDeviceContext->RSSetState(m_pWireframe);
+	m_pDeviceContext->RSSetState(m_pRasterizerState);
 
 	return hr;
 }
 
-void GameRender::InitViewport(HWND hWnd)
+void DXRender::InitViewport(HWND hWnd)
 {
 	RECT rc;
 	GetClientRect(hWnd, &rc);
@@ -47,7 +48,7 @@ void GameRender::InitViewport(HWND hWnd)
 	m_pDeviceContext->RSSetViewports(countViewports, &vp);
 }
 
-HRESULT GameRender::CreateBackBuffer()
+HRESULT DXRender::CreateBackBuffer()
 {
 	/* front buffer - RenderTargetOutput */
 	/* back buffer - RenderTargetView */
@@ -70,24 +71,25 @@ HRESULT GameRender::CreateBackBuffer()
 	return hr;
 }
 
-HRESULT GameRender::ChangeRasterizerStateToSolid()
+HRESULT DXRender::ChangeRasterizerStateToSolid()
 {
 	HRESULT hr;
 
-	D3D11_RASTERIZER_DESC wfdesc;
-	ZeroMemory(&wfdesc, sizeof(D3D11_RASTERIZER_DESC));
-	wfdesc.FillMode = D3D11_FILL_SOLID;
-	wfdesc.CullMode = D3D11_CULL_BACK;
+	D3D11_RASTERIZER_DESC solidDesc;
+	ZeroMemory(&solidDesc, sizeof(D3D11_RASTERIZER_DESC));
+	solidDesc.FillMode = D3D11_FILL_SOLID;
+	solidDesc.CullMode = D3D11_CULL_FRONT;
 
-	hr = m_pDevice->CreateRasterizerState(&wfdesc, &m_pWireframe);
+	// Создаем растеризатор с данными настройками
+	hr = m_pDevice->CreateRasterizerState(&solidDesc, &m_pRasterizerState);
 
 	// Включаем указанные настройки растеризации
-	m_pDeviceContext->RSSetState(m_pWireframe);
+	m_pDeviceContext->RSSetState(m_pRasterizerState);
 
 	return hr;
 }
 
-HRESULT GameRender::CreateDepthStencil()
+HRESULT DXRender::CreateDepthStencil()
 {
 	HRESULT hr;
 
@@ -129,7 +131,43 @@ HRESULT GameRender::CreateDepthStencil()
 	return hr;
 }
 
-HRESULT GameRender::Init(HWND hWnd)
+HRESULT DXRender::CreateBlendState()
+{
+	HRESULT hr;
+
+	D3D11_BLEND_DESC blendDesc;
+	ZeroMemory(&blendDesc, sizeof(blendDesc));
+
+	D3D11_RENDER_TARGET_BLEND_DESC rtbd;
+	ZeroMemory(&rtbd, sizeof(rtbd));
+
+	rtbd.BlendEnable = true;
+	rtbd.SrcBlend = D3D11_BLEND_SRC_ALPHA;
+	rtbd.DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
+	rtbd.BlendOp = D3D11_BLEND_OP_ADD;
+	rtbd.SrcBlendAlpha = D3D11_BLEND_ONE;
+	rtbd.DestBlendAlpha = D3D11_BLEND_ZERO;
+	rtbd.BlendOpAlpha = D3D11_BLEND_OP_ADD;
+	rtbd.RenderTargetWriteMask = D3D10_COLOR_WRITE_ENABLE_ALL;
+
+	// blendDesc.AlphaToCoverageEnable = false;
+	blendDesc.RenderTarget[0] = rtbd;
+
+	hr = m_pDevice->CreateBlendState(&blendDesc, &m_pBlendStateTransparency);
+	
+
+	/*D3D11_BLEND_DESC BlendState;
+	ZeroMemory(&BlendState, sizeof(D3D11_BLEND_DESC));
+	BlendState.RenderTarget[0].BlendEnable = FALSE;
+	BlendState.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+	
+	hr = m_pDevice->CreateBlendState(&BlendState, &Transparency);*/
+
+	
+	return hr;
+}
+
+HRESULT DXRender::Init(HWND hWnd)
 {
 	m_hWnd = hWnd;
 
@@ -148,10 +186,10 @@ HRESULT GameRender::Init(HWND hWnd)
 	sd.BufferDesc.RefreshRate.Numerator = 60; /* screen refresh rate */
 	sd.BufferDesc.RefreshRate.Denominator = 1;
 	sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT; /* target is back buffer */
-	sd.OutputWindow = hWnd; // Указываем окно
+	sd.OutputWindow = hWnd; // Set window
 	sd.SampleDesc.Count = 1;
 	sd.SampleDesc.Quality = 0;
-	sd.Windowed = TRUE; // Оконный режим
+	sd.Windowed = TRUE; // Window mode
 
 	D3D_FEATURE_LEVEL featureLevels[] = {
 		D3D_FEATURE_LEVEL_11_0
@@ -193,16 +231,29 @@ HRESULT GameRender::Init(HWND hWnd)
 		return hr;
 	}
 
+	hr = CreateBlendState();
+
+	if (FAILED(hr)) {
+		printf("Error: cannot CreateBlendState\n");
+		return hr;
+	}
+
 	/* connect back buffer to device context */
 	m_pDeviceContext->OMSetRenderTargets(1, &m_pRenderTargetView, m_pDepthStencilView);
 
 	InitViewport(hWnd);
-	ChangeRasterizerStateToSolid();
+
+	hr = ChangeRasterizerStateToSolid();
+
+	if (FAILED(hr)) {
+		printf("Error: cannot ChangeRasterizerStateToSolid\n");
+		return hr;
+	}
 
 	return hr;
 }
 
-void GameRender::Cleanup()
+void DXRender::Cleanup()
 {
 	// Сначала отключим контекст устройства
 	if (m_pDeviceContext) 
@@ -216,8 +267,11 @@ void GameRender::Cleanup()
 	if (m_pSwapChain) 
 		m_pSwapChain->Release();
 
-	if (m_pWireframe)
-		m_pWireframe->Release();
+	if (m_pRasterizerState)
+		m_pRasterizerState->Release();
+
+	if (m_pBlendStateTransparency)
+		m_pBlendStateTransparency->Release();
 
 	if (m_pDeviceContext) 
 		m_pDeviceContext->Release();
@@ -225,18 +279,37 @@ void GameRender::Cleanup()
 		m_pDevice->Release();
 }
 
-void GameRender::RenderStart()
+void DXRender::RenderStart()
 {
 	// Очищаем задний буфер
-	float clearColor[4] = { 0.21, 0.25, 0.31, 1.0f };
+	float clearColor[4] = { 0.49804f, 0.78431f, 0.94510f, 1.0f };
 	m_pDeviceContext->ClearRenderTargetView(m_pRenderTargetView, clearColor);
 
 	// Очищаем буфер глубин до едицины (максимальная глубина)
 	m_pDeviceContext->ClearDepthStencilView(m_pDepthStencilView, D3D11_CLEAR_DEPTH, 1.0f, 0);
+
+
+	///////////////**************new**************////////////////////
+	//"fine-tune" the blending equation
+	//float blendFactor[] = { 0.75f, 0.75f, 0.75f, 1.0f };
+
+	//Set the default blend state (no blending) for opaque objects
+	//m_pDeviceContext->OMSetBlendState(0, 0, 0xffffffff);
+
+	//Render opaque objects//
+
+	//Set the blend state for transparent objects
+	//m_pDeviceContext->OMSetBlendState(Transparency, 0, 0xffffffff);
+
+	float blendFactor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+	UINT sampleMask = 0xffffffff;
+
+	//m_pDeviceContext->OMSetBlendState(Transparency, blendFactor, sampleMask);
+	m_pDeviceContext->OMSetBlendState(m_pBlendStateTransparency, NULL, sampleMask);
 }
 
-void GameRender::RenderEnd()
+void DXRender::RenderEnd()
 {
-	// Показываем задний буфер на экран
 	m_pSwapChain->Present(0, 0);
+	// m_pSwapChain->Present(1, 0);
 }
