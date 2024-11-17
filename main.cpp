@@ -131,9 +131,37 @@ void LoadAllTexturesFromTXDFile(ImgLoader *pImgLoader, const char *filename)
 	//free(fileBuffer);
 }
 
+class Model
+{
+public:
+	int id;
+	bool hasAlpha;
+	std::string name;
+	// float x = 0, y = 0, z = 0;
+	std::vector<Mesh*> meshes;
+
+	void SetPosition(float  x, float  y, float  z, float  sx, float   sy, float  sz, float  rx, float  ry, float  rz, float rr)
+	{
+		for (int i = 0; i < meshes.size(); i++) {
+			meshes[i]->SetPosition(x,y,z, sx,sy,sz, rx,ry,rz, rr);
+		}
+	}
+
+	void Render(DXRender *render, Camera *camera)
+	{
+		for (int i = 0; i < meshes.size(); i++) {
+			meshes[i]->Render(render, camera);
+		}
+	}
+};
+
+std::vector<Model*> g_models;
+
 int LoadFileDFFWithName(ImgLoader* pImgLoader, DXRender* render, char *name, int modelId)
 {
-	// printf("[Info] Loading mesh: %s\n", name);
+	if (strstr(name, "LOD") != NULL) {
+		return 1;
+	}
 
 	char result_name[MAX_LENGTH_FILENAME + 4];
 	strcpy(result_name, name);
@@ -141,12 +169,6 @@ int LoadFileDFFWithName(ImgLoader* pImgLoader, DXRender* render, char *name, int
 
 	int fileId = pImgLoader->GetFileIndexByName(result_name);
 	if (fileId == -1) {
-		printf("[Error] Cannot find %s.dff in IMG archive\n", name);
-		return 1;
-	}
-
-	if (strstr(result_name, "LOD") != NULL) {
-		// printf("[Notice] Skip loading LOD file: %s\n", result_name);
 		return 1;
 	}
 
@@ -154,6 +176,9 @@ int LoadFileDFFWithName(ImgLoader* pImgLoader, DXRender* render, char *name, int
 
 	Clump* clump = new Clump();
 	clump->Read(fileBuffer);
+
+	Model* model = new Model();
+	model->name = name;
 
 	for (uint32_t index = 0; index < clump->m_numGeometries; index++) {
 
@@ -263,10 +288,12 @@ int LoadFileDFFWithName(ImgLoader* pImgLoader, DXRender* render, char *name, int
 				}
 			}
 
-			//mesh->SetAlpha(g_Textures[matIndex].hasAlpha); // is transparent or not
-
 			if (matIndex != -1) {
-				mesh->SetAlpha(g_Textures[matIndex].hasAlpha); // is transparent or not
+				mesh->SetAlpha(g_Textures[matIndex].hasAlpha);
+				
+				if (g_Textures[matIndex].hasAlpha) {
+					model->hasAlpha = true;
+				}
 
 				mesh->SetDataDDS(
 					render,
@@ -275,24 +302,24 @@ int LoadFileDFFWithName(ImgLoader* pImgLoader, DXRender* render, char *name, int
 					g_Textures[matIndex].width,
 					g_Textures[matIndex].height,
 					g_Textures[matIndex].dxtCompression,
-					g_Textures[matIndex].depth /* TODO: depth is not working */
+					g_Textures[matIndex].depth
 				);
 			}
 			mesh->SetId(modelId);
+			
 
-			//if (mesh->GetAlpha() == true)
-			//	g_transparentMeshes.push_back(mesh);
-
-			//if (mesh->GetAlpha() == false)
-			//	g_notTransparentMeshes.push_back(mesh);
+			model->meshes.push_back(mesh);
 
 			g_LoadedMeshes.push_back(mesh);
 		}
 	}
 
-	// printf("clear clump\n");
 	clump->Clear();
 	delete clump;
+
+	model->id = modelId;
+
+	g_models.push_back(model);
 
 	return 0;
 }
@@ -325,22 +352,21 @@ void RenderScene(DXRender *render, Camera *camera)
 
 		if (renderModel) {
 			
-			for (int m = 0; m < g_LoadedMeshes.size(); m++) {
+			for (int m = 0; m < g_models.size(); m++) {
 
-				if (g_LoadedMeshes[m]->GetAlpha() == true)
+				if (g_models[m]->hasAlpha == true)
 					continue;
 
 				int index = i;
 				int modelId = g_MapObjects[i].id;
 
-				if (modelId == g_LoadedMeshes[m]->GetId()) {
-					g_LoadedMeshes[m]->SetPosition(
+				if (modelId == g_models[m]->id) {
+					g_models[m]->SetPosition(
 						g_MapObjects[index].x, g_MapObjects[index].y, g_MapObjects[index].z,
 						g_MapObjects[index].scale[0], g_MapObjects[index].scale[1], g_MapObjects[index].scale[2],
-
 						g_MapObjects[index].rotation[0], g_MapObjects[index].rotation[1], g_MapObjects[index].rotation[2], g_MapObjects[index].rotation[3]
 					);
-					g_LoadedMeshes[m]->Render(render, camera);
+					g_models[m]->Render(render, camera);
 
 					renderCount++;
 				}
@@ -355,27 +381,25 @@ void RenderScene(DXRender *render, Camera *camera)
 		float y = g_MapObjects[i].y;
 		float z = g_MapObjects[i].z;
 
-		bool renderModel = g_frustum.CheckSphere(x, y, z, 50.0f);
+		bool renderModel = g_frustum.CheckCube(x, y, z, 50.0f);
 
 		if (renderModel) {
 
-			int index = i;
-			int modelId = g_MapObjects[i].id;
+			for (int m = 0; m < g_models.size(); m++) {
 
-			for (int m = 0; m < g_LoadedMeshes.size(); m++) {
-
-				if (g_LoadedMeshes[m]->GetAlpha() == false)
+				if (g_models[m]->hasAlpha == false)
 					continue;
 
-				if (modelId == g_LoadedMeshes[m]->GetId()) {
+				int index = i;
+				int modelId = g_MapObjects[i].id;
 
-					g_LoadedMeshes[m]->SetPosition(
+				if (modelId == g_models[m]->id) {
+					g_models[m]->SetPosition(
 						g_MapObjects[index].x, g_MapObjects[index].y, g_MapObjects[index].z,
 						g_MapObjects[index].scale[0], g_MapObjects[index].scale[1], g_MapObjects[index].scale[2],
-
 						g_MapObjects[index].rotation[0], g_MapObjects[index].rotation[1], g_MapObjects[index].rotation[2], g_MapObjects[index].rotation[3]
 					);
-					g_LoadedMeshes[m]->Render(render, camera);
+					g_models[m]->Render(render, camera);
 
 					renderCount++;
 				}
