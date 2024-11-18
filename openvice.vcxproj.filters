@@ -87,6 +87,9 @@
     <ClCompile Include="loaders\IPL.cpp">
       <Filter>Source Files\loaders</Filter>
     </ClCompile>
+    <ClCompile Include="loaders\IDE.cpp">
+      <Filter>Source Files\loaders</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Utils.hpp">
@@ -134,7 +137,10 @@
     <ClInclude Include="Model.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="loaders\IPL.h">
+    <ClInclude Include="loaders\IPL.hpp">
+      <Filter>Header Files\loaders</Filter>
+    </ClInclude>
+    <ClInclude Include="loaders\IDE.hpp">
       <Filter>Header Files\loaders</Filter>
     </ClInclude>
   </ItemGroup>

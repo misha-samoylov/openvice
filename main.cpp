@@ -12,7 +12,8 @@
 
 #include "loaders/Clump.h"
 #include "loaders/IMG.hpp"
-#include "loaders/IPL.h"
+#include "loaders/IPL.hpp"
+#include "loaders/IDE.hpp"
 #include "Mesh.hpp"
 #include "DXRender.hpp"
 #include "Camera.hpp"
@@ -32,13 +33,6 @@ using namespace DirectX;
 int frameCount = 0;
 Frustum g_frustum;
 
-/* IDE file contains model name and their texture name */
-struct IDEFile {
-	int objectId;
-	char modelName[MAX_LENGTH_FILENAME];
-	char textureArchiveName[MAX_LENGTH_FILENAME];
-};
-
 struct GameMaterial {
 	char name[MAX_LENGTH_FILENAME]; /* without extension ".TXD" */
 	uint8_t* source;
@@ -56,7 +50,7 @@ struct ModelMaterial {
 };
 
 std::vector<Model*> g_models;
-std::vector<IDEFile> g_ideFile;
+std::vector<IDE*> g_ideFile;
 std::vector<GameMaterial> g_Textures;
 std::vector<IPL*> g_ipl;
 
@@ -363,53 +357,6 @@ void RenderScene(DXRender *render, Camera *camera)
 	render->RenderEnd();
 }
 
-/* IDE file contains information: dff_file txd_file */
-void LoadIDEFile(const char* filepath)
-{
-	printf("[Info] Loading: %s\n", filepath);
-
-	FILE* fp;
-	char str[512];
-	bool isObjs = false;
-
-	if ((fp = fopen(filepath, "r")) == NULL) {
-		printf("[Error] Cannot open file: %s\n", filepath);
-		return;
-	}
-
-	while (!feof(fp)) {
-		if (fgets(str, 512, fp)) {
-
-			if (strcmp(str, "objs\n")) {
-				isObjs = true;
-			}
-
-			if (isObjs && strcmp(str, "end\n") == 0) {
-				isObjs = false;
-			}
-
-			int id = 0;
-			char modelName[MAX_LENGTH_FILENAME];
-			char textureArchiveName[MAX_LENGTH_FILENAME];
-
-			int values = sscanf(str, "%d, %64[^,], %64[^,]", &id, modelName, textureArchiveName);
-
-			if (values == 3 && isObjs) {
-
-				struct IDEFile idf;
-
-				idf.objectId = id;
-				strcpy(idf.modelName, modelName);
-				strcpy(idf.textureArchiveName, textureArchiveName);
-				
-				g_ideFile.push_back(idf);
-			}
-		}
-	}
-
-	fclose(fp);
-}
-
 int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPSTR lpCmdLine, _In_ int nCmdShow)
 {
 	if (!DirectX::XMVerifyCPUSupport()) {
@@ -471,24 +418,41 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 
 	/* Load map models and their textures */
 	for (int i = 0; i < sizeof(maps) / sizeof(maps[0]); i++) {
+		IDE* ide = new IDE();
+
 		char path[256];
 		strcpy(path, "C:/Games/Grand Theft Auto Vice City/data/maps/");
 		strcat(path, maps[i]);
 		strcat(path, "/");
 		strcat(path, maps[i]);
 		strcat(path, ".ide");
-		LoadIDEFile(path);
+
+		int res = ide->Load(path);
+
+		assert(res == 0);
+
+		g_ideFile.push_back(ide);
 	}
 
-	LoadIDEFile("C:/Games/Grand Theft Auto Vice City/data/maps/generic.ide");
+	IDE* ide = new IDE();
+	int res = ide->Load("C:/Games/Grand Theft Auto Vice City/data/maps/generic.ide");
+	assert(res == 0);
+	g_ideFile.push_back(ide);
 
 	/* Load from IDE file only archives textures */
 	std::vector<string> textures;
 	for (int i = 0; i < g_ideFile.size(); i++) {
-		textures.push_back(g_ideFile[i].textureArchiveName);
+		int count = g_ideFile[i]->GetCountItems();
+
+		for (int j = 0; j < count; j++) {
+			struct itemDefinition* item = &g_ideFile[i]->GetItems()[j];
+			textures.push_back(item->textureArchiveName);
+		}
 	}
+
 	/* Remove dublicate archive textures */
 	remove_duplicates(textures);
+
 	/* Load archive textures (TXD files) */
 	for (int i = 0; i < textures.size(); i++) {
 		LoadAllTexturesFromTXDFile(imgLoader, textures[i].c_str());
@@ -497,7 +461,10 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 
 	/* Loading models. IDE file doesn't contain dublicate models */
 	for (int i = 0; i < g_ideFile.size(); i++) {
-		LoadFileDFFWithName(imgLoader, render, g_ideFile[i].modelName, g_ideFile[i].objectId);
+		for (int j = 0; j < g_ideFile[i]->GetCountItems(); j++) {
+			struct itemDefinition* itemDef = &g_ideFile[i]->GetItems()[j];
+			LoadFileDFFWithName(imgLoader, render, itemDef->modelName, itemDef->objectId);
+		}
 	}
 
 	for (int i = 0; i < sizeof(maps) / sizeof(maps[0]); i++) {

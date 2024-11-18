@@ -1,4 +1,4 @@
-#include "IPL.h"
+#include "IPL.hpp"
 
 int IPL::Load(const char* filepath)
 {
@@ -50,7 +50,7 @@ int IPL::Load(const char* filepath)
 		}
 	}
 
-	fseek(fp, 0, 0);
+	fseek(fp, 0, SEEK_SET);
 
 	m_mapItems = (struct mapItem*)malloc(sizeof(struct mapItem) * m_countItems);
 
