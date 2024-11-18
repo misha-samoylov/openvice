@@ -89,12 +89,12 @@ HRESULT DXRender::ChangeRasterizerStateToSolid()
 	return hr;
 }
 
-HRESULT DXRender::CreateDepthStencil()
+HRESULT DXRender::CreateDepthStencil(HWND hWnd)
 {
 	HRESULT hr;
 
 	RECT rc;
-	GetClientRect(m_hWnd, &rc);
+	GetClientRect(hWnd, &rc);
 	UINT width = rc.right - rc.left;
 	UINT height = rc.bottom - rc.top;
 
@@ -135,12 +135,8 @@ HRESULT DXRender::CreateBlendState()
 {
 	HRESULT hr;
 
-	D3D11_BLEND_DESC blendDesc;
-	ZeroMemory(&blendDesc, sizeof(blendDesc));
-
 	D3D11_RENDER_TARGET_BLEND_DESC rtbd;
 	ZeroMemory(&rtbd, sizeof(rtbd));
-
 	rtbd.BlendEnable = true;
 	rtbd.SrcBlend = D3D11_BLEND_SRC_ALPHA;
 	rtbd.DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
@@ -150,12 +146,13 @@ HRESULT DXRender::CreateBlendState()
 	rtbd.BlendOpAlpha = D3D11_BLEND_OP_ADD;
 	rtbd.RenderTargetWriteMask = D3D10_COLOR_WRITE_ENABLE_ALL;
 
+	D3D11_BLEND_DESC blendDesc;
+	ZeroMemory(&blendDesc, sizeof(blendDesc));
 	// blendDesc.AlphaToCoverageEnable = false;
 	blendDesc.RenderTarget[0] = rtbd;
 
 	hr = m_pDevice->CreateBlendState(&blendDesc, &m_pBlendStateTransparency);
 	
-
 	/*D3D11_BLEND_DESC BlendState;
 	ZeroMemory(&BlendState, sizeof(D3D11_BLEND_DESC));
 	BlendState.RenderTarget[0].BlendEnable = FALSE;
@@ -163,14 +160,11 @@ HRESULT DXRender::CreateBlendState()
 	
 	hr = m_pDevice->CreateBlendState(&BlendState, &Transparency);*/
 
-	
 	return hr;
 }
 
 HRESULT DXRender::Init(HWND hWnd)
 {
-	m_hWnd = hWnd;
-
 	RECT rc;
 	GetClientRect(hWnd, &rc);
 	UINT width = rc.right - rc.left;
@@ -224,7 +218,7 @@ HRESULT DXRender::Init(HWND hWnd)
 		return hr;
 	}
 
-	hr = CreateDepthStencil();
+	hr = CreateDepthStencil(hWnd);
 
 	if (FAILED(hr)) {
 		printf("Error: cannot CreateDepthStencil\n");

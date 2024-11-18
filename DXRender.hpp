@@ -27,7 +27,7 @@ private:
 	void InitViewport(HWND hWnd);
 	HRESULT CreateBackBuffer();
 	
-	HRESULT CreateDepthStencil();
+	HRESULT CreateDepthStencil(HWND hWnd);
 	HRESULT CreateBlendState();
 
 	ID3D11Device *m_pDevice;
@@ -42,6 +42,4 @@ private:
 	ID3D11DepthStencilView* m_pDepthStencilView; // Объект вида, буфер глубин
 
 	ID3D11BlendState* m_pBlendStateTransparency;
-
-	HWND m_hWnd;
 };
