@@ -584,6 +584,11 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 	input->Cleanup();
 
 	for (int i = 0; i < g_ipl.size(); i++) {
+		g_ideFile[i]->Cleanup();
+		delete g_ideFile[i];
+	}
+
+	for (int i = 0; i < g_ipl.size(); i++) {
 		g_ipl[i]->Cleanup();
 		delete g_ipl[i];
 	}

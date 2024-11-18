@@ -2,7 +2,7 @@
 
 void Camera::Init(float width, float height)
 {
-	m_cameraPosition = XMVectorSet(0.0f, 0.0f, -3.0f, 0.0f);
+	m_cameraPosition = XMVectorSet(0.0f, 50.0f, 0.0f, 0.0f);
 	m_cameraTarget = XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f);
 	m_cameraUp = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
 
