@@ -286,7 +286,7 @@ void RenderScene(DXRender *render, Camera *camera)
 			float y = objectInfo.y;
 			float z = objectInfo.z;
 
-			bool renderModel = g_frustum.CheckCube(x, y, z, 50.0f);
+			bool renderModel = g_frustum.CheckSphere(x, y, z, 50.0f);
 
 			if (renderModel) {
 			
@@ -319,7 +319,7 @@ void RenderScene(DXRender *render, Camera *camera)
 			float y = objectInfo.y;
 			float z = objectInfo.z;
 
-			bool renderModel = g_frustum.CheckCube(x, y, z, 50.0f);
+			bool renderModel = g_frustum.CheckSphere(x, y, z, 50.0f);
 
 			if (renderModel) {
 
