@@ -3,10 +3,6 @@
 #include <stdint.h>
 #include <iostream>
 #include <vector>
-#include <string>
-#include <cstring>
-#include <cmath>
-#include <cstdlib>
 
 #include <windows.h>
 
@@ -169,8 +165,6 @@ uint16_t readUInt16(char *bytes, size_t *offset);
 int32_t readInt32(char *bytes, size_t *offset);
 uint32_t readUInt32(char *bytes, size_t *offset);
 float readFloat32(char *bytes, size_t *offset);
-
-
 
 
 /*

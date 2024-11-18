@@ -2,7 +2,7 @@
  * IPL file. Item placement file.
  * 
  * That file contains model transformation.
- * File name doesn't contain type ".dff".
+ * File name doesn't contain extension ".dff".
  */
 
 #ifndef IPL_H

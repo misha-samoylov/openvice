@@ -1,15 +1,10 @@
 #include <string.h>
 #include <stdio.h>
-#include <iostream>
-#include <fstream>
-#include <sstream>
 #include <algorithm>
 
 #include <windows.h>
-#include <DirectXMath.h>
 
 #include "renderware.h"
-
 #include "loaders/Clump.h"
 #include "loaders/IMG.hpp"
 #include "loaders/IPL.hpp"
@@ -27,8 +22,6 @@
 #define WINDOW_WIDTH 1024
 #define WINDOW_HEIGHT 768
 #define WINDOW_TITLE L"openvice"
-
-using namespace DirectX;
 
 int frameCount = 0;
 Frustum g_frustum;
@@ -361,7 +354,7 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 {
 	if (!DirectX::XMVerifyCPUSupport()) {
 		MessageBox(NULL, L"You CPU doesn't support DirectXMath", L"Error", MB_OK);
-		return EXIT_FAILURE;
+		return 1;
 	}
 
 	Window* window = new Window();
@@ -534,12 +527,12 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 
 			if (input->IsKey(DIK_F1)) {
 				render->ChangeRasterizerStateToWireframe();
-				printf("Changed render to wireframe\n");
+				printf("[Info] Changed render to wireframe\n");
 			}
 
 			if (input->IsKey(DIK_F2)) {
 				render->ChangeRasterizerStateToSolid();
-				printf("Changed render to solid\n");
+				printf("[Info] Changed render to solid\n");
 			}
 
 			if (input->IsKey(DIK_W)) {
