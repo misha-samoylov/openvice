@@ -12,6 +12,7 @@
 
 #include "loaders/ImgLoader.hpp"
 #include "loaders/Clump.h"
+#include "loaders/IPL.h"
 #include "Mesh.hpp"
 #include "DXRender.hpp"
 #include "Camera.hpp"
@@ -21,6 +22,7 @@
 #include "Frustum.h"
 #include "Model.h"
 
+#define PROJECT_NAME "openvice"
 #define WINDOW_WIDTH 1024
 #define WINDOW_HEIGHT 768
 #define WINDOW_TITLE L"openvice"
@@ -30,18 +32,6 @@ using namespace DirectX;
 int frameCount = 0;
 int render_distance = true;
 Frustum g_frustum;
-
-/* IPL file contains model position */
-struct IPLFile {
-	int id;
-	char modelName[MAX_LENGTH_FILENAME];
-	int interior;
-	float x, y, z;
-	float scale[3];
-	float rotation[4];
-};
-
-int countObjectsInMap = 0;
 
 /* IDE file contains model name and their texture name */
 struct IDEFile {
@@ -68,10 +58,8 @@ struct ModelMaterial {
 
 std::vector<Model*> g_models;
 std::vector<IDEFile> g_ideFile;
-std::vector<IPLFile> g_MapObjects;
-
 std::vector<GameMaterial> g_Textures;
-
+std::vector<IPL*> g_ipl;
 
 template <typename T>
 void remove_duplicates(std::vector<T>& vec)
@@ -296,14 +284,7 @@ int LoadFileDFFWithName(ImgLoader* pImgLoader, DXRender* render, char *name, int
 	return 0;
 }
 
-inline float Distance(XMVECTOR v1, XMVECTOR v2)
-{
-	return XMVectorGetX(XMVector3Length(XMVectorSubtract(v1, v2)));
-}
-inline float DistanceSquared(XMVECTOR v1, XMVECTOR v2)
-{
-	return XMVectorGetX(XMVector3LengthSq(XMVectorSubtract(v1, v2)));
-}
+std::vector<Model*> g_needRenderTransparent;
 
 void RenderScene(DXRender *render, Camera *camera)
 {
@@ -313,67 +294,71 @@ void RenderScene(DXRender *render, Camera *camera)
 
 	int renderCount = 0;
 
-	// Render not transparent objects
-	for (int i = 0; i < countObjectsInMap; i++) {
+	for (int i = 0; i < g_ipl.size(); i++) {
+		int count = g_ipl[i]->m_countObjectsInMap;
 
-		float x = g_MapObjects[i].x;
-		float y = g_MapObjects[i].y;
-		float z = g_MapObjects[i].z;
+		// Render not transparent objects
+		for (int j = 0; j < count; j++) {
+			struct IPLFile objectInfo = g_ipl[i]->m_MapObjects[j];
 
-		bool renderModel = g_frustum.CheckCube(x, y, z, 50.0f);
+			float x = objectInfo.x;
+			float y = objectInfo.y;
+			float z = objectInfo.z;
 
-		if (renderModel) {
+			bool renderModel = g_frustum.CheckCube(x, y, z, 50.0f);
+
+			if (renderModel) {
 			
-			for (int m = 0; m < g_models.size(); m++) {
+				for (int m = 0; m < g_models.size(); m++) {
+					Model* model = g_models[m];
 
-				if (g_models[m]->hasAlpha() == true)
-					continue;
+					if (model->hasAlpha() == true) {
+						continue;
+					}
 
-				int index = i;
-				int modelId = g_MapObjects[i].id;
+					if (objectInfo.id == model->GetId()) {
+						model->SetPosition(
+							objectInfo.x, objectInfo.y, objectInfo.z,
+							objectInfo.scale[0], objectInfo.scale[1], objectInfo.scale[2],
+							objectInfo.rotation[0], objectInfo.rotation[1], objectInfo.rotation[2], objectInfo.rotation[3]
+						);
+						model->Render(render, camera);
 
-				if (modelId == g_models[m]->GetId()) {
-					g_models[m]->SetPosition(
-						g_MapObjects[index].x, g_MapObjects[index].y, g_MapObjects[index].z,
-						g_MapObjects[index].scale[0], g_MapObjects[index].scale[1], g_MapObjects[index].scale[2],
-						g_MapObjects[index].rotation[0], g_MapObjects[index].rotation[1], g_MapObjects[index].rotation[2], g_MapObjects[index].rotation[3]
-					);
-					g_models[m]->Render(render, camera);
-
-					renderCount++;
+						renderCount++;
+					}
 				}
 			}
 		}
-	}
 
-	// Render transparent objects
-	for (int i = 0; i < countObjectsInMap; i++) {
+		// Render transparent objects
+		for (int j = 0; j < count; j++) {
+			struct IPLFile objectInfo = g_ipl[i]->m_MapObjects[j];
 
-		float x = g_MapObjects[i].x;
-		float y = g_MapObjects[i].y;
-		float z = g_MapObjects[i].z;
+			float x = objectInfo.x;
+			float y = objectInfo.y;
+			float z = objectInfo.z;
 
-		bool renderModel = g_frustum.CheckCube(x, y, z, 50.0f);
+			bool renderModel = g_frustum.CheckCube(x, y, z, 50.0f);
 
-		if (renderModel) {
+			if (renderModel) {
 
-			for (int m = 0; m < g_models.size(); m++) {
+				for (int m = 0; m < g_models.size(); m++) {
+					Model* model = g_models[m];
 
-				if (g_models[m]->hasAlpha() == false)
-					continue;
+					if (model->hasAlpha() == false) {
+						continue;
+					}
 
-				int index = i;
-				int modelId = g_MapObjects[i].id;
+					if (objectInfo.id == model->GetId()) {
+						model->SetPosition(
+							objectInfo.x, objectInfo.y, objectInfo.z,
+							objectInfo.scale[0], objectInfo.scale[1], objectInfo.scale[2],
+							objectInfo.rotation[0], objectInfo.rotation[1], objectInfo.rotation[2], objectInfo.rotation[3]
+						);
+						model->Render(render, camera);
 
-				if (modelId == g_models[m]->GetId()) {
-					g_models[m]->SetPosition(
-						g_MapObjects[index].x, g_MapObjects[index].y, g_MapObjects[index].z,
-						g_MapObjects[index].scale[0], g_MapObjects[index].scale[1], g_MapObjects[index].scale[2],
-						g_MapObjects[index].rotation[0], g_MapObjects[index].rotation[1], g_MapObjects[index].rotation[2], g_MapObjects[index].rotation[3]
-					);
-					g_models[m]->Render(render, camera);
-
-					renderCount++;
+						renderCount++;
+					}
 				}
 			}
 		}
@@ -424,93 +409,6 @@ void LoadIDEFile(const char* filepath)
 				strcpy(idf.textureArchiveName, textureArchiveName);
 				
 				g_ideFile.push_back(idf);
-			}
-		}
-	}
-
-	fclose(fp);
-}
-
-void LoadIPLFile(const char *filepath)
-{
-	printf("[Info] Loading: %s\n", filepath);
-
-	FILE* fp;
-	char str[512];
-	if ((fp = fopen(filepath, "r")) == NULL) {
-		printf("Cannot open file %s\n", filepath);
-		return;
-	}
-
-	bool isObject = false;
-	
-	while (!feof(fp)) {
-		if (fgets(str, 512, fp)) {
-			if (strcmp(str, "inst\n") == 0) {
-				isObject = true;
-			}
-
-			if (strcmp(str, "end\n") == 0) {
-				if (isObject) {
-					isObject = false;
-				}
-			}
-
-			int id = 0;
-			char modelName[MAX_LENGTH_FILENAME]; // in file without extension (.dff)
-			int interior = 0;
-			float posX = 0, posY = 0, posZ = 0;
-			float scale[3];
-			float rot[4];
-
-			int values = sscanf(
-				str,
-				"%d, %64[^,], %d, "
-				"%f, %f, %f, " // pos
-				"%f, %f, %f, " // scale
-				"%f, %f, %f, %f", // rotation
-				&id, modelName, &interior,
-				&posX, &posY, &posZ,
-				&scale[0], &scale[1], &scale[2],
-				&rot[0], &rot[1], &rot[2], &rot[3]
-			);
-
-			if (strstr(modelName, "LOD") != NULL) {
-				continue;
-			}
-
-			if (values == 13 && isObject) {
-
-				struct IPLFile iplfile;
-
-				iplfile.id = id;
-				strcpy(iplfile.modelName, modelName);
-				
-				iplfile.interior = interior;
-				/*
-				 * ћен€ем положение модели в пространстве так как наша камера
-				 * в Left Handed Coordinates, а движок GTA в своей координатной системе:
-				 * X Ц east/west direction
-				 * Y Ц north/south direction
-				 * Z Ц up/down direction
-				 * @see https://gtamods.com/wiki/Map_system
-				*/
-				iplfile.x = posX;
-				iplfile.y = posZ;
-				iplfile.z = posY;
-
-				iplfile.scale[0] = scale[0]; // y
-				iplfile.scale[1] = scale[2]; // z
-				iplfile.scale[2] = scale[1]; // x
-
-				iplfile.rotation[0] = rot[0]; // y
-				iplfile.rotation[1] = rot[2]; // z
-				iplfile.rotation[2] = rot[1]; // x
-				iplfile.rotation[3] = rot[3]; // w
-
-				countObjectsInMap++;
-
-				g_MapObjects.push_back(iplfile);
 			}
 		}
 	}
@@ -615,10 +513,13 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 		strcat(path, "/");
 		strcat(path, maps[i]);
 		strcat(path, ".ipl");
-		LoadIPLFile(path);
+
+		IPL* ipl = new IPL();
+		ipl->Load(path);
+		g_ipl.push_back(ipl);
 	}
 
-	printf("[Info] %s loaded\n", WINDOW_TITLE);
+	printf("[Info] %s loaded\n", PROJECT_NAME);
 
 	float moveLeftRight = 0.0f;
 	float moveBackForward = 0.0f;
@@ -724,6 +625,10 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 	render->Cleanup();
 	camera->Cleanup();
 	input->Cleanup();
+
+	for (int i = 0; i < g_ipl.size(); i++) {
+		delete g_ipl[i];
+	}
 
 	for (int i = 0; i < g_models.size(); i++) {
 		g_models[i]->Cleanup();

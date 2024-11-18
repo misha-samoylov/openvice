@@ -126,14 +126,14 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>C:\Users\master\Documents\GitHub\DirectXTex\DirectXTex;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Users\misha\Documents\GitHub\DirectXTex\DirectXTex;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalLibraryDirectories>C:\Users\master\Documents\GitHub\DirectXTex\DirectXTex\Bin\Desktop_2019_Win10\x64\Release;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>C:\Users\misha\Documents\GitHub\DirectXTex\DirectXTex\Bin\Desktop_2019\x64\Release;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>DirectXTex.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
@@ -144,6 +144,7 @@
     <ClCompile Include="loaders\AtomicList.cpp" />
     <ClCompile Include="loaders\FrameList.cpp" />
     <ClCompile Include="loaders\Geometry.cpp" />
+    <ClCompile Include="loaders\IPL.cpp" />
     <ClCompile Include="loaders\LightList.cpp" />
     <ClCompile Include="Mesh.cpp" />
     <ClCompile Include="DXRender.cpp" />
@@ -164,6 +165,7 @@
     <ClInclude Include="loaders\AtomicList.h" />
     <ClInclude Include="loaders\FrameList.h" />
     <ClInclude Include="loaders\Geometry.h" />
+    <ClInclude Include="loaders\IPL.h" />
     <ClInclude Include="loaders\LightList.h" />
     <ClInclude Include="Mesh.hpp" />
     <ClInclude Include="DXRender.hpp" />
