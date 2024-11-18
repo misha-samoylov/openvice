@@ -2,17 +2,20 @@
  * IPL file. Item placement file.
  * 
  * That file contains model transformation.
+ * File name doesn't contain type ".dff".
  */
 
 #ifndef IPL_H
 #define IPL_H
 
 #define MAX_LENGTH_FILENAME 24
+#define MAX_LENGTH_LINE 512
 
 #include <stdio.h>
-#include <vector>
+#include <stdlib.h>
+#include <string.h>
 
-struct IPLFile {
+struct mapItem {
 	int id;
 	char modelName[MAX_LENGTH_FILENAME];
 	int interior;
@@ -23,12 +26,15 @@ struct IPLFile {
 
 class IPL
 {
-public:
-	int m_countObjectsInMap = 0;
-	std::vector<IPLFile> m_MapObjects;
+private:
+	int m_countItems = 0;
+	struct mapItem* m_mapItems;
 
-	int GetCountObjects() { return m_countObjectsInMap; }
-	void Load(const char* filepath);
+public:
+	struct mapItem GetItem(int index) { return m_mapItems[index]; }
+	int GetCountObjects() { return m_countItems; }
+	int Load(const char* filepath);
+	void Cleanup() { free(m_mapItems); };
 };
 
 #endif

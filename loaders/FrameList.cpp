@@ -162,7 +162,7 @@ int FrameList::GetNumFrames()
 	return m_numFrames;
 }
 
-Frame* FrameList::GetFrame(int id)
+Frame* FrameList::GetFrame(int modelId)
 {
-	return m_frames[id];
+	return m_frames[modelId];
 }

@@ -1,21 +1,20 @@
 #include "IPL.h"
 
-void IPL::Load(const char* filepath)
+int IPL::Load(const char* filepath)
 {
 	FILE* fp;
-	char str[512];
+	char str[MAX_LENGTH_LINE];
+	bool isObject = false;
 
 	printf("[Info] Loading IPL: %s\n", filepath);
 
 	if ((fp = fopen(filepath, "r")) == NULL) {
 		printf("[Error] Cannot open file: %s\n", filepath);
-		return;
+		return 1;
 	}
 
-	bool isObject = false;
-
 	while (!feof(fp)) {
-		if (fgets(str, 512, fp)) {
+		if (fgets(str, MAX_LENGTH_LINE, fp)) {
 			if (strcmp(str, "inst\n") == 0) {
 				isObject = true;
 			}
@@ -27,7 +26,50 @@ void IPL::Load(const char* filepath)
 			}
 
 			int id = 0;
-			char modelName[MAX_LENGTH_FILENAME]; // in file without extension (.dff)
+			char modelName[MAX_LENGTH_FILENAME];
+			int interior = 0;
+			float posX = 0, posY = 0, posZ = 0;
+			float scale[3];
+			float rot[4];
+
+			int values = sscanf(
+				str,
+				"%d, %64[^,], %d, "
+				"%f, %f, %f, " // pos
+				"%f, %f, %f, " // scale
+				"%f, %f, %f, %f", // rotation
+				&id, modelName, &interior,
+				&posX, &posY, &posZ,
+				&scale[0], &scale[1], &scale[2],
+				&rot[0], &rot[1], &rot[2], &rot[3]
+			);
+
+			if (values == 13 && isObject) {
+				m_countItems++;
+			}
+		}
+	}
+
+	fseek(fp, 0, 0);
+
+	m_mapItems = (struct mapItem*)malloc(sizeof(struct mapItem) * m_countItems);
+
+	int i = 0;
+
+	while (!feof(fp)) {
+		if (fgets(str, MAX_LENGTH_LINE, fp)) {
+			if (strcmp(str, "inst\n") == 0) {
+				isObject = true;
+			}
+
+			if (strcmp(str, "end\n") == 0) {
+				if (isObject) {
+					isObject = false;
+				}
+			}
+
+			int id = 0;
+			char modelName[MAX_LENGTH_FILENAME];
 			int interior = 0;
 			float posX = 0, posY = 0, posZ = 0;
 			float scale[3];
@@ -47,12 +89,12 @@ void IPL::Load(const char* filepath)
 
 			if (values == 13 && isObject) {
 
-				struct IPLFile iplfile;
+				struct mapItem item;
 
-				iplfile.id = id;
-				strcpy(iplfile.modelName, modelName);
+				item.id = id;
+				strcpy(item.modelName, modelName);
 
-				iplfile.interior = interior;
+				item.interior = interior;
 				/*
 				 * ћен€ем положение модели в пространстве так как наша камера
 				 * в Left Handed Coordinates, а движок GTA в своей координатной системе:
@@ -61,25 +103,27 @@ void IPL::Load(const char* filepath)
 				 * Z Ц up/down direction
 				 * @see https://gtamods.com/wiki/Map_system
 				*/
-				iplfile.x = posX;
-				iplfile.y = posZ;
-				iplfile.z = posY;
+				item.x = posX;
+				item.y = posZ;
+				item.z = posY;
 
-				iplfile.scale[0] = scale[0]; // y
-				iplfile.scale[1] = scale[2]; // z
-				iplfile.scale[2] = scale[1]; // x
+				item.scale[0] = scale[0]; // y
+				item.scale[1] = scale[2]; // z
+				item.scale[2] = scale[1]; // x
 
-				iplfile.rotation[0] = rot[0]; // y
-				iplfile.rotation[1] = rot[2]; // z
-				iplfile.rotation[2] = rot[1]; // x
-				iplfile.rotation[3] = rot[3]; // w
+				item.rotation[0] = rot[0]; // y
+				item.rotation[1] = rot[2]; // z
+				item.rotation[2] = rot[1]; // x
+				item.rotation[3] = rot[3]; // w
 
-				m_countObjectsInMap++;
+				memcpy(&m_mapItems[i], &item, sizeof(struct mapItem));
 
-				m_MapObjects.push_back(iplfile);
+				i++;
 			}
 		}
 	}
 
 	fclose(fp);
+
+	return 0;
 }

@@ -152,7 +152,7 @@
     <ClCompile Include="Utils.cpp" />
     <ClCompile Include="Window.cpp" />
     <ClCompile Include="loaders\Clump.cpp" />
-    <ClCompile Include="loaders\ImgLoader.cpp" />
+    <ClCompile Include="loaders\IMG.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="renderware.cpp" />
     <ClCompile Include="txdread.cpp" />
@@ -173,7 +173,7 @@
     <ClInclude Include="Utils.hpp" />
     <ClInclude Include="Window.hpp" />
     <ClInclude Include="loaders\Clump.h" />
-    <ClInclude Include="loaders\ImgLoader.hpp" />
+    <ClInclude Include="loaders\IMG.hpp" />
     <ClInclude Include="renderware.h" />
   </ItemGroup>
   <ItemGroup>

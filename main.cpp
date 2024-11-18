@@ -10,8 +10,8 @@
 
 #include "renderware.h"
 
-#include "loaders/ImgLoader.hpp"
 #include "loaders/Clump.h"
+#include "loaders/IMG.hpp"
 #include "loaders/IPL.h"
 #include "Mesh.hpp"
 #include "DXRender.hpp"
@@ -30,7 +30,6 @@
 using namespace DirectX;
 
 int frameCount = 0;
-int render_distance = true;
 Frustum g_frustum;
 
 /* IDE file contains model name and their texture name */
@@ -68,7 +67,7 @@ void remove_duplicates(std::vector<T>& vec)
 	vec.erase(std::unique(vec.begin(), vec.end()), vec.end());
 }
 
-void LoadAllTexturesFromTXDFile(ImgLoader *pImgLoader, const char *filename)
+void LoadAllTexturesFromTXDFile(IMG *pImgLoader, const char *filename)
 {
 	char result_name[MAX_LENGTH_FILENAME + 4];
 	strcpy(result_name, filename);
@@ -119,7 +118,7 @@ void LoadAllTexturesFromTXDFile(ImgLoader *pImgLoader, const char *filename)
 	//free(fileBuffer);
 }
 
-int LoadFileDFFWithName(ImgLoader* pImgLoader, DXRender* render, char *name, int modelId)
+int LoadFileDFFWithName(IMG* pImgLoader, DXRender* render, char *name, int modelId)
 {
 	/* Skip LOD files */
 	if (strstr(name, "LOD") != NULL) {
@@ -290,11 +289,11 @@ void RenderScene(DXRender *render, Camera *camera)
 	int renderCount = 0;
 
 	for (int i = 0; i < g_ipl.size(); i++) {
-		int count = g_ipl[i]->m_countObjectsInMap;
+		int count = g_ipl[i]->GetCountObjects();
 
 		// Render not transparent objects
 		for (int j = 0; j < count; j++) {
-			struct IPLFile objectInfo = g_ipl[i]->m_MapObjects[j];
+			struct mapItem objectInfo = g_ipl[i]->GetItem(j);
 
 			float x = objectInfo.x;
 			float y = objectInfo.y;
@@ -327,7 +326,7 @@ void RenderScene(DXRender *render, Camera *camera)
 
 		// Render transparent objects
 		for (int j = 0; j < count; j++) {
-			struct IPLFile objectInfo = g_ipl[i]->m_MapObjects[j];
+			struct mapItem objectInfo = g_ipl[i]->GetItem(j);
 
 			float x = objectInfo.x;
 			float y = objectInfo.y;
@@ -433,7 +432,7 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 	TCHAR imgPath[] = L"C:/Games/Grand Theft Auto Vice City/models/gta3.img";
 	TCHAR dirPath[] = L"C:/Games/Grand Theft Auto Vice City/models/gta3.dir";
 
-	ImgLoader* imgLoader = new ImgLoader();
+	IMG* imgLoader = new IMG();
 	imgLoader->Open(imgPath, dirPath);
 
 	char maps[][MAX_LENGTH_FILENAME] = {
@@ -592,10 +591,6 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 				moveLeftRight += speed;
 			}
 
-			if (input->IsKey(DIK_NUMPAD0)) {
-				render_distance = !render_distance;
-			}
-
 			mouseCurrState.lX = input->GetMouseSpeedX();
 			mouseCurrState.lY = input->GetMouseSpeedY();
 
@@ -622,6 +617,7 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 	input->Cleanup();
 
 	for (int i = 0; i < g_ipl.size(); i++) {
+		g_ipl[i]->Cleanup();
 		delete g_ipl[i];
 	}
 

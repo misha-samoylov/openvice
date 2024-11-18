@@ -121,9 +121,9 @@ void AtomicList::Cleanup()
 	delete[] m_atomics;
 }
 
-Atomic* AtomicList::GetAtomic(int id)
+Atomic* AtomicList::GetAtomic(int modelId)
 {
-	return m_atomics[id];
+	return m_atomics[modelId];
 }
 
 uint32_t AtomicList::GetNumAtomic()

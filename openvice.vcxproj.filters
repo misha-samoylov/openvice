@@ -60,7 +60,7 @@
     <ClCompile Include="Utils.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="loaders\ImgLoader.cpp">
+    <ClCompile Include="loaders\IMG.cpp">
       <Filter>Source Files\loaders</Filter>
     </ClCompile>
     <ClCompile Include="loaders\Clump.cpp">
@@ -110,7 +110,7 @@
     <ClInclude Include="loaders\Clump.h">
       <Filter>Header Files\loaders</Filter>
     </ClInclude>
-    <ClInclude Include="loaders\ImgLoader.hpp">
+    <ClInclude Include="loaders\IMG.hpp">
       <Filter>Header Files\loaders</Filter>
     </ClInclude>
     <ClInclude Include="loaders\FrameList.h">

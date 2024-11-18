@@ -1,6 +1,6 @@
-#include "ImgLoader.hpp"
+#include "IMG.hpp"
 
-int ImgLoader::OpenFileDir(TCHAR *filepath)
+int IMG::OpenFileDir(TCHAR *filepath)
 {
 	HANDLE m_hFileDir = CreateFile(filepath, GENERIC_READ, 0, nullptr,
 		OPEN_EXISTING,
@@ -43,12 +43,12 @@ int ImgLoader::OpenFileDir(TCHAR *filepath)
     return 0;
 }
 
-void ImgLoader::DumpFileDir()
+void IMG::DumpFileDir()
 {
 	printf("[Dump] dir file[0].name = %s\n", m_pFilesDir[0].name);
 }
 
-int ImgLoader::OpenFileImg(TCHAR* filepath)
+int IMG::OpenFileImg(TCHAR* filepath)
 {
 	HANDLE m_hFileImg = CreateFile(filepath, GENERIC_READ, 0, nullptr,
 		OPEN_EXISTING,
@@ -87,7 +87,7 @@ int ImgLoader::OpenFileImg(TCHAR* filepath)
 	return 0;
 }
 
-int ImgLoader::Open(TCHAR* filepathImg, TCHAR *filepathDir)
+int IMG::Open(TCHAR* filepathImg, TCHAR *filepathDir)
 {
 	OpenFileDir(filepathDir);
 	OpenFileImg(filepathImg);
@@ -95,45 +95,45 @@ int ImgLoader::Open(TCHAR* filepathImg, TCHAR *filepathDir)
     return 0;
 }
 
-int ImgLoader::SaveFileById(uint32_t id)
+int IMG::SaveFileById(uint32_t modelId)
 {
 	int err;
 
-    err = SaveFile(m_pFilesDir[id].offset,
-		m_pFilesDir[id].size,
-		m_pFilesDir[id].name);
+    err = SaveFile(m_pFilesDir[modelId].offset,
+		m_pFilesDir[modelId].size,
+		m_pFilesDir[modelId].name);
 
 	if (err == 0) {
-		printf("File saved with name = %s\n", m_pFilesDir[id].name);
+		printf("File saved with name = %s\n", m_pFilesDir[modelId].name);
 	}
 
     return 0;
 }
 
-char* ImgLoader::GetFilenameById(uint32_t id)
+char* IMG::GetFilenameById(uint32_t modelId)
 {
-	return m_pFilesDir[id].name;
+	return m_pFilesDir[modelId].name;
 }
 
-char *ImgLoader::GetFileById(uint32_t id)
+char *IMG::GetFileById(uint32_t modelId)
 {
 	int32_t fileSize;
 	int32_t fileOffset;
 
-	fileSize = m_pFilesDir[id].size * IMG_BLOCK_SIZE;
-	fileOffset = m_pFilesDir[id].offset * IMG_BLOCK_SIZE;
+	fileSize = m_pFilesDir[modelId].size * IMG_BLOCK_SIZE;
+	fileOffset = m_pFilesDir[modelId].offset * IMG_BLOCK_SIZE;
 
-	printf("[Info] ImgLoader: Loading %s file\n", m_pFilesDir[id].name);
+	printf("[Info] ImgLoader: Loading %s file\n", m_pFilesDir[modelId].name);
 
 	return &m_dataPtrImg[fileOffset];
 }
 
-int32_t ImgLoader::GetFileSize(uint32_t id)
+int32_t IMG::GetFileSize(uint32_t modelId)
 {
-	return m_pFilesDir[id].size * IMG_BLOCK_SIZE;
+	return m_pFilesDir[modelId].size * IMG_BLOCK_SIZE;
 }
 
-int ImgLoader::GetFileIndexByName(const char *name)
+int IMG::GetFileIndexByName(const char *name)
 {
 	int index = -1;
 
@@ -150,7 +150,7 @@ int ImgLoader::GetFileIndexByName(const char *name)
 	return index;
 }
 
-int ImgLoader::SaveFile(int32_t offset, int32_t size, const char *name)
+int IMG::SaveFile(int32_t offset, int32_t size, const char *name)
 {
 	FILE* pFile;
 
@@ -173,21 +173,21 @@ int ImgLoader::SaveFile(int32_t offset, int32_t size, const char *name)
     return 0;
 }
 
-void ImgLoader::CleanupFileDir()
+void IMG::CleanupFileDir()
 {
 	UnmapViewOfFile(m_dataPtrDir);
 	CloseHandle(m_hMappingDir);
 	CloseHandle(m_hFileDir);
 }
 
-void ImgLoader::CleanupFileImg()
+void IMG::CleanupFileImg()
 {
 	UnmapViewOfFile(m_dataPtrImg);
 	CloseHandle(m_hMappingImg);
 	CloseHandle(m_hFileImg);
 }
 
-void ImgLoader::Cleanup()
+void IMG::Cleanup()
 {
 	CleanupFileDir();
 	CleanupFileImg();
