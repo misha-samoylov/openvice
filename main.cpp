@@ -34,7 +34,7 @@ struct GameMaterial {
 	uint32_t height;
 	uint32_t dxtCompression;
 	uint32_t depth;
-	bool hasAlpha;
+	bool IsAlpha;
 };
 
 struct ModelMaterial {
@@ -95,7 +95,7 @@ void LoadAllTexturesFromTXDFile(IMG *pImgLoader, const char *filename)
 		m.height = t.height[0];
 		m.dxtCompression = t.dxtCompression; /* DXT1, DXT3, DXT4 */
 		m.depth = t.depth;
-		m.hasAlpha = t.hasAlpha;
+		m.IsAlpha = t.IsAlpha;
 
 		// printf("[OK] Loaded texture name %s from TXD file %s\n", t.name, result_name);
 
@@ -238,9 +238,9 @@ int LoadFileDFFWithName(IMG* pImgLoader, DXRender* render, char *name, int model
 			}
 
 			if (matIndex != -1) {
-				mesh->SetAlpha(g_Textures[matIndex].hasAlpha);
+				mesh->SetAlpha(g_Textures[matIndex].IsAlpha);
 				
-				if (g_Textures[matIndex].hasAlpha) {
+				if (g_Textures[matIndex].IsAlpha) {
 					model->SetAlpha(true);
 				}
 
@@ -293,7 +293,7 @@ void RenderScene(DXRender *render, Camera *camera)
 				for (int m = 0; m < g_models.size(); m++) {
 					Model* model = g_models[m];
 
-					if (model->hasAlpha() == true) {
+					if (model->IsAlpha() == true) {
 						continue;
 					}
 
@@ -326,7 +326,7 @@ void RenderScene(DXRender *render, Camera *camera)
 				for (int m = 0; m < g_models.size(); m++) {
 					Model* model = g_models[m];
 
-					if (model->hasAlpha() == false) {
+					if (model->IsAlpha() == false) {
 						continue;
 					}
 

@@ -186,7 +186,7 @@ struct NativeTexture {
 	uint8_t *palette;
 	uint32_t paletteSize;
 
-	bool hasAlpha;
+	bool IsAlpha;
 	uint32_t mipmapCount;
 
 	// PS2
