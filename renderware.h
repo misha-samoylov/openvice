@@ -157,7 +157,7 @@ struct HeaderInfo {
 	bool findChunk(char *bytes, size_t *offset, uint32_t type);
 };
 
-void ChunkNotFound(CHUNK_TYPE chunk, uint32_t address);
+// void ChunkNotFound(CHUNK_TYPE chunk, uint32_t address);
 int8_t readInt8(char *bytes, size_t *offset);
 uint8_t readUInt8(char *bytes, size_t *offset);
 int16_t readInt16(char *bytes, size_t *offset);

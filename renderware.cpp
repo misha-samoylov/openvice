@@ -44,12 +44,10 @@ bool HeaderInfo::findChunk(char *bytes, size_t *offset, uint32_t type)
 	return false;
 }
 
-void ChunkNotFound(CHUNK_TYPE chunk, uint32_t address)
-{
-	std::cerr << "chunk " << std::hex << chunk << " not found at 0x";
-	std::cerr << std::hex << address << std::endl;
-	exit(1);
-}
+//void ChunkNotFound(enum CHUNK_TYPE chunk, uint32_t address)
+//{
+//	printf("[Error] Chunk not found at 0x%.12\n", address);
+//}
 
 int8_t readInt8(char *bytes, size_t *offset)
 {

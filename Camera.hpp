@@ -14,7 +14,6 @@ public:
 
 	XMMATRIX GetView();
 	XMMATRIX GetProjection();
-
 	XMVECTOR GetPosition();
 
 private:
