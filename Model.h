@@ -26,6 +26,14 @@ public:
 
 	void Render(DXRender* render, Camera* camera);
 
+	void Cleanup()
+	{
+		for (int i = 0; i < m_meshes.size(); i++) {
+			m_meshes[i]->Cleanup();
+			delete m_meshes[i];
+		}
+	};
+
 private:
 	int m_id;
 	bool m_hasAlpha;

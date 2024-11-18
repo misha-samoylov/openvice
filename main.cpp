@@ -69,7 +69,6 @@ struct ModelMaterial {
 std::vector<Model*> g_models;
 std::vector<IDEFile> g_ideFile;
 std::vector<IPLFile> g_MapObjects;
-std::vector<Mesh*> g_LoadedMeshes;
 
 std::vector<GameMaterial> g_Textures;
 
@@ -284,8 +283,6 @@ int LoadFileDFFWithName(ImgLoader* pImgLoader, DXRender* render, char *name, int
 			
 
 			model->AddMesh(mesh);
-
-			g_LoadedMeshes.push_back(mesh);
 		}
 	}
 
@@ -728,11 +725,9 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 	camera->Cleanup();
 	input->Cleanup();
 
-	// TODO cleanup Models
-
-	for (int i = 0; i < g_LoadedMeshes.size(); i++) {
-		g_LoadedMeshes[i]->Cleanup();
-		delete g_LoadedMeshes[i];
+	for (int i = 0; i < g_models.size(); i++) {
+		g_models[i]->Cleanup();
+		delete g_models[i];
 	}
 
 	delete camera;
