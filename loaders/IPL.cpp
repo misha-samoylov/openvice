@@ -2,12 +2,13 @@
 
 void IPL::Load(const char* filepath)
 {
-	printf("[Info] Loading: %s\n", filepath);
-
 	FILE* fp;
 	char str[512];
+
+	printf("[Info] Loading IPL: %s\n", filepath);
+
 	if ((fp = fopen(filepath, "r")) == NULL) {
-		printf("Cannot open file %s\n", filepath);
+		printf("[Error] Cannot open file: %s\n", filepath);
 		return;
 	}
 
@@ -43,10 +44,6 @@ void IPL::Load(const char* filepath)
 				&scale[0], &scale[1], &scale[2],
 				&rot[0], &rot[1], &rot[2], &rot[3]
 			);
-
-			if (strstr(modelName, "LOD") != NULL) {
-				continue;
-			}
 
 			if (values == 13 && isObject) {
 

@@ -121,8 +121,9 @@ void LoadAllTexturesFromTXDFile(ImgLoader *pImgLoader, const char *filename)
 
 int LoadFileDFFWithName(ImgLoader* pImgLoader, DXRender* render, char *name, int modelId)
 {
+	/* Skip LOD files */
 	if (strstr(name, "LOD") != NULL) {
-		return 1;
+		return 0;
 	}
 
 	char result_name[MAX_LENGTH_FILENAME + 4];
@@ -140,6 +141,7 @@ int LoadFileDFFWithName(ImgLoader* pImgLoader, DXRender* render, char *name, int
 	clump->Read(fileBuffer);
 
 	Model* model = new Model();
+	model->SetId(modelId);
 	model->SetName(name);
 
 	for (uint32_t index = 0; index < clump->m_numGeometries; index++) {
@@ -221,7 +223,6 @@ int LoadFileDFFWithName(ImgLoader* pImgLoader, DXRender* render, char *name, int
 
 			Mesh* mesh = new Mesh();
 
-
 			mesh->Init(
 				render, 
 				meshVertexData,
@@ -235,7 +236,7 @@ int LoadFileDFFWithName(ImgLoader* pImgLoader, DXRender* render, char *name, int
 
 			int matIndex = -1;
 
-			// поиск текстуры по индексу
+			// Find texture by index
 			for (int ib = 0; ib < materIndex.size(); ib++) {
 
 				if (materialIndex == materIndex[ib].index) {
@@ -267,8 +268,6 @@ int LoadFileDFFWithName(ImgLoader* pImgLoader, DXRender* render, char *name, int
 					g_Textures[matIndex].depth
 				);
 			}
-			mesh->SetId(modelId);
-			
 
 			model->AddMesh(mesh);
 		}
@@ -277,14 +276,10 @@ int LoadFileDFFWithName(ImgLoader* pImgLoader, DXRender* render, char *name, int
 	clump->Clear();
 	delete clump;
 
-	model->SetId(modelId);
-
 	g_models.push_back(model);
 
 	return 0;
 }
-
-std::vector<Model*> g_needRenderTransparent;
 
 void RenderScene(DXRender *render, Camera *camera)
 {
