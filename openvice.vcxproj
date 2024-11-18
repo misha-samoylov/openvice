@@ -147,6 +147,7 @@
     <ClCompile Include="loaders\LightList.cpp" />
     <ClCompile Include="Mesh.cpp" />
     <ClCompile Include="DXRender.cpp" />
+    <ClCompile Include="Model.cpp" />
     <ClCompile Include="Utils.cpp" />
     <ClCompile Include="Window.cpp" />
     <ClCompile Include="loaders\Clump.cpp" />
@@ -166,6 +167,7 @@
     <ClInclude Include="loaders\LightList.h" />
     <ClInclude Include="Mesh.hpp" />
     <ClInclude Include="DXRender.hpp" />
+    <ClInclude Include="Model.h" />
     <ClInclude Include="Utils.hpp" />
     <ClInclude Include="Window.hpp" />
     <ClInclude Include="loaders\Clump.h" />

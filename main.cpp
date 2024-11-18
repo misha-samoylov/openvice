@@ -19,6 +19,7 @@
 #include "Window.hpp"
 #include "Utils.hpp"
 #include "Frustum.h"
+#include "Model.h"
 
 #define WINDOW_WIDTH 1024
 #define WINDOW_HEIGHT 768
@@ -65,6 +66,7 @@ struct ModelMaterial {
 	int index;
 };
 
+std::vector<Model*> g_models;
 std::vector<IDEFile> g_ideFile;
 std::vector<IPLFile> g_MapObjects;
 std::vector<Mesh*> g_LoadedMeshes;
@@ -130,32 +132,6 @@ void LoadAllTexturesFromTXDFile(ImgLoader *pImgLoader, const char *filename)
 	//free(fileBuffer);
 }
 
-class Model
-{
-public:
-	int id;
-	bool hasAlpha;
-	std::string name;
-	// float x = 0, y = 0, z = 0;
-	std::vector<Mesh*> meshes;
-
-	void SetPosition(float  x, float  y, float  z, float  sx, float   sy, float  sz, float  rx, float  ry, float  rz, float rr)
-	{
-		for (int i = 0; i < meshes.size(); i++) {
-			meshes[i]->SetPosition(x,y,z, sx,sy,sz, rx,ry,rz, rr);
-		}
-	}
-
-	void Render(DXRender *render, Camera *camera)
-	{
-		for (int i = 0; i < meshes.size(); i++) {
-			meshes[i]->Render(render, camera);
-		}
-	}
-};
-
-std::vector<Model*> g_models;
-
 int LoadFileDFFWithName(ImgLoader* pImgLoader, DXRender* render, char *name, int modelId)
 {
 	if (strstr(name, "LOD") != NULL) {
@@ -177,7 +153,7 @@ int LoadFileDFFWithName(ImgLoader* pImgLoader, DXRender* render, char *name, int
 	clump->Read(fileBuffer);
 
 	Model* model = new Model();
-	model->name = name;
+	model->SetName(name);
 
 	for (uint32_t index = 0; index < clump->m_numGeometries; index++) {
 
@@ -291,7 +267,7 @@ int LoadFileDFFWithName(ImgLoader* pImgLoader, DXRender* render, char *name, int
 				mesh->SetAlpha(g_Textures[matIndex].hasAlpha);
 				
 				if (g_Textures[matIndex].hasAlpha) {
-					model->hasAlpha = true;
+					model->SetAlpha(true);
 				}
 
 				mesh->SetDataDDS(
@@ -307,7 +283,7 @@ int LoadFileDFFWithName(ImgLoader* pImgLoader, DXRender* render, char *name, int
 			mesh->SetId(modelId);
 			
 
-			model->meshes.push_back(mesh);
+			model->AddMesh(mesh);
 
 			g_LoadedMeshes.push_back(mesh);
 		}
@@ -316,7 +292,7 @@ int LoadFileDFFWithName(ImgLoader* pImgLoader, DXRender* render, char *name, int
 	clump->Clear();
 	delete clump;
 
-	model->id = modelId;
+	model->SetId(modelId);
 
 	g_models.push_back(model);
 
@@ -353,13 +329,13 @@ void RenderScene(DXRender *render, Camera *camera)
 			
 			for (int m = 0; m < g_models.size(); m++) {
 
-				if (g_models[m]->hasAlpha == true)
+				if (g_models[m]->hasAlpha() == true)
 					continue;
 
 				int index = i;
 				int modelId = g_MapObjects[i].id;
 
-				if (modelId == g_models[m]->id) {
+				if (modelId == g_models[m]->GetId()) {
 					g_models[m]->SetPosition(
 						g_MapObjects[index].x, g_MapObjects[index].y, g_MapObjects[index].z,
 						g_MapObjects[index].scale[0], g_MapObjects[index].scale[1], g_MapObjects[index].scale[2],
@@ -386,13 +362,13 @@ void RenderScene(DXRender *render, Camera *camera)
 
 			for (int m = 0; m < g_models.size(); m++) {
 
-				if (g_models[m]->hasAlpha == false)
+				if (g_models[m]->hasAlpha() == false)
 					continue;
 
 				int index = i;
 				int modelId = g_MapObjects[i].id;
 
-				if (modelId == g_models[m]->id) {
+				if (modelId == g_models[m]->GetId()) {
 					g_models[m]->SetPosition(
 						g_MapObjects[index].x, g_MapObjects[index].y, g_MapObjects[index].z,
 						g_MapObjects[index].scale[0], g_MapObjects[index].scale[1], g_MapObjects[index].scale[2],
