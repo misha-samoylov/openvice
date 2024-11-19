@@ -11,7 +11,7 @@
 class DXRender
 {
 public:
-	HRESULT Init(HWND hWnd);
+	HRESULT Init(HWND hWnd, bool vsync);
 	void Cleanup();
 
 	void RenderStart();
@@ -42,4 +42,6 @@ private:
 	ID3D11DepthStencilView* m_pDepthStencilView; // Объект вида, буфер глубин
 
 	ID3D11BlendState* m_pBlendStateTransparency;
+
+	bool m_vsync;
 };

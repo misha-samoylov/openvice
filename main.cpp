@@ -352,6 +352,8 @@ void RenderScene(DXRender *render, Camera *camera)
 
 int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPSTR lpCmdLine, _In_ int nCmdShow)
 {
+	bool vsync = false;
+
 	if (!DirectX::XMVerifyCPUSupport()) {
 		MessageBox(NULL, L"You CPU doesn't support DirectXMath", L"Error", MB_OK);
 		return 1;
@@ -367,7 +369,7 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 	camera->Init(WINDOW_WIDTH, WINDOW_HEIGHT);
 
 	DXRender* render = new DXRender();
-	render->Init(window->GetHandleWindow());
+	render->Init(window->GetHandleWindow(), vsync);
 
 	TCHAR imgPath[] = L"C:/Games/Grand Theft Auto Vice City/models/gta3.img";
 	TCHAR dirPath[] = L"C:/Games/Grand Theft Auto Vice City/models/gta3.dir";
