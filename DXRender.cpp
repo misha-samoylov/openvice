@@ -137,14 +137,14 @@ HRESULT DXRender::CreateBlendState()
 
 	D3D11_RENDER_TARGET_BLEND_DESC rtbd;
 	ZeroMemory(&rtbd, sizeof(rtbd));
-	rtbd.BlendEnable = true;
+	rtbd.BlendEnable = TRUE;
 	rtbd.SrcBlend = D3D11_BLEND_SRC_ALPHA;
 	rtbd.DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
 	rtbd.BlendOp = D3D11_BLEND_OP_ADD;
 	rtbd.SrcBlendAlpha = D3D11_BLEND_ONE;
 	rtbd.DestBlendAlpha = D3D11_BLEND_ZERO;
 	rtbd.BlendOpAlpha = D3D11_BLEND_OP_ADD;
-	rtbd.RenderTargetWriteMask = 0x0f;
+	rtbd.RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
 
 	D3D11_BLEND_DESC blendDesc;
 	ZeroMemory(&blendDesc, sizeof(blendDesc));
