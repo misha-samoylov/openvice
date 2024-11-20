@@ -43,7 +43,7 @@ class AtomicList
 public:
 	void Read(uint32_t numAtomics, char* bytes, size_t* offset);
 	void Cleanup();
-	Atomic* GetAtomic(int id);
+	Atomic* GetAtomic(int modelId);
 	uint32_t GetNumAtomic();
 
 private:

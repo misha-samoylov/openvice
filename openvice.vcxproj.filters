@@ -28,9 +28,6 @@
     <Filter Include="Header Files\renderware">
       <UniqueIdentifier>{a0a93a25-79fe-4c43-ad14-9229f64f7954}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Source Files\glad">
-      <UniqueIdentifier>{2c1f13e3-ec18-46fb-be01-e6fb157001be}</UniqueIdentifier>
-    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
@@ -63,7 +60,7 @@
     <ClCompile Include="Utils.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="loaders\ImgLoader.cpp">
+    <ClCompile Include="loaders\IMG.cpp">
       <Filter>Source Files\loaders</Filter>
     </ClCompile>
     <ClCompile Include="loaders\Clump.cpp">
@@ -84,8 +81,14 @@
     <ClCompile Include="Frustum.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\Downloads\glad\src\glad.c">
-      <Filter>Source Files\glad</Filter>
+    <ClCompile Include="Model.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="loaders\IPL.cpp">
+      <Filter>Source Files\loaders</Filter>
+    </ClCompile>
+    <ClCompile Include="loaders\IDE.cpp">
+      <Filter>Source Files\loaders</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -110,7 +113,7 @@
     <ClInclude Include="loaders\Clump.h">
       <Filter>Header Files\loaders</Filter>
     </ClInclude>
-    <ClInclude Include="loaders\ImgLoader.hpp">
+    <ClInclude Include="loaders\IMG.hpp">
       <Filter>Header Files\loaders</Filter>
     </ClInclude>
     <ClInclude Include="loaders\FrameList.h">
@@ -130,6 +133,15 @@
     </ClInclude>
     <ClInclude Include="Frustum.h">
       <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Model.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="loaders\IPL.hpp">
+      <Filter>Header Files\loaders</Filter>
+    </ClInclude>
+    <ClInclude Include="loaders\IDE.hpp">
+      <Filter>Header Files\loaders</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

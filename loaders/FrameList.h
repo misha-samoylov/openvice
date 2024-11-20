@@ -36,7 +36,7 @@ public:
 	void Read(char* bytes, size_t* offset);
 	void Cleanup();
 	int GetNumFrames();
-	Frame* GetFrame(int id);
+	Frame* GetFrame(int modelId);
 
 private:
 	int m_numFrames;

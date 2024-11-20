@@ -11,7 +11,7 @@
 class DXRender
 {
 public:
-	HRESULT Init(HWND hWnd);
+	HRESULT Init(HWND hWnd, bool vsync);
 	void Cleanup();
 
 	void RenderStart();
@@ -27,7 +27,7 @@ private:
 	void InitViewport(HWND hWnd);
 	HRESULT CreateBackBuffer();
 	
-	HRESULT CreateDepthStencil();
+	HRESULT CreateDepthStencil(HWND hWnd);
 	HRESULT CreateBlendState();
 
 	ID3D11Device *m_pDevice;
@@ -43,5 +43,5 @@ private:
 
 	ID3D11BlendState* m_pBlendStateTransparency;
 
-	HWND m_hWnd;
+	bool m_vsync;
 };

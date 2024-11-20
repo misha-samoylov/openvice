@@ -172,6 +172,7 @@ struct Geometry {
 	Geometry(const Geometry& orig);
 	Geometry& operator= (const Geometry& other);
 	~Geometry(void);
+
 private:
 	void readNativeSkinMatrices(char* bytes, size_t* offset);
 	bool isDegenerateFace(uint32_t i, uint32_t j, uint32_t k);

@@ -16,18 +16,18 @@ struct DirEntry {
 	char name[MAX_LENGTH_FILENAME];
 };
 
-class ImgLoader
+class IMG
 {
 public:
 	int Open(TCHAR* filepath, TCHAR* filepathDir);
 	void Cleanup();
 
-	char* GetFilenameById(uint32_t id);
-	char *GetFileById(uint32_t id);
+	char* GetFilenameById(uint32_t modelId);
+	char *GetFileById(uint32_t modelId);
 	int GetFileIndexByName(const char *name);
-	int SaveFileById(uint32_t id);
+	int SaveFileById(uint32_t modelId);
 	int SaveFile(int32_t offset, int32_t size, const char *name);
-	int32_t GetFileSize(uint32_t id);
+	int32_t GetFileSize(uint32_t modelId);
 
 private:
 	int OpenFileDir(TCHAR* filepath);

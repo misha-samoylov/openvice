@@ -105,7 +105,7 @@ void NativeTexture::readD3d(char *bytes, size_t *offset)
 	rasterFormat = readUInt32(bytes, offset);
 //cout << hex << rasterFormat << " ";
 
-	hasAlpha = false;
+	IsAlpha = false;
 	char fourcc[5];
 	fourcc[4] = 0;
 	if (platform == PLATFORM_D3D9) {
@@ -113,7 +113,7 @@ void NativeTexture::readD3d(char *bytes, size_t *offset)
 		memcpy(fourcc, &bytes[*offset], 4 * sizeof(char));
 		*offset += 4 * sizeof(char);
 	} else {
-		hasAlpha = readUInt32(bytes, offset);
+		IsAlpha = readUInt32(bytes, offset);
 //cout << hasAlpha << " ";
 	}
 
@@ -130,7 +130,7 @@ void NativeTexture::readD3d(char *bytes, size_t *offset)
 //cout << dxtCompression << " ";
 
 	if (platform == PLATFORM_D3D9) {
-		hasAlpha = dxtCompression & 0x1;
+		IsAlpha = dxtCompression & 0x1;
 		if (dxtCompression & 0x8)
 			dxtCompression = fourcc[3] - '0';
 		else
@@ -514,7 +514,7 @@ void NativeTexture::decompressDxt()
 
 NativeTexture::NativeTexture()
 : platform(0), name(""), maskName(""), filterFlags(0), rasterFormat(0),
-  depth(0), palette(0), paletteSize(0), hasAlpha(false), mipmapCount(0),
+  depth(0), palette(0), paletteSize(0), IsAlpha(false), mipmapCount(0),
   alphaDistribution(0), dxtCompression(0)
 {
 }
@@ -530,7 +530,7 @@ NativeTexture::NativeTexture(const NativeTexture &orig)
   depth(orig.depth),
   dataSizes(orig.dataSizes),
   paletteSize(orig.paletteSize),
-  hasAlpha(orig.hasAlpha),
+  IsAlpha(orig.IsAlpha),
   mipmapCount(orig.mipmapCount),
   swizzleWidth(orig.swizzleWidth),
   swizzleHeight(orig.swizzleHeight),
@@ -566,7 +566,7 @@ NativeTexture &NativeTexture::operator=(const NativeTexture &that)
 		dataSizes = that.dataSizes;
 
 		paletteSize = that.paletteSize;
-		hasAlpha = that.hasAlpha;
+		IsAlpha = that.IsAlpha;
 		mipmapCount = that.mipmapCount;
 		swizzleWidth = that.swizzleWidth;
 		swizzleHeight = that.swizzleHeight;

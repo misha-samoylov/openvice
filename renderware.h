@@ -3,10 +3,6 @@
 #include <stdint.h>
 #include <iostream>
 #include <vector>
-#include <string>
-#include <cstring>
-#include <cmath>
-#include <cstdlib>
 
 #include <windows.h>
 
@@ -161,7 +157,7 @@ struct HeaderInfo {
 	bool findChunk(char *bytes, size_t *offset, uint32_t type);
 };
 
-void ChunkNotFound(CHUNK_TYPE chunk, uint32_t address);
+// void ChunkNotFound(CHUNK_TYPE chunk, uint32_t address);
 int8_t readInt8(char *bytes, size_t *offset);
 uint8_t readUInt8(char *bytes, size_t *offset);
 int16_t readInt16(char *bytes, size_t *offset);
@@ -169,8 +165,6 @@ uint16_t readUInt16(char *bytes, size_t *offset);
 int32_t readInt32(char *bytes, size_t *offset);
 uint32_t readUInt32(char *bytes, size_t *offset);
 float readFloat32(char *bytes, size_t *offset);
-
-
 
 
 /*
@@ -192,7 +186,7 @@ struct NativeTexture {
 	uint8_t *palette;
 	uint32_t paletteSize;
 
-	bool hasAlpha;
+	bool IsAlpha;
 	uint32_t mipmapCount;
 
 	// PS2

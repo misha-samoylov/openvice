@@ -95,12 +95,12 @@
       <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;_XM_SSE_INTRINSICS_;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <LanguageStandard>stdcpp14</LanguageStandard>
       <CompileAs>CompileAsCpp</CompileAs>
-      <AdditionalIncludeDirectories>C:\Users\misha\Documents\GitHub\DirectXTex\DirectXTex;C:\Users\misha\Downloads\glfw-3.4.bin.WIN64\include;C:\Users\misha\Downloads\glad\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Users\misha\Documents\GitHub\DirectXTex\DirectXTex;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
-      <AdditionalDependencies>DirectXTex.lib;glfw3.lib;opengl32.lib;d3d11.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>C:\Users\misha\Documents\GitHub\DirectXTex\DirectXTex\Bin\Desktop_2019\x64\Debug;C:\Users\misha\Downloads\glfw-3.4.bin.WIN64\lib-vc2019;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>DirectXTex.lib;d3d11.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>C:\Users\misha\Documents\GitHub\DirectXTex\DirectXTex\Bin\Desktop_2019\x64\Debug;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -126,32 +126,34 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>C:\Users\master\Documents\GitHub\DirectXTex\DirectXTex;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Users\misha\Documents\GitHub\DirectXTex\DirectXTex;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalLibraryDirectories>C:\Users\master\Documents\GitHub\DirectXTex\DirectXTex\Bin\Desktop_2019_Win10\x64\Release;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>C:\Users\misha\Documents\GitHub\DirectXTex\DirectXTex\Bin\Desktop_2019\x64\Release;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>DirectXTex.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\..\Downloads\glad\src\glad.c" />
     <ClCompile Include="Camera.cpp" />
     <ClCompile Include="Frustum.cpp" />
     <ClCompile Include="Input.cpp" />
     <ClCompile Include="loaders\AtomicList.cpp" />
     <ClCompile Include="loaders\FrameList.cpp" />
     <ClCompile Include="loaders\Geometry.cpp" />
+    <ClCompile Include="loaders\IDE.cpp" />
+    <ClCompile Include="loaders\IPL.cpp" />
     <ClCompile Include="loaders\LightList.cpp" />
     <ClCompile Include="Mesh.cpp" />
     <ClCompile Include="DXRender.cpp" />
+    <ClCompile Include="Model.cpp" />
     <ClCompile Include="Utils.cpp" />
     <ClCompile Include="Window.cpp" />
     <ClCompile Include="loaders\Clump.cpp" />
-    <ClCompile Include="loaders\ImgLoader.cpp" />
+    <ClCompile Include="loaders\IMG.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="renderware.cpp" />
     <ClCompile Include="txdread.cpp" />
@@ -164,13 +166,16 @@
     <ClInclude Include="loaders\AtomicList.h" />
     <ClInclude Include="loaders\FrameList.h" />
     <ClInclude Include="loaders\Geometry.h" />
+    <ClInclude Include="loaders\IDE.hpp" />
+    <ClInclude Include="loaders\IPL.hpp" />
     <ClInclude Include="loaders\LightList.h" />
     <ClInclude Include="Mesh.hpp" />
     <ClInclude Include="DXRender.hpp" />
+    <ClInclude Include="Model.h" />
     <ClInclude Include="Utils.hpp" />
     <ClInclude Include="Window.hpp" />
     <ClInclude Include="loaders\Clump.h" />
-    <ClInclude Include="loaders\ImgLoader.hpp" />
+    <ClInclude Include="loaders\IMG.hpp" />
     <ClInclude Include="renderware.h" />
   </ItemGroup>
   <ItemGroup>
