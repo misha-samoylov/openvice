@@ -19,8 +19,8 @@
 #include "Model.h"
 
 #define PROJECT_NAME "openvice"
-#define WINDOW_WIDTH 1024
-#define WINDOW_HEIGHT 768
+#define WINDOW_WIDTH 1920
+#define WINDOW_HEIGHT 1080
 #define WINDOW_TITLE L"openvice"
 
 int frameCount = 0;
@@ -240,7 +240,7 @@ int LoadFileDFFWithName(IMG* pImgLoader, DXRender* render, char *name, int model
 			if (matIndex != -1) {
 				mesh->SetAlpha(g_Textures[matIndex].IsAlpha);
 				
-				if (g_Textures[matIndex].IsAlpha) {
+				if (model->IsAlpha() == false && g_Textures[matIndex].IsAlpha) {
 					model->SetAlpha(true);
 				}
 
@@ -278,7 +278,7 @@ void RenderScene(DXRender *render, Camera *camera)
 	for (int i = 0; i < g_ipl.size(); i++) {
 		int count = g_ipl[i]->GetCountObjects();
 
-		// Render not transparent objects
+		// Render NOT transparent objects
 		for (int j = 0; j < count; j++) {
 			struct mapItem objectInfo = g_ipl[i]->GetItem(j);
 
