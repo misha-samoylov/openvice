@@ -677,7 +677,7 @@ void Player::Update(float dt, float moveX, float moveZ, bool moving, bool runnin
 			moveX /= len;
 			moveZ /= len;
 			m_heading = atan2f(-moveX, moveZ);
-			float speed = running ? (m_moveSpeed * 2.2f) : m_moveSpeed;
+			float speed = running ? (m_moveSpeed * 2.2f) : (m_moveSpeed * 0.3f);
 			desiredVX = moveX * speed;
 			desiredVZ = moveZ * speed;
 		}
