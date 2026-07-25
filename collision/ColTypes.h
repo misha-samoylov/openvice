@@ -119,3 +119,5 @@ static const float PED_SPHERE_RADIUS = 0.35f;
 static const float PED_GRAVITY = 20.0f;
 /* re3 ApplyMoveForce(0,0,8.5) / mass(70) * 50 → units/s. */
 static const float PED_JUMP_SPEED = (8.5f / 70.0f) * 50.0f;
+/* Below this engine Y, entity is considered fallen through the map. */
+static const float FALL_THROUGH_Y = -50.0f;

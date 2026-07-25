@@ -793,6 +793,16 @@ void Player::Update(float dt, float moveX, float moveZ, bool moving, bool runnin
 		SampleAnim(m_currentAnim, m_animTime);
 		UpdateBoneMatrices();
 	}
+
+	/* Respawn if fallen deep under the map. */
+	if (m_posY < FALL_THROUGH_Y) {
+		m_posY = 1000.0f;
+		m_velY = 0.0f;
+		if (!PlaceOnGround()) {
+			m_posY = 5.0f;
+			m_isStanding = false;
+		}
+	}
 }
 
 bool Player::PlaceOnGround()

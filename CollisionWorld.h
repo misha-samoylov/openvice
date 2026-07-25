@@ -30,11 +30,20 @@ public:
 	 */
 	bool ProbeFeet(float x, float y, float z, bool wasStanding, float* outPedY) const;
 
+	/* Vertical cast for suspension / ground (engine Y-up). */
+	bool CastDownLine(float x, float z, float startY, float endY, float* hitY, ColVec3* hitNormal = nullptr) const;
+
 	/*
 	 * Sphere vs world like CCollision::ProcessColModels for ped spheres.
 	 * Resolves penetration by pushing position along contact normals (horizontal bias).
 	 */
 	void ResolvePedSpheres(float* x, float* y, float* z) const;
+
+	/* General sphere resolve for vehicles (uses provided spheres in world space). */
+	void ResolveSpheres(
+		const ColSphere* spheres, int count,
+		float* x, float* y, float* z,
+		float* vx = nullptr, float* vy = nullptr, float* vz = nullptr) const;
 
 	size_t GetInstanceCount() const { return m_instances.size(); }
 

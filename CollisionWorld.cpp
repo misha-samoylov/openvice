@@ -440,6 +440,36 @@ bool CollisionWorld::ProcessVerticalLineInstance(
 	return true;
 }
 
+bool CollisionWorld::CastDownLine(float x, float z, float startY, float endY, float* hitY, ColVec3* hitNormal) const
+{
+	ColVec3 p0(x, startY, z);
+	ColVec3 p1(x, endY, z);
+	float mindist = 1.0f;
+	ColPoint best;
+	bool found = false;
+
+	float radius = fabsf(startY - endY) + 2.0f;
+	std::vector<int> candidates;
+	QueryCells(x, z, radius, candidates);
+
+	for (size_t i = 0; i < candidates.size(); i++) {
+		const Instance& inst = m_instances[(size_t)candidates[i]];
+		float dx = x - inst.worldCenter.x;
+		float dz = z - inst.worldCenter.z;
+		float r = inst.worldRadius + 4.0f;
+		if (dx * dx + dz * dz > r * r)
+			continue;
+		if (ProcessVerticalLineInstance(inst, p0, p1, best, mindist))
+			found = true;
+	}
+
+	if (found) {
+		if (hitY) *hitY = best.point.y;
+		if (hitNormal) *hitNormal = best.normal;
+	}
+	return found;
+}
+
 bool CollisionWorld::FindGroundY(float x, float y, float z, float* outY) const
 {
 	ColVec3 p0(x, y, z);
@@ -722,23 +752,55 @@ void CollisionWorld::ResolvePedSpheres(float* x, float* y, float* z) const
 {
 	/* re3 TempColModels ped spheres (engine Y-up). */
 	static const float offsets[3] = { -0.25f, 0.15f, 0.55f };
+	ColSphere spheres[3];
+	for (int s = 0; s < 3; s++) {
+		spheres[s].center = ColVec3(*x, *y + offsets[s], *z);
+		spheres[s].radius = PED_SPHERE_RADIUS;
+		spheres[s].surface = 0;
+		spheres[s].piece = 0;
+	}
+	ResolveSpheres(spheres, 3, x, y, z, nullptr, nullptr, nullptr);
+}
+
+void CollisionWorld::ResolveSpheres(
+	const ColSphere* spheres, int count,
+	float* x, float* y, float* z,
+	float* vx, float* vy, float* vz) const
+{
+	if (!spheres || count <= 0)
+		return;
+
+	/* Capture offsets from the caller's origin so multi-pass stays consistent. */
+	std::vector<ColVec3> local(count);
+	std::vector<float> radii(count);
+	float queryR = 0.0f;
+	for (int s = 0; s < count; s++) {
+		local[s] = ColVec3(
+			spheres[s].center.x - *x,
+			spheres[s].center.y - *y,
+			spheres[s].center.z - *z);
+		radii[s] = spheres[s].radius;
+		if (radii[s] > queryR)
+			queryR = radii[s];
+	}
+	queryR += 4.0f;
 
 	std::vector<int> candidates;
-	QueryCells(*x, *z, 4.0f, candidates);
+	QueryCells(*x, *z, queryR, candidates);
 	if (candidates.empty())
 		return;
 
 	for (int pass = 0; pass < 3; pass++) {
-		for (int s = 0; s < 3; s++) {
+		for (int s = 0; s < count; s++) {
 			ColSphere sph;
-			sph.center = ColVec3(*x, *y + offsets[s], *z);
-			sph.radius = PED_SPHERE_RADIUS;
+			sph.center = ColVec3(*x + local[s].x, *y + local[s].y, *z + local[s].z);
+			sph.radius = radii[s];
 			sph.surface = 0;
 			sph.piece = 0;
 
 			ColPoint best;
 			best.depth = 0.0f;
-			float mindistsq = (sph.radius + 5.0f) * (sph.radius + 5.0f);
+			float mindistsq = (sph.radius + 8.0f) * (sph.radius + 8.0f);
 			bool any = false;
 
 			for (size_t i = 0; i < candidates.size(); i++) {
@@ -763,8 +825,6 @@ void CollisionWorld::ResolvePedSpheres(float* x, float* y, float* z) const
 			if (!any || best.depth <= 0.0f)
 				continue;
 
-			/* Ped physics: cancel into-normal penetration (re3 bPedPhysics).
-			 * Flatten near-vertical walls to horizontal push. */
 			ColVec3 n = best.normal;
 			if (fabsf(n.y) < 0.7f) {
 				n.y = 0.0f;
@@ -773,6 +833,15 @@ void CollisionWorld::ResolvePedSpheres(float* x, float* y, float* z) const
 			*x += n.x * best.depth;
 			*y += n.y * best.depth;
 			*z += n.z * best.depth;
+
+			if (vx && vy && vz) {
+				float vn = (*vx) * n.x + (*vy) * n.y + (*vz) * n.z;
+				if (vn < 0.0f) {
+					*vx -= n.x * vn;
+					*vy -= n.y * vn;
+					*vz -= n.z * vn;
+				}
+			}
 		}
 	}
 }

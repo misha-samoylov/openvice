@@ -22,6 +22,7 @@
 #include "Model.h"
 #include "Water.h"
 #include "Player.h"
+#include "Vehicle.h"
 #include "loaders/IFP.h"
 #include "loaders/COL.hpp"
 #include "CollisionWorld.h"
@@ -68,8 +69,10 @@ std::vector<SceneInstance> g_opaqueInstances;
 std::vector<SceneInstance> g_alphaInstances;
 Water* g_water = nullptr;
 Player* g_player = nullptr;
+Vehicle* g_vehicle = nullptr;
 COL* g_col = nullptr;
 CollisionWorld* g_collisionWorld = nullptr;
+bool g_controllingVehicle = false;
 
 template <typename T>
 void remove_duplicates(std::vector<T>& vec)
@@ -450,8 +453,12 @@ void RenderScene(DXRender *render, Camera *camera)
 
 	DrawInstances(render, ctx, g_opaqueInstances);
 
-	if (g_player)
+	if (g_controllingVehicle) {
+		if (g_vehicle)
+			g_vehicle->Render(render, ctx);
+	} else if (g_player) {
 		g_player->Render(render, ctx);
+	}
 
 	if (g_water)
 		g_water->Render(render, camera, g_frustum, CAMERA_FAR_PLANE);
@@ -598,6 +605,32 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 	}
 	BuildCollisionWorld();
 
+	/* Cheetah = VC model 145 (user's "429" is SA Banshee / VC lamppost). */
+	{
+		LoadAllTexturesFromTXDFile(imgLoader, "cheetah");
+		char cheetahName[] = "cheetah";
+		if (LoadFileDFFWithName(imgLoader, render, cheetahName, MI_CHEETAH) == 0) {
+			Model* cheetahModel = nullptr;
+			for (size_t i = 0; i < g_models.size(); i++) {
+				if (g_models[i]->GetId() == MI_CHEETAH) {
+					cheetahModel = g_models[i];
+					break;
+				}
+			}
+			g_modelsById[MI_CHEETAH] = cheetahModel;
+			ColModel* cheetahCol = g_col ? g_col->FindByName("cheetah") : nullptr;
+			g_vehicle = new Vehicle();
+			if (!g_vehicle->Init(cheetahModel, cheetahCol, g_collisionWorld, imgLoader, render)) {
+				printf("[Error] Cheetah vehicle init failed\n");
+				g_vehicle->Cleanup();
+				delete g_vehicle;
+				g_vehicle = nullptr;
+			}
+		} else {
+			printf("[Warn] cheetah.dff not found in IMG\n");
+		}
+	}
+
 	g_water = new Water();
 	if (!g_water->Init(
 		render,
@@ -632,6 +665,13 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 				printf("[Info] Player placed on ground at %.2f %.2f %.2f\n",
 					XMVectorGetX(p), XMVectorGetY(p), XMVectorGetZ(p));
 			}
+			if (g_vehicle) {
+				XMVECTOR p = g_player->GetPosition();
+				g_vehicle->SetPosition(XMVectorGetX(p) + 4.0f, XMVectorGetY(p) + 2.0f, XMVectorGetZ(p));
+				g_vehicle->SetHeading(g_player->GetHeading());
+				if (!g_vehicle->PlaceOnGround())
+					printf("[Warn] Cheetah PlaceOnGround failed\n");
+			}
 		}
 	}
 
@@ -648,6 +688,7 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 	bool freeCamera = false;
 	bool numpad1WasDown = false;
 	bool numpad0WasDown = false;
+	bool numpad2WasDown = false;
 
 	DIMOUSESTATE mouseLastState;
 	DIMOUSESTATE mouseCurrState;
@@ -706,18 +747,52 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 			{
 				bool np1 = input->IsKey(DIK_NUMPAD1);
 				bool np0 = input->IsKey(DIK_NUMPAD0);
+				bool np2 = input->IsKey(DIK_NUMPAD2);
 				if (np1 && !numpad1WasDown && !freeCamera) {
 					freeCamera = true;
 					XMVECTOR cp = camera->GetPosition();
 					camera->SetPosition(XMVectorGetX(cp), XMVectorGetY(cp), XMVectorGetZ(cp));
-					printf("[Info] Free camera (NUMPAD1)  WASD fly, Shift boost\n");
+					printf("[Info] Free camera (NUMPAD1)\n");
 				}
 				if (np0 && !numpad0WasDown && freeCamera) {
 					freeCamera = false;
-					printf("[Info] Follow camera (NUMPAD0)  locked to Tommy\n");
+					XMVECTOR cp = camera->GetPosition();
+					float cx = XMVectorGetX(cp);
+					float cy = XMVectorGetY(cp);
+					float cz = XMVectorGetZ(cp);
+					if (g_controllingVehicle && g_vehicle) {
+						g_vehicle->SetPosition(cx, cy + 2.5f, cz);
+						g_vehicle->PlaceOnGround();
+					} else if (g_player) {
+						g_player->SetPosition(cx, cy + 1.0f, cz);
+						g_player->PlaceOnGround();
+					}
+					printf("[Info] Follow camera (NUMPAD0) - spawned at free-cam position\n");
+				}
+				if (np2 && !numpad2WasDown && g_vehicle) {
+					g_controllingVehicle = !g_controllingVehicle;
+					if (g_controllingVehicle) {
+						if (g_player) {
+							XMVECTOR p = g_player->GetPosition();
+							g_vehicle->SetPosition(
+								XMVectorGetX(p), XMVectorGetY(p) + 2.5f, XMVectorGetZ(p));
+							g_vehicle->SetHeading(g_player->GetHeading());
+							g_vehicle->PlaceOnGround();
+						}
+						printf("[Info] Driving Cheetah (NUMPAD2) - WASD drive, Space handbrake\n");
+					} else {
+						if (g_player && g_vehicle) {
+							XMVECTOR p = g_vehicle->GetPosition();
+							g_player->SetPosition(
+								XMVectorGetX(p) + 2.0f, XMVectorGetY(p) + 1.0f, XMVectorGetZ(p));
+							g_player->PlaceOnGround();
+						}
+						printf("[Info] Controlling Tommy (NUMPAD2)\n");
+					}
 				}
 				numpad1WasDown = np1;
 				numpad0WasDown = np0;
+				numpad2WasDown = np2;
 			}
 
 			moveLeftRight = 0.0f;
@@ -772,20 +847,24 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 				}
 			}
 
-			if (g_player && !freeCamera) {
-				/*
-				 * Camera::Follow places the camera at
-				 *   (sy*cp, -sp, -cy*cp) * distance from the player.
-				 * Horizontal look / walk direction is therefore (-sy, cy) on XZ,
-				 * and camera right is (cy, sy)  same as GTA VC 3rd-person.
-				 */
+			if (!freeCamera && g_controllingVehicle && g_vehicle) {
+				float throttle = moveBackForward;
+				float steer = -moveLeftRight;
+				bool handbrake = input->IsKey(DIK_SPACE);
+				g_vehicle->Update((float)frameTime, throttle, steer, handbrake);
+
+				XMVECTOR p = g_vehicle->GetPosition();
+				camera->Follow(
+					XMVectorGetX(p), XMVectorGetY(p), XMVectorGetZ(p),
+					camYaw, camPitch, camDistance, 0.9f
+				);
+			} else if (g_player && !freeCamera) {
 				float s = sinf(camYaw);
 				float c = cosf(camYaw);
 				float mx = -moveBackForward * s + moveLeftRight * c;
 				float mz =  moveBackForward * c + moveLeftRight * s;
 				bool moving = (moveLeftRight != 0.0f || moveBackForward != 0.0f);
 				bool running = moving && input->IsKey(DIK_LSHIFT);
-				/* Edge-trigger Space like re3 JumpJustDown. */
 				static bool spaceWasDown = false;
 				bool spaceDown = input->IsKey(DIK_SPACE);
 				bool jump = spaceDown && !spaceWasDown;
@@ -799,8 +878,9 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 					camYaw, camPitch, camDistance, 1.4f
 				);
 			} else {
-				/* Free camera: WASD flies; Tommy stays put (idle). */
-				if (g_player)
+				if (g_controllingVehicle && g_vehicle)
+					g_vehicle->Update((float)frameTime, 0.0f, 0.0f, false);
+				else if (g_player)
 					g_player->Update((float)frameTime, 0.0f, 0.0f, false, false, false);
 				camera->Update(camPitch, camYaw, moveLeftRight * speed, moveBackForward * speed);
 			}
@@ -816,6 +896,11 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 		g_player->Cleanup();
 		delete g_player;
 		g_player = nullptr;
+	}
+	if (g_vehicle) {
+		g_vehicle->Cleanup();
+		delete g_vehicle;
+		g_vehicle = nullptr;
 	}
 	if (ifp) {
 		ifp->Cleanup();

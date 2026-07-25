@@ -154,6 +154,7 @@
     <ClCompile Include="DXRender.cpp" />
     <ClCompile Include="Model.cpp" />
     <ClCompile Include="Player.cpp" />
+    <ClCompile Include="Vehicle.cpp" />
     <ClCompile Include="Utils.cpp" />
     <ClCompile Include="Water.cpp" />
     <ClCompile Include="Window.cpp" />
@@ -182,6 +183,7 @@
     <ClInclude Include="DXRender.hpp" />
     <ClInclude Include="Model.h" />
     <ClInclude Include="Player.h" />
+    <ClInclude Include="Vehicle.h" />
     <ClInclude Include="Utils.hpp" />
     <ClInclude Include="Water.h" />
     <ClInclude Include="Window.hpp" />
