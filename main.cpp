@@ -1,6 +1,9 @@
 #include <string.h>
 #include <stdio.h>
 #include <algorithm>
+#include <float.h>
+#include <cmath>
+#include <unordered_map>
 
 #include <windows.h>
 
@@ -22,6 +25,7 @@
 #define WINDOW_WIDTH 1920
 #define WINDOW_HEIGHT 1080
 #define WINDOW_TITLE L"openvice"
+#define CAMERA_FAR_PLANE 800.0f
 
 int frameCount = 0;
 Frustum g_frustum;
@@ -46,6 +50,17 @@ std::vector<Model*> g_models;
 std::vector<IDE*> g_ideFile;
 std::vector<GameMaterial> g_Textures;
 std::vector<IPL*> g_ipl;
+std::unordered_map<int, Model*> g_modelsById;
+
+struct SceneInstance {
+	Model* model;
+	float x, y, z;
+	float scale[3];
+	float rotation[4];
+};
+
+std::vector<SceneInstance> g_opaqueInstances;
+std::vector<SceneInstance> g_alphaInstances;
 
 template <typename T>
 void remove_duplicates(std::vector<T>& vec)
@@ -129,15 +144,17 @@ int LoadFileDFFWithName(IMG* pImgLoader, DXRender* render, char *name, int model
 	Model* model = new Model();
 	model->SetId(modelId);
 	model->SetName(name);
+	model->SetAlpha(false);
 
 	for (uint32_t index = 0; index < clump->m_numGeometries; index++) {
 
+		Geometry* geometry = clump->GetGeometryList()[index];
 		std::vector<ModelMaterial> materIndex;
 
 		/* Load all materials */
-		uint32_t materials = clump->GetGeometryList()[index]->m_numMaterials;
+		uint32_t materials = geometry->m_numMaterials;
 		for (uint32_t i = 0; i < materials; i++) {
-			Material *material = clump->GetGeometryList()[index]->materialList[i];
+			Material *material = geometry->materialList[i];
 
 			struct ModelMaterial matInd;
 			std::string b = material->texture.name;
@@ -148,50 +165,70 @@ int LoadFileDFFWithName(IMG* pImgLoader, DXRender* render, char *name, int model
 			materIndex.push_back(matInd);
 		}
 
-		/*for (uint32_t i = 0; i < clump->GetGeometryList()[index].vertexCount; i++) {
+		/*
+		 * Local cull sphere in engine coords (same Y/Z remap as vertices).
+		 * Prefer the DFF morph-target sphere, then expand from vertex AABB
+		 * so large/offset geometry is never under-bounded.
+		 */
+		{
+			float* bs = geometry->boundingSphere;
+			model->IncludeBoundingSphere(bs[0], bs[2], bs[1], bs[3]);
 
-			// Load texture coordinates model
-			if (clump->GetGeometryList()[index].flags & FLAGS_TEXTURED
-				// || clump->GetGeometryList()[index].flags & FLAGS_TEXTURED2
-				) {
-				for (uint32_t j = 0; j < 1 / clump->GetGeometryList()[index].numUVs /; j++) { / insert now FLAGS_TEXTURED /
+			if (geometry->vertices != NULL && geometry->vertexCount > 0) {
+				float minX = FLT_MAX, minY = FLT_MAX, minZ = FLT_MAX;
+				float maxX = -FLT_MAX, maxY = -FLT_MAX, maxZ = -FLT_MAX;
 
-					float tx = clump->GetGeometryList()[index].texCoords[j][i * 2 + 0];
-					float ty = clump->GetGeometryList()[index].texCoords[j][i * 2 + 1];
+				for (uint32_t v = 0; v < geometry->vertexCount; v++) {
+					float vx = geometry->vertices[v * 3 + 0];
+					float vy = geometry->vertices[v * 3 + 2];
+					float vz = geometry->vertices[v * 3 + 1];
 
-					modelTextureCoord.push_back(tx);
-					modelTextureCoord.push_back(ty);
+					if (vx < minX) minX = vx;
+					if (vy < minY) minY = vy;
+					if (vz < minZ) minZ = vz;
+					if (vx > maxX) maxX = vx;
+					if (vy > maxY) maxY = vy;
+					if (vz > maxZ) maxZ = vz;
 				}
+
+				float cx = (minX + maxX) * 0.5f;
+				float cy = (minY + maxY) * 0.5f;
+				float cz = (minZ + maxZ) * 0.5f;
+				float hx = (maxX - minX) * 0.5f;
+				float hy = (maxY - minY) * 0.5f;
+				float hz = (maxZ - minZ) * 0.5f;
+				float radius = sqrtf(hx * hx + hy * hy + hz * hz);
+				model->IncludeBoundingSphere(cx, cy, cz, radius);
 			}
-		}*/
+		}
 
 		/* Loop for every mesh */
-		for (uint32_t i = 0; i < clump->GetGeometryList()[index]->splits.size(); i++) {
+		for (uint32_t i = 0; i < geometry->splits.size(); i++) {
 
-			int v_count = clump->GetGeometryList()[index]->vertexCount;
+			int v_count = geometry->vertexCount;
 
 			/* Save to data for create vertex buffer (x,y,z tx,ty) */
 			// TODO: Free memory
 			float *meshVertexData = (float*)malloc(sizeof(float) * v_count * 5);
 
 			for (int v = 0; v < v_count; v++) {
-				float x = clump->GetGeometryList()[index]->vertices[v * 3 + 0];
-				float y = clump->GetGeometryList()[index]->vertices[v * 3 + 1];
-				float z = clump->GetGeometryList()[index]->vertices[v * 3 + 2];
+				float x = geometry->vertices[v * 3 + 0];
+				float y = geometry->vertices[v * 3 + 1];
+				float z = geometry->vertices[v * 3 + 2];
 
 				float tx = 0.0f;
 				float ty = 0.0f;
-				if (clump->GetGeometryList()[index]->flags & FLAGS_TEXTURED) {
-					tx = clump->GetGeometryList()[index]->texCoords[0][v * 2 + 0];
-					ty = clump->GetGeometryList()[index]->texCoords[0][v * 2 + 1];
+				if (geometry->flags & FLAGS_TEXTURED) {
+					tx = geometry->texCoords[0][v * 2 + 0];
+					ty = geometry->texCoords[0][v * 2 + 1];
 				}
 
 				/*
 				 * Flip coordinates. We use Left Handed Coordinates,
 				 * but GTA engine use own coordinate system:
-				 * X – east/west direction
-				 * Y – north/south direction
-				 * Z – up/down direction
+				 * X  east/west direction
+				 * Y  north/south direction
+				 * Z  up/down direction
 				 * @see https://gtamods.com/wiki/Map_system
 				*/
 				meshVertexData[v * 5 + 0] = x;
@@ -203,7 +240,7 @@ int LoadFileDFFWithName(IMG* pImgLoader, DXRender* render, char *name, int model
 			}
 
 			D3D_PRIMITIVE_TOPOLOGY topology =
-				clump->GetGeometryList()[index]->faceType == FACETYPE_STRIP
+				geometry->faceType == FACETYPE_STRIP
 				? D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP
 				: D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 
@@ -213,12 +250,12 @@ int LoadFileDFFWithName(IMG* pImgLoader, DXRender* render, char *name, int model
 				render, 
 				meshVertexData,
 				v_count * 5,
-				(unsigned int*)clump->GetGeometryList()[index]->splits[i].indices,
-				clump->GetGeometryList()[index]->splits[i].m_numIndices,
+				(unsigned int*)geometry->splits[i].indices,
+				geometry->splits[i].m_numIndices,
 				topology
 			);
 
-			uint32_t materialIndex = clump->GetGeometryList()[index]->splits[i].matIndex;
+			uint32_t materialIndex = geometry->splits[i].matIndex;
 
 			int matIndex = -1;
 
@@ -267,85 +304,98 @@ int LoadFileDFFWithName(IMG* pImgLoader, DXRender* render, char *name, int model
 	return 0;
 }
 
-void RenderScene(DXRender *render, Camera *camera)
+static bool IsInstanceVisible(Model* model, const SceneInstance& inst)
 {
-	g_frustum.ConstructFrustum(400.0f, camera->GetProjection(), camera->GetView());
+	float cx, cy, cz, radius;
+	model->GetWorldCullSphere(
+		inst.x, inst.y, inst.z,
+		inst.scale[0], inst.scale[1], inst.scale[2],
+		&cx, &cy, &cz, &radius
+	);
 
-	render->RenderStart();
+	return g_frustum.CheckSphere(cx, cy, cz, radius);
+}
 
-	int renderCount = 0;
+static void DrawInstances(DXRender* render, MeshRenderContext& ctx, const std::vector<SceneInstance>& instances)
+{
+	for (size_t i = 0; i < instances.size(); i++) {
+		const SceneInstance& inst = instances[i];
+		Model* model = inst.model;
 
-	for (int i = 0; i < g_ipl.size(); i++) {
+		if (!IsInstanceVisible(model, inst))
+			continue;
+
+		model->SetPosition(
+			inst.x, inst.y, inst.z,
+			inst.scale[0], inst.scale[1], inst.scale[2],
+			inst.rotation[0], inst.rotation[1], inst.rotation[2], inst.rotation[3]
+		);
+		model->Render(render, ctx);
+	}
+}
+
+void BuildSceneInstances()
+{
+	g_modelsById.clear();
+	g_opaqueInstances.clear();
+	g_alphaInstances.clear();
+
+	for (size_t i = 0; i < g_models.size(); i++) {
+		g_modelsById[g_models[i]->GetId()] = g_models[i];
+	}
+
+	g_opaqueInstances.reserve(65536);
+	g_alphaInstances.reserve(8192);
+
+	for (size_t i = 0; i < g_ipl.size(); i++) {
 		int count = g_ipl[i]->GetCountObjects();
-
-		// Render NOT transparent objects
 		for (int j = 0; j < count; j++) {
-			struct mapItem objectInfo = g_ipl[i]->GetItem(j);
+			mapItem objectInfo = g_ipl[i]->GetItem(j);
 
-			float x = objectInfo.x;
-			float y = objectInfo.y;
-			float z = objectInfo.z;
+			std::unordered_map<int, Model*>::iterator it = g_modelsById.find(objectInfo.id);
+			if (it == g_modelsById.end())
+				continue;
 
-			bool renderModel = g_frustum.CheckSphere(x, y, z, 50.0f);
+			Model* model = it->second;
+			SceneInstance inst;
+			inst.model = model;
+			inst.x = objectInfo.x;
+			inst.y = objectInfo.y;
+			inst.z = objectInfo.z;
+			inst.scale[0] = objectInfo.scale[0];
+			inst.scale[1] = objectInfo.scale[1];
+			inst.scale[2] = objectInfo.scale[2];
+			inst.rotation[0] = objectInfo.rotation[0];
+			inst.rotation[1] = objectInfo.rotation[1];
+			inst.rotation[2] = objectInfo.rotation[2];
+			inst.rotation[3] = objectInfo.rotation[3];
 
-			if (renderModel) {
-			
-				for (int m = 0; m < g_models.size(); m++) {
-					Model* model = g_models[m];
-
-					if (model->IsAlpha() == true) {
-						continue;
-					}
-
-					if (objectInfo.id == model->GetId()) {
-						model->SetPosition(
-							objectInfo.x, objectInfo.y, objectInfo.z,
-							objectInfo.scale[0], objectInfo.scale[1], objectInfo.scale[2],
-							objectInfo.rotation[0], objectInfo.rotation[1], objectInfo.rotation[2], objectInfo.rotation[3]
-						);
-						model->Render(render, camera);
-
-						renderCount++;
-					}
-				}
-			}
-		}
-
-		// Render transparent objects
-		for (int j = 0; j < count; j++) {
-			struct mapItem objectInfo = g_ipl[i]->GetItem(j);
-
-			float x = objectInfo.x;
-			float y = objectInfo.y;
-			float z = objectInfo.z;
-
-			bool renderModel = g_frustum.CheckSphere(x, y, z, 50.0f);
-
-			if (renderModel) {
-
-				for (int m = 0; m < g_models.size(); m++) {
-					Model* model = g_models[m];
-
-					if (model->IsAlpha() == false) {
-						continue;
-					}
-
-					if (objectInfo.id == model->GetId()) {
-						model->SetPosition(
-							objectInfo.x, objectInfo.y, objectInfo.z,
-							objectInfo.scale[0], objectInfo.scale[1], objectInfo.scale[2],
-							objectInfo.rotation[0], objectInfo.rotation[1], objectInfo.rotation[2], objectInfo.rotation[3]
-						);
-						model->Render(render, camera);
-
-						renderCount++;
-					}
-				}
-			}
+			if (model->IsAlpha())
+				g_alphaInstances.push_back(inst);
+			else
+				g_opaqueInstances.push_back(inst);
 		}
 	}
 
-	printf("[Info] Rendered meshes: %d\n", renderCount);
+	printf("[Info] Scene instances: opaque=%u alpha=%u models=%u\n",
+		(unsigned)g_opaqueInstances.size(),
+		(unsigned)g_alphaInstances.size(),
+		(unsigned)g_models.size());
+}
+
+void RenderScene(DXRender *render, Camera *camera)
+{
+	XMMATRIX view = camera->GetView();
+	XMMATRIX proj = camera->GetProjection();
+	g_frustum.ConstructFrustum(CAMERA_FAR_PLANE, proj, view);
+
+	render->RenderStart();
+
+	MeshRenderContext ctx;
+	ctx.viewProj = XMMatrixMultiply(view, proj);
+
+	DrawInstances(render, ctx, g_opaqueInstances);
+	DrawInstances(render, ctx, g_alphaInstances);
 
 	render->RenderEnd();
 }
@@ -366,7 +416,7 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 	input->Init(hInstance, window->GetHandleWindow());
 
 	Camera* camera = new Camera();
-	camera->Init(WINDOW_WIDTH, WINDOW_HEIGHT);
+	camera->Init(WINDOW_WIDTH, WINDOW_HEIGHT, CAMERA_FAR_PLANE);
 
 	DXRender* render = new DXRender();
 	render->Init(window->GetHandleWindow(), vsync);
@@ -474,6 +524,8 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 		ipl->Load(path);
 		g_ipl.push_back(ipl);
 	}
+
+	BuildSceneInstances();
 
 	printf("[Info] %s loaded\n", PROJECT_NAME);
 

@@ -7,7 +7,7 @@ using namespace DirectX;
 class Camera
 {
 public:
-	void Init(float width, float height);
+	void Init(float width, float height, float farPlane = 800.0f);
 	void Cleanup();
 	void Update(float camPitch, float camYaw,
 		float moveLeftRight, float moveBackForward);

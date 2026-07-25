@@ -21,7 +21,6 @@ struct DDS_File {
 	struct DDS_HEADER header;
 };
 
-//#define DDSF_FOURCC 0x00000004l
 #define FOURCC_DXT1 (MAKEFOURCC('D','X','T','1'))
 #define FOURCC_DXT3 (MAKEFOURCC('D','X','T','3'))
 #define FOURCC_DXT4 (MAKEFOURCC('D','X','T','4'))
@@ -30,6 +29,32 @@ struct DDS_File {
 struct objectConstBuffer
 {
 	XMMATRIX WVP;
+};
+
+/* Cached D3D bindings for the current frame — skip redundant Set* calls. */
+struct MeshRenderContext
+{
+	XMMATRIX viewProj;
+	ID3D11InputLayout* layout;
+	ID3D11VertexShader* vs;
+	ID3D11PixelShader* ps;
+	ID3D11SamplerState* sampler;
+	ID3D11Buffer* vb;
+	ID3D11Buffer* ib;
+	ID3D11ShaderResourceView* srv;
+	D3D_PRIMITIVE_TOPOLOGY topology;
+
+	MeshRenderContext()
+		: layout(nullptr)
+		, vs(nullptr)
+		, ps(nullptr)
+		, sampler(nullptr)
+		, vb(nullptr)
+		, ib(nullptr)
+		, srv(nullptr)
+		, topology(D3D11_PRIMITIVE_TOPOLOGY_UNDEFINED)
+	{
+	}
 };
 
 class Mesh
@@ -44,7 +69,7 @@ public:
 		D3D_PRIMITIVE_TOPOLOGY topology
 	);
 	void Cleanup();
-	void Render(DXRender *pRender, Camera *pCamera);
+	void Render(DXRender *pRender, MeshRenderContext& ctx);
 	HRESULT SetDataDDS(
 		DXRender *pRender,
 		uint8_t *pDataSource,
@@ -54,6 +79,7 @@ public:
 		uint32_t dxtCompression, 
 		uint32_t depth
 	);
+	void SetWorld(CXMMATRIX world) { m_World = world; }
 	void SetPosition(
 		float x, float y, float z,
 		float scaleX, float scaleY, float scaleZ,
@@ -66,15 +92,11 @@ public:
 	void SetAlpha(bool a) { m_hasAlpha = a; }
 	bool GetAlpha() { return m_hasAlpha; }
 
-	void CheckOcclusionQueryResult(DXRender* pRender);
-
-	UINT64 m_pixelCount;
+	static void ReleaseSharedResources();
 
 private:
 	HRESULT CreateConstBuffer(DXRender *pRender);
-	HRESULT CreatePixelShader(DXRender *pRender);
-	HRESULT CreateVertexShader(DXRender *pRender);
-	HRESULT CreateInputLayout(DXRender *pRender);
+	static HRESULT EnsureSharedPipeline(DXRender *pRender);
 	HRESULT CreateDataBuffer(
 		DXRender *pRender,
 		float *pVerticesData,
@@ -83,33 +105,25 @@ private:
 		int indicesCount
 	);
 
-	ID3D11VertexShader *m_pVertexShader;
-	ID3D11PixelShader *m_pPixelShader;
-
-	ID3D11InputLayout *m_pVertexLayout;
-
 	ID3D11Buffer *m_pVertexBuffer;
 	ID3D11Buffer *m_pIndexBuffer;
 	ID3D11Buffer *m_pObjectBuffer;
 
-	ID3DBlob *m_pVSBlob;
 	struct objectConstBuffer m_objectConstBuffer;
 
-	XMMATRIX m_WVP;
 	XMMATRIX m_World;
 
 	unsigned int m_countIndices;
 	D3D_PRIMITIVE_TOPOLOGY m_primitiveTopology;
 
 	ID3D11ShaderResourceView* m_pTexture;
-	ID3D11SamplerState* m_pTextureSampler;
-
-	void* m_pDataSourceDDS;
-	size_t m_FileSizeDDS;
 
 	int m_meshId;
-
 	bool m_hasAlpha;
 
-	ID3D11Query* occlusionQuery;
+	static ID3D11VertexShader* s_pVertexShader;
+	static ID3D11PixelShader* s_pPixelShader;
+	static ID3D11InputLayout* s_pVertexLayout;
+	static ID3D11SamplerState* s_pSampler;
+	static int s_sharedRefCount;
 };

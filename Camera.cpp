@@ -1,13 +1,13 @@
 #include "Camera.hpp"
 
-void Camera::Init(float width, float height)
+void Camera::Init(float width, float height, float farPlane)
 {
 	m_cameraPosition = XMVectorSet(0.0f, 50.0f, 0.0f, 0.0f);
 	m_cameraTarget = XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f);
 	m_cameraUp = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
 
 	m_cameraView = XMMatrixLookAtLH(m_cameraPosition, m_cameraTarget, m_cameraUp);
-	m_cameraProjection = XMMatrixPerspectiveFovLH(0.4f * 3.14f, (float)width / height, 0.1f, 400.0f);
+	m_cameraProjection = XMMatrixPerspectiveFovLH(0.4f * 3.14f, (float)width / height, 0.1f, farPlane);
 
 	m_defaultForward = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
 	m_defaultRight = XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f);

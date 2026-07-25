@@ -1,5 +1,11 @@
 ﻿#include "Mesh.hpp"
 
+ID3D11VertexShader* Mesh::s_pVertexShader = nullptr;
+ID3D11PixelShader* Mesh::s_pPixelShader = nullptr;
+ID3D11InputLayout* Mesh::s_pVertexLayout = nullptr;
+ID3D11SamplerState* Mesh::s_pSampler = nullptr;
+int Mesh::s_sharedRefCount = 0;
+
 HRESULT Mesh::CreateConstBuffer(DXRender *pRender)
 {
 	HRESULT hr;
@@ -18,116 +24,196 @@ HRESULT Mesh::CreateConstBuffer(DXRender *pRender)
 	return hr;
 }
 
-// After rendering, check the occlusion query result
-void Mesh::CheckOcclusionQueryResult(DXRender* pRender)
+HRESULT Mesh::EnsureSharedPipeline(DXRender *pRender)
 {
-	//UINT64 pixelCount = 0;
-	//while (pRender->GetDeviceContext()->GetData(occlusionQuery, &pixelCount, sizeof(pixelCount), 0) == S_OK) {
-	//	// This means the query result is ready
-	//	if (pixelCount > 0) {
-	//		m_pixelCount = pixelCount;
-	//		printf("Object is visible (pixels drawn: %d)\n", (int)pixelCount);
-	//	}
-	//	else {
-	//		printf("Object is occluded\n");
-	//	}
-	//	break; // Exit the while once we receive the data
-	//}
+	HRESULT hr = S_OK;
 
-	// Check the result of the query
-	UINT numPixelsPassed = 0;
-	HRESULT hr = pRender->GetDeviceContext()->GetData(occlusionQuery, &numPixelsPassed, sizeof(numPixelsPassed), 0);
+	if (s_pVertexShader != nullptr)
+		return S_OK;
 
-	if (hr == S_OK) {
-		// The query is complete and we have a result
-		if (numPixelsPassed > 0) {
-			printf("Some pixels passed the depth test.\n");
-			// You can render other objects that depend on this result
-		}
-		else {
-			printf("No pixels passed the depth test.\n");
-			// Skip rendering other objects if they are not visible
-		}
+	ID3DBlob *pVSBlob = nullptr;
+	hr = D3DReadFileToBlob(L"vertex_shader.cso", &pVSBlob);
+	if (FAILED(hr)) {
+		printf("Error: cannot read compiled vertex shader\n");
+		return hr;
 	}
-	else if (hr == S_FALSE) {
-		// The query is still in progress, wait for it to finish
-		//printf("Query still in progress.\n");
+
+	hr = pRender->GetDevice()->CreateVertexShader(
+		pVSBlob->GetBufferPointer(),
+		pVSBlob->GetBufferSize(),
+		NULL,
+		&s_pVertexShader
+	);
+	if (FAILED(hr)) {
+		printf("Error: cannot create vertex shader\n");
+		pVSBlob->Release();
+		return hr;
 	}
-	else {
-		//printf("Failed to get query data.\n");
+
+	D3D11_INPUT_ELEMENT_DESC layout[2];
+	layout[0].SemanticName = "POSITION";
+	layout[0].SemanticIndex = 0;
+	layout[0].Format = DXGI_FORMAT_R32G32B32_FLOAT;
+	layout[0].InputSlot = 0;
+	layout[0].AlignedByteOffset = 0;
+	layout[0].InputSlotClass = D3D11_INPUT_PER_VERTEX_DATA;
+	layout[0].InstanceDataStepRate = 0;
+
+	layout[1].SemanticName = "TEXCOORD";
+	layout[1].SemanticIndex = 0;
+	layout[1].Format = DXGI_FORMAT_R32G32_FLOAT;
+	layout[1].InputSlot = 0;
+	layout[1].AlignedByteOffset = 12;
+	layout[1].InputSlotClass = D3D11_INPUT_PER_VERTEX_DATA;
+	layout[1].InstanceDataStepRate = 0;
+
+	hr = pRender->GetDevice()->CreateInputLayout(
+		layout,
+		ARRAYSIZE(layout),
+		pVSBlob->GetBufferPointer(),
+		pVSBlob->GetBufferSize(),
+		&s_pVertexLayout
+	);
+	pVSBlob->Release();
+	if (FAILED(hr)) {
+		printf("Error: cannot CreateInputLayout\n");
+		return hr;
 	}
+
+	ID3DBlob *pPSBlob = nullptr;
+	hr = D3DReadFileToBlob(L"pixel_shader.cso", &pPSBlob);
+	if (FAILED(hr)) {
+		printf("Error: cannot read compiled pixel shader\n");
+		return hr;
+	}
+
+	hr = pRender->GetDevice()->CreatePixelShader(
+		pPSBlob->GetBufferPointer(),
+		pPSBlob->GetBufferSize(),
+		NULL,
+		&s_pPixelShader
+	);
+	pPSBlob->Release();
+	if (FAILED(hr)) {
+		printf("Error: cannot create pixel shader\n");
+		return hr;
+	}
+
+	D3D11_SAMPLER_DESC sampDesc;
+	ZeroMemory(&sampDesc, sizeof(sampDesc));
+	sampDesc.Filter = D3D11_FILTER_ANISOTROPIC;
+	sampDesc.MaxAnisotropy = 16;
+	sampDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
+	sampDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
+	sampDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+	sampDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
+	sampDesc.MinLOD = 0;
+	sampDesc.MaxLOD = D3D11_FLOAT32_MAX;
+
+	hr = pRender->GetDevice()->CreateSamplerState(&sampDesc, &s_pSampler);
+	if (FAILED(hr)) {
+		printf("Error: cannot create sampler state\n");
+	}
+
+	return hr;
+}
+
+void Mesh::ReleaseSharedResources()
+{
+	if (s_pSampler) {
+		s_pSampler->Release();
+		s_pSampler = nullptr;
+	}
+	if (s_pVertexLayout) {
+		s_pVertexLayout->Release();
+		s_pVertexLayout = nullptr;
+	}
+	if (s_pVertexShader) {
+		s_pVertexShader->Release();
+		s_pVertexShader = nullptr;
+	}
+	if (s_pPixelShader) {
+		s_pPixelShader->Release();
+		s_pPixelShader = nullptr;
+	}
+	s_sharedRefCount = 0;
 }
 
 void Mesh::Cleanup()
 {
-	if (occlusionQuery) occlusionQuery->Release();
-
-
-	/* clear buffers */
 	if (m_pVertexBuffer)
 		m_pVertexBuffer->Release();
 	if (m_pIndexBuffer)
 		m_pIndexBuffer->Release();
 	if (m_pObjectBuffer)
 		m_pObjectBuffer->Release();
-
 	if (m_pTexture)
 		m_pTexture->Release();
-	if (m_pTextureSampler)
-		m_pTextureSampler->Release();
 
-	/* clear layout */
-	if (m_pVertexLayout)
-		m_pVertexLayout->Release();
+	m_pVertexBuffer = nullptr;
+	m_pIndexBuffer = nullptr;
+	m_pObjectBuffer = nullptr;
+	m_pTexture = nullptr;
 
-	/* clear shaders */
-	if (m_pVertexShader) 
-		m_pVertexShader->Release();
-	if (m_pPixelShader) 
-		m_pPixelShader->Release();
+	if (s_sharedRefCount > 0) {
+		s_sharedRefCount--;
+		if (s_sharedRefCount == 0)
+			ReleaseSharedResources();
+	}
 }
 
-void Mesh::Render(DXRender* pRender, Camera *pCamera)
+void Mesh::Render(DXRender* pRender, MeshRenderContext& ctx)
 {
-	// Begin the occlusion query
-	//pRender->GetDeviceContext()->Begin(occlusionQuery);
+	ID3D11DeviceContext* ctx3d = pRender->GetDeviceContext();
 
+	if (ctx.layout != s_pVertexLayout) {
+		ctx3d->IASetInputLayout(s_pVertexLayout);
+		ctx.layout = s_pVertexLayout;
+	}
 
-	pRender->GetDeviceContext()->IASetInputLayout(m_pVertexLayout);
+	if (ctx.ib != m_pIndexBuffer) {
+		ctx3d->IASetIndexBuffer(m_pIndexBuffer, DXGI_FORMAT_R32_UINT, 0);
+		ctx.ib = m_pIndexBuffer;
+	}
 
-	/* set index buffer */
-	pRender->GetDeviceContext()->IASetIndexBuffer(m_pIndexBuffer, DXGI_FORMAT_R32_UINT, 0);
+	if (ctx.vb != m_pVertexBuffer) {
+		UINT stride = sizeof(float) * 5;
+		UINT offset = 0;
+		ctx3d->IASetVertexBuffers(0, 1, &m_pVertexBuffer, &stride, &offset);
+		ctx.vb = m_pVertexBuffer;
+	}
 
-	/* set vertex buffer */
-	UINT stride = sizeof(float) * 5; /* x, y, z, tx, ty */ 
-	UINT offset = 0;
-	pRender->GetDeviceContext()->IASetVertexBuffers(0, 1, &m_pVertexBuffer, &stride, &offset);
+	if (ctx.topology != m_primitiveTopology) {
+		ctx3d->IASetPrimitiveTopology(m_primitiveTopology);
+		ctx.topology = m_primitiveTopology;
+	}
 
-	/* set topology */
-	pRender->GetDeviceContext()->IASetPrimitiveTopology(this->m_primitiveTopology);
+	if (ctx.vs != s_pVertexShader) {
+		ctx3d->VSSetShader(s_pVertexShader, NULL, 0);
+		ctx.vs = s_pVertexShader;
+	}
 
-	/* set shaders */
-	pRender->GetDeviceContext()->VSSetShader(m_pVertexShader, NULL, 0);
-	pRender->GetDeviceContext()->PSSetShader(m_pPixelShader, NULL, 0);
+	if (ctx.ps != s_pPixelShader) {
+		ctx3d->PSSetShader(s_pPixelShader, NULL, 0);
+		ctx.ps = s_pPixelShader;
+	}
 
-	/* calculate position */
-	m_WVP = m_World * pCamera->GetView() * pCamera->GetProjection();
-	m_objectConstBuffer.WVP = XMMatrixTranspose(m_WVP);
+	XMMATRIX wvp = XMMatrixMultiply(m_World, ctx.viewProj);
+	m_objectConstBuffer.WVP = XMMatrixTranspose(wvp);
+	ctx3d->UpdateSubresource(m_pObjectBuffer, 0, NULL, &m_objectConstBuffer, 0, 0);
+	ctx3d->VSSetConstantBuffers(0, 1, &m_pObjectBuffer);
 
-	/* send position to shader */
-	pRender->GetDeviceContext()->UpdateSubresource(m_pObjectBuffer, 0, NULL, &m_objectConstBuffer, 0, 0);
-	pRender->GetDeviceContext()->VSSetConstantBuffers(0, 1, &m_pObjectBuffer);
+	if (ctx.srv != m_pTexture) {
+		ctx3d->PSSetShaderResources(0, 1, &m_pTexture);
+		ctx.srv = m_pTexture;
+	}
 
-	/* pixel shader */
-	pRender->GetDeviceContext()->PSSetShaderResources(0, 1, &m_pTexture);
-	pRender->GetDeviceContext()->PSSetSamplers(0, 1, &m_pTextureSampler);
+	if (ctx.sampler != s_pSampler) {
+		ctx3d->PSSetSamplers(0, 1, &s_pSampler);
+		ctx.sampler = s_pSampler;
+	}
 
-	/* render indexed vertices */
-	pRender->GetDeviceContext()->DrawIndexed(m_countIndices, 0, 0);
-
-
-	//pRender->GetDeviceContext()->End(occlusionQuery);
-
+	ctx3d->DrawIndexed(m_countIndices, 0, 0);
 }
 
 void Mesh::SetPosition(float x, float y, float z,
@@ -136,32 +222,26 @@ void Mesh::SetPosition(float x, float y, float z,
 {
 	XMVECTOR vector = XMVectorSet(rotx, roty, rotz, rotr);
 	XMMATRIX modelRotation = XMMatrixRotationQuaternion(vector);
-
-	XMMATRIX modelPosition = XMMatrixIdentity();
 	XMMATRIX modelScale = XMMatrixScaling(scaleX, scaleY, scaleZ);
 	XMMATRIX modelTranslation = XMMatrixTranslation(x, y, z);
 
-	m_World = modelRotation * modelPosition * modelScale * modelTranslation;
+	m_World = modelRotation * modelScale * modelTranslation;
 }
-
 
 HRESULT Mesh::SetDataDDS(DXRender* pRender, uint8_t* pDataSourceDDS, size_t fileSizeDDS, uint32_t width, uint32_t height, uint32_t dxtCompression, uint32_t depth)
 {
 	HRESULT hr;
 
-	/* Manual create DDS file */
 	struct DDS_File dds;
 	dds.dwMagic = DDS_MAGIC;
 	dds.header.size = sizeof(struct DDS_HEADER);
-	dds.header.flags = 0; // 0
+	dds.header.flags = 0;
 	dds.header.width = width;
 	dds.header.height = height;
 	dds.header.pitchOrLinearSize = width * height;
 	dds.header.mipMapCount = 0;
 	dds.header.ddspf.size = sizeof(struct DDS_PIXELFORMAT);
-	//ddsd.ddpfPixelFormat.dwSize = sizeof(ddsd.ddpfPixelFormat);
-	dds.header.ddspf.flags = DDS_FOURCC; // DDS_PAL8; // TODO: use DDS_HEADER_FLAGS_VOLUME for depth
-	//dds.header.depth = depth; // TODO: is working?
+	dds.header.ddspf.flags = DDS_FOURCC;
 	switch (dxtCompression) {
 	default:
 	case 1:
@@ -174,156 +254,30 @@ HRESULT Mesh::SetDataDDS(DXRender* pRender, uint8_t* pDataSourceDDS, size_t file
 		dds.header.ddspf.fourCC = FOURCC_DXT4;
 		break;
 	}
-	// ddsd.ddpfPixelFormat.dwFourCC = bpp == 24 ? FOURCC_DXT1 : FOURCC_DXT5;
 
 	size_t len = sizeof(dds) + fileSizeDDS;
 	uint8_t* buf = (uint8_t*)malloc(len);
 	memcpy(buf, &dds, sizeof(dds));
-	memcpy(
-		buf + sizeof(dds), // buf + offset
-		pDataSourceDDS,
-		fileSizeDDS
-	);
+	memcpy(buf + sizeof(dds), pDataSourceDDS, fileSizeDDS);
 
-	// Providing a seed value
-	/*srand((unsigned)time(NULL));
-	// Get a random number
-	int random = rand();
-	int i = 247593;
-	char str[10];
-	sprintf(str, "%d", random);
-	std::string fname = str;
-	fname += ".dds";
-	FILE* f = fopen(fname.c_str(), "wb");
-	fwrite(buf, len, 1, f);
-	fclose(f);*/
-
-	//auto image = std::make_unique<ScratchImage>();
 	ScratchImage image;
-	//hr = LoadFromTGAFile(L"C:\\Users\\master\\Downloads\\lawyer1.tga", TGA_FLAGS_NONE, nullptr, image);
 	hr = LoadFromDDSMemory(buf, len, DDS_FLAGS_NONE, nullptr, image);
-	//hr = LoadFromDDSFile(L"test.dds", DDS_FLAGS_FORCE_DX9_LEGACY, nullptr, image);
 	if (FAILED(hr)) {
 		printf("Error: cannot load dds file\n");
 	}
 
-	//ID3D11ShaderResourceView* pSRV = nullptr;
 	hr = CreateShaderResourceView(
 		pRender->GetDevice(),
-		image.GetImages(), 
+		image.GetImages(),
 		image.GetImageCount(),
 		image.GetMetadata(),
 		&m_pTexture
 	);
 
-	free(buf); /* After created texture we can free memory */
-
-	// TODO: Free m_pTexture
+	free(buf);
 
 	if (FAILED(hr)) {
 		printf("Error: cannot CreateShaderResourceView dds file\n");
-	}
-
-	// Describe the Sample State
-	D3D11_SAMPLER_DESC sampDesc;
-	ZeroMemory(&sampDesc, sizeof(sampDesc));
-	sampDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
-	sampDesc.Filter = D3D11_FILTER_ANISOTROPIC; //
-	sampDesc.MaxAnisotropy = 16; //
-	sampDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
-	sampDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
-	sampDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP; // Повторять текстуру
-	sampDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
-	sampDesc.MinLOD = 0;
-	sampDesc.MaxLOD = D3D11_FLOAT32_MAX;
-
-	hr = pRender->GetDevice()->CreateSamplerState(&sampDesc, &m_pTextureSampler);
-
-	return hr;
-}
-
-
-HRESULT Mesh::CreatePixelShader(DXRender*pRender)
-{
-	HRESULT hr;
-
-	/* compile shader from file */
-	/* ID3DBlob* pPSBlob = NULL;
-	hr = CompileShaderFromFile(L"pixel_shader.hlsl", "PS", "ps_4_0", &pPSBlob); */
-
-	ID3DBlob *pPSBlob = NULL;
-	hr = D3DReadFileToBlob(L"pixel_shader.cso", &pPSBlob);
-
-	if (FAILED(hr)) {
-		printf("Error: cannot read compiled pixel shader\n");
-		return hr;
-	}
-
-	hr = pRender->GetDevice()->CreatePixelShader(pPSBlob->GetBufferPointer(),
-		pPSBlob->GetBufferSize(), NULL, &m_pPixelShader);
-
-	pPSBlob->Release();
-
-	if (FAILED(hr)) {
-		printf("Error: cannot create pixel shader\n");
-	}
-
-	return hr;
-}
-
-HRESULT Mesh::CreateVertexShader(DXRender*pRender)
-{
-	HRESULT hr;
-
-	hr = D3DReadFileToBlob(L"vertex_shader.cso", &m_pVSBlob);
-
-	if (FAILED(hr)) {
-		printf("Error: cannot read compiled vertex shader\n");
-		return hr;
-	}
-
-	hr = pRender->GetDevice()->CreateVertexShader(m_pVSBlob->GetBufferPointer(),
-		m_pVSBlob->GetBufferSize(), NULL, &m_pVertexShader);
-
-	if (FAILED(hr)) {
-		printf("Error: cannot create vertex shader\n");
-		m_pVSBlob->Release();
-	}
-
-	return hr;
-}
-
-HRESULT Mesh::CreateInputLayout(DXRender*pRender)
-{
-	// Указываем форму данных в вершинном шейдере
-	HRESULT hr;
-	
-	// Координаты вершин X Y Z
-	D3D11_INPUT_ELEMENT_DESC layout[2];
-	layout[0].SemanticName = "POSITION";
-	layout[0].SemanticIndex = 0;
-	layout[0].Format = DXGI_FORMAT_R32G32B32_FLOAT; // X Y Z
-	layout[0].InputSlot = 0;
-	layout[0].AlignedByteOffset = 0;
-	layout[0].InputSlotClass = D3D11_INPUT_PER_VERTEX_DATA;
-	layout[0].InstanceDataStepRate = 0;
-
-	// Координаты текстуры X Y
-	layout[1].SemanticName = "TEXCOORD";
-	layout[1].SemanticIndex = 0;
-	layout[1].Format = DXGI_FORMAT_R32G32_FLOAT; // X Y
-	layout[1].InputSlot = 0;
-	layout[1].AlignedByteOffset = 12; // Смещение от вершин X Y Z
-	layout[1].InputSlotClass = D3D11_INPUT_PER_VERTEX_DATA;
-	layout[1].InstanceDataStepRate = 0;
-	
-	UINT numElements = ARRAYSIZE(layout);
-
-	hr = pRender->GetDevice()->CreateInputLayout(layout, numElements,
-		m_pVSBlob->GetBufferPointer(), m_pVSBlob->GetBufferSize(), &m_pVertexLayout);
-
-	if (FAILED(hr)) {
-		printf("Error: cannot CreateInputLayout\n");
 	}
 
 	return hr;
@@ -331,101 +285,76 @@ HRESULT Mesh::CreateInputLayout(DXRender*pRender)
 
 HRESULT Mesh::CreateDataBuffer(
 	DXRender* pRender,
-	float *pVertices, 
-	int verticesCount,	
-	unsigned int *pIndices, 
+	float *pVertices,
+	int verticesCount,
+	unsigned int *pIndices,
 	int indicesCount
 ) {
 	HRESULT hr;
 
-	/* vertices: fill in a buffer description */
 	D3D11_BUFFER_DESC bdv;
 	ZeroMemory(&bdv, sizeof(bdv));
 	bdv.Usage = D3D11_USAGE_DEFAULT;
-	bdv.ByteWidth = sizeof(float) * verticesCount; /* size buffer */
-	bdv.BindFlags = D3D11_BIND_VERTEX_BUFFER; /* type buffer = vertex buffer */
+	bdv.ByteWidth = sizeof(float) * verticesCount;
+	bdv.BindFlags = D3D11_BIND_VERTEX_BUFFER;
 
-	/* vertices: define the resource data */
-	D3D11_SUBRESOURCE_DATA datav; /* buffer data */
+	D3D11_SUBRESOURCE_DATA datav;
 	ZeroMemory(&datav, sizeof(datav));
-	datav.pSysMem = pVertices; /* pointer to data */
+	datav.pSysMem = pVertices;
 
 	hr = pRender->GetDevice()->CreateBuffer(&bdv, &datav, &m_pVertexBuffer);
-
 	if (FAILED(hr)) {
 		printf("Error: cannot CreateBuffer vertex buffer\n");
 		return hr;
 	}
-	
-	/* indices: fill in a buffer description */
+
 	D3D11_BUFFER_DESC bdi;
 	ZeroMemory(&bdi, sizeof(bdi));
 	bdi.Usage = D3D11_USAGE_DEFAULT;
 	bdi.ByteWidth = sizeof(unsigned int) * indicesCount;
 	bdi.BindFlags = D3D11_BIND_INDEX_BUFFER;
 
-	/* indices: define the resource data */
 	D3D11_SUBRESOURCE_DATA datai;
 	ZeroMemory(&datai, sizeof(datai));
-	datai.pSysMem = pIndices; /* pointer to data */
+	datai.pSysMem = pIndices;
 
 	hr = pRender->GetDevice()->CreateBuffer(&bdi, &datai, &m_pIndexBuffer);
-
 	if (FAILED(hr))
 		printf("Error: cannot CreateBuffer index buffer\n");
 
 	return hr;
 }
 
-HRESULT Mesh::Init(DXRender*pRender, float *pVertices, int verticesCount, unsigned int *pIndices, int indicesCount, D3D_PRIMITIVE_TOPOLOGY topology) {
+HRESULT Mesh::Init(DXRender*pRender, float *pVertices, int verticesCount, unsigned int *pIndices, int indicesCount, D3D_PRIMITIVE_TOPOLOGY topology)
+{
 	HRESULT hr;
 
 	m_hasAlpha = false;
-
-	m_pVSBlob = NULL;
-
+	m_pTexture = nullptr;
+	m_pVertexBuffer = nullptr;
+	m_pIndexBuffer = nullptr;
+	m_pObjectBuffer = nullptr;
 	m_countIndices = indicesCount;
 	m_primitiveTopology = topology;
+	m_World = XMMatrixIdentity();
 
-	SetPosition(0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
-
-	hr = CreateVertexShader(pRender);
+	hr = EnsureSharedPipeline(pRender);
 	if (FAILED(hr)) {
-		printf("Error: cannot create vertex shader\n");
+		printf("Error: cannot create shared pipeline\n");
 		return hr;
 	}
-	hr = CreatePixelShader(pRender);
-	if (FAILED(hr)) {
-		printf("Error: cannot create pixel shader\n");
-		return hr;
-	}
+	s_sharedRefCount++;
+
 	hr = CreateConstBuffer(pRender);
 	if (FAILED(hr)) {
-		printf("Error: cannot create const shader\n");
+		printf("Error: cannot create const buffer\n");
 		return hr;
 	}
-	hr = CreateInputLayout(pRender);
-	if (FAILED(hr)) {
-		printf("Error: cannot create input layout\n");
-		return hr;
-	}
-	hr = CreateDataBuffer(pRender, pVertices, verticesCount,
-		pIndices, indicesCount);
+
+	hr = CreateDataBuffer(pRender, pVertices, verticesCount, pIndices, indicesCount);
 	if (FAILED(hr)) {
 		printf("Error: cannot create data buffer\n");
 		return hr;
-	}
-
-	m_pVSBlob->Release();
-
-	/* occlusion query */
-	D3D11_QUERY_DESC queryDesc;
-	queryDesc.Query = D3D11_QUERY_OCCLUSION_PREDICATE;
-	queryDesc.MiscFlags = 0;
-
-	hr = pRender->GetDevice()->CreateQuery(&queryDesc, &occlusionQuery);
-	if (FAILED(hr)) {
-		printf("Failed to create occlusion query\n");
 	}
 
 	return hr;
