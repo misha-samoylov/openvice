@@ -875,7 +875,7 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 				XMVECTOR p = g_player->GetPosition();
 				camera->Follow(
 					XMVectorGetX(p), XMVectorGetY(p), XMVectorGetZ(p),
-					camYaw, camPitch, camDistance, 1.4f
+					camYaw, camPitch, camDistance, 0.95f
 				);
 			} else {
 				if (g_controllingVehicle && g_vehicle)
