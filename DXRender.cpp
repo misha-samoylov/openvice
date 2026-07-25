@@ -89,6 +89,12 @@ HRESULT DXRender::ChangeRasterizerStateToSolid()
 	return hr;
 }
 
+void DXRender::ApplyRasterizerState()
+{
+	if (m_pRasterizerState)
+		m_pDeviceContext->RSSetState(m_pRasterizerState);
+}
+
 HRESULT DXRender::CreateDepthStencil(HWND hWnd)
 {
 	HRESULT hr;

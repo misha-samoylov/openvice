@@ -22,6 +22,7 @@ public:
 
 	HRESULT ChangeRasterizerStateToWireframe();
 	HRESULT ChangeRasterizerStateToSolid();
+	void ApplyRasterizerState();
 
 private:
 	void InitViewport(HWND hWnd);

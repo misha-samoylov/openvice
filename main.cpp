@@ -20,6 +20,7 @@
 #include "Utils.hpp"
 #include "Frustum.h"
 #include "Model.h"
+#include "Water.h"
 
 #define PROJECT_NAME "openvice"
 #define WINDOW_WIDTH 1920
@@ -61,6 +62,7 @@ struct SceneInstance {
 
 std::vector<SceneInstance> g_opaqueInstances;
 std::vector<SceneInstance> g_alphaInstances;
+Water* g_water = nullptr;
 
 template <typename T>
 void remove_duplicates(std::vector<T>& vec)
@@ -395,6 +397,14 @@ void RenderScene(DXRender *render, Camera *camera)
 	ctx.viewProj = XMMatrixMultiply(view, proj);
 
 	DrawInstances(render, ctx, g_opaqueInstances);
+
+	if (g_water)
+		g_water->Render(render, camera, g_frustum, CAMERA_FAR_PLANE);
+
+	/* Water changes D3D bindings  reset cache before alpha pass. */
+	ctx = MeshRenderContext();
+	ctx.viewProj = XMMatrixMultiply(view, proj);
+
 	DrawInstances(render, ctx, g_alphaInstances);
 
 	render->RenderEnd();
@@ -527,6 +537,17 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 
 	BuildSceneInstances();
 
+	g_water = new Water();
+	if (!g_water->Init(
+		render,
+		"C:/Games/Grand Theft Auto Vice City/data/waterpro.dat",
+		"C:/Games/Grand Theft Auto Vice City/models/particle.txd"
+	)) {
+		printf("[Warn] Water failed to init, continuing without water\n");
+		delete g_water;
+		g_water = nullptr;
+	}
+
 	printf("[Info] %s loaded\n", PROJECT_NAME);
 
 	float moveLeftRight = 0.0f;
@@ -619,11 +640,20 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 
 			camera->Update(camPitch, camYaw, moveLeftRight, moveBackForward);
 
+			if (g_water)
+				g_water->Update((float)frameTime);
+
 			RenderScene(render, camera);
 
 			moveLeftRight = 0.0f;
 			moveBackForward = 0.0f;
 		}
+	}
+
+	if (g_water) {
+		g_water->Cleanup();
+		delete g_water;
+		g_water = nullptr;
 	}
 
 	render->Cleanup();
