@@ -645,6 +645,9 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 	float camDistance = 14.0f;
 	const float camDistanceMin = 3.0f;
 	const float camDistanceMax = 40.0f;
+	bool freeCamera = false;
+	bool numpad1WasDown = false;
+	bool numpad0WasDown = false;
 
 	DIMOUSESTATE mouseLastState;
 	DIMOUSESTATE mouseCurrState;
@@ -700,6 +703,23 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 				printf("[Info] Changed render to solid\n");
 			}
 
+			{
+				bool np1 = input->IsKey(DIK_NUMPAD1);
+				bool np0 = input->IsKey(DIK_NUMPAD0);
+				if (np1 && !numpad1WasDown && !freeCamera) {
+					freeCamera = true;
+					XMVECTOR cp = camera->GetPosition();
+					camera->SetPosition(XMVectorGetX(cp), XMVectorGetY(cp), XMVectorGetZ(cp));
+					printf("[Info] Free camera (NUMPAD1)  WASD fly, Shift boost\n");
+				}
+				if (np0 && !numpad0WasDown && freeCamera) {
+					freeCamera = false;
+					printf("[Info] Follow camera (NUMPAD0)  locked to Tommy\n");
+				}
+				numpad1WasDown = np1;
+				numpad0WasDown = np0;
+			}
+
 			moveLeftRight = 0.0f;
 			moveBackForward = 0.0f;
 
@@ -725,10 +745,18 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 			if ((mouseCurrState.lX != mouseLastState.lX)
 				|| (mouseCurrState.lY != mouseLastState.lY)) {
 
-				/* GTA-style: mouse right looks right (orbit camera).
-				 * Invert Y: mouse down ? camera rises (look down), mouse up ? camera drops. */
-				camYaw -= mouseCurrState.lX * 0.001f;
-				camPitch -= mouseCurrState.lY * 0.001f;
+				if (freeCamera) {
+					/* Free look: mouse direction = look direction. */
+					camYaw += mouseCurrState.lX * 0.001f;
+					camPitch += mouseCurrState.lY * 0.001f;
+					if (camPitch > 1.55f) camPitch = 1.55f;
+					if (camPitch < -1.55f) camPitch = -1.55f;
+				} else {
+					/* Orbit follow: mouse right looks right; Y inverted
+					 * (mouse down raises camera / looks down on Tommy). */
+					camYaw -= mouseCurrState.lX * 0.001f;
+					camPitch -= mouseCurrState.lY * 0.001f;
+				}
 
 				mouseLastState = mouseCurrState;
 			}
@@ -744,7 +772,7 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 				}
 			}
 
-			if (g_player) {
+			if (g_player && !freeCamera) {
 				/*
 				 * Camera::Follow places the camera at
 				 *   (sy*cp, -sp, -cy*cp) * distance from the player.
@@ -771,6 +799,9 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 					camYaw, camPitch, camDistance, 1.4f
 				);
 			} else {
+				/* Free camera: WASD flies; Tommy stays put (idle). */
+				if (g_player)
+					g_player->Update((float)frameTime, 0.0f, 0.0f, false, false, false);
 				camera->Update(camPitch, camYaw, moveLeftRight * speed, moveBackForward * speed);
 			}
 

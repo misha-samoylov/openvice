@@ -61,7 +61,7 @@ bool Player::Init(IMG* img, DXRender* render, IFP* ifp)
 	m_velY = 0.0f;
 	m_velZ = 0.0f;
 	m_heading = 0.0f;
-	m_moveSpeed = 4.5f;
+	m_moveSpeed = 2.25f;
 	m_isStanding = false;
 	m_wasStanding = false;
 	m_world = nullptr;

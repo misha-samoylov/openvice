@@ -13,6 +13,7 @@ public:
 		float moveLeftRight, float moveBackForward);
 	void Follow(float targetX, float targetY, float targetZ,
 		float yaw, float pitch, float distance, float heightOffset);
+	void SetPosition(float x, float y, float z);
 
 	XMMATRIX GetView();
 	XMMATRIX GetProjection();

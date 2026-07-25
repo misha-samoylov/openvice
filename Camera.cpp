@@ -69,6 +69,11 @@ void Camera::Follow(float targetX, float targetY, float targetZ,
 	m_cameraRight = XMVector3Normalize(XMVector3Cross(m_cameraUp, m_cameraForward));
 }
 
+void Camera::SetPosition(float x, float y, float z)
+{
+	m_cameraPosition = XMVectorSet(x, y, z, 0.0f);
+}
+
 XMMATRIX Camera::GetView()
 {
 	return m_cameraView;
