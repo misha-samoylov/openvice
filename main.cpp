@@ -945,13 +945,15 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 				float mx = -moveBackForward * s + moveLeftRight * c;
 				float mz =  moveBackForward * c + moveLeftRight * s;
 				bool moving = (moveLeftRight != 0.0f || moveBackForward != 0.0f);
-				bool running = moving && input->IsKey(DIK_LSHIFT);
+				/* re3-style: default run, Alt=walk, Shift=sprint (GetSprint). */
+				bool walking = moving && (input->IsKey(DIK_LMENU) || input->IsKey(DIK_RMENU));
+				bool sprinting = moving && (input->IsKey(DIK_LSHIFT) || input->IsKey(DIK_RSHIFT));
 				static bool spaceWasDown = false;
 				bool spaceDown = input->IsKey(DIK_SPACE);
 				bool jump = spaceDown && !spaceWasDown;
 				spaceWasDown = spaceDown;
 
-				g_player->Update((float)frameTime, mx, mz, moving, running, jump);
+				g_player->Update((float)frameTime, mx, mz, moving, walking, sprinting, jump);
 
 				XMVECTOR p = g_player->GetPosition();
 				camera->Follow(
@@ -962,7 +964,7 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 				if (g_controllingVehicle && g_vehicle)
 					g_vehicle->Update((float)frameTime, 0.0f, 0.0f, false);
 				else if (g_player)
-					g_player->Update((float)frameTime, 0.0f, 0.0f, false, false, false);
+					g_player->Update((float)frameTime, 0.0f, 0.0f, false, false, false, false);
 				camera->Update(camPitch, camYaw, moveLeftRight * speed, moveBackForward * speed);
 			}
 

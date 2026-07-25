@@ -21,7 +21,9 @@ public:
 
 	void SetCollisionWorld(CollisionWorld* world) { m_world = world; }
 
-	void Update(float dt, float moveX, float moveZ, bool moving, bool running = false, bool jump = false);
+	/* Move mode mirrors re3 PEDMOVE_WALK / RUN / SPRINT. Default when moving is run. */
+	void Update(float dt, float moveX, float moveZ, bool moving,
+		bool walking = false, bool sprinting = false, bool jump = false);
 	void Render(DXRender* render, MeshRenderContext& ctx);
 
 	XMVECTOR GetPosition() const;
@@ -88,6 +90,7 @@ private:
 	IfpAnim* m_animIdle;
 	IfpAnim* m_animWalk;
 	IfpAnim* m_animRun;
+	IfpAnim* m_animSprint;
 	IfpAnim* m_animJumpLaunch;
 	IfpAnim* m_animJumpGlide;
 	IfpAnim* m_animJumpLand;

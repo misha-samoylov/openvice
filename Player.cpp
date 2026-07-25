@@ -74,6 +74,7 @@ bool Player::Init(IMG* img, DXRender* render, IFP* ifp)
 	m_animIdle = nullptr;
 	m_animWalk = nullptr;
 	m_animRun = nullptr;
+	m_animSprint = nullptr;
 	m_animJumpLaunch = nullptr;
 	m_animJumpGlide = nullptr;
 	m_animJumpLand = nullptr;
@@ -89,9 +90,11 @@ bool Player::Init(IMG* img, DXRender* render, IFP* ifp)
 		return false;
 	}
 
+	/* Player group in ped.ifp (re3 ANIM_STD_WALK/RUN/RUNFAST): walk_player, run_player, SPRINT_civi. */
 	m_animIdle = ifp->FindAnim("IDLE_STANCE");
 	m_animWalk = ifp->FindAnim("walk_player");
 	m_animRun = ifp->FindAnim("run_player");
+	m_animSprint = ifp->FindAnim("SPRINT_civi");
 	m_animJumpLaunch = ifp->FindAnim("JUMP_launch");
 	m_animJumpGlide = ifp->FindAnim("JUMP_glide");
 	m_animJumpLand = ifp->FindAnim("JUMP_land");
@@ -101,6 +104,10 @@ bool Player::Init(IMG* img, DXRender* render, IFP* ifp)
 		m_animWalk = ifp->FindAnim("walk_civi");
 	if (!m_animRun)
 		m_animRun = ifp->FindAnim("run_civi");
+	if (!m_animSprint)
+		m_animSprint = ifp->FindAnim("sprint_civi");
+	if (!m_animSprint)
+		m_animSprint = ifp->FindAnim("sprint_panic");
 	if (!m_animJumpLaunch)
 		m_animJumpLaunch = ifp->FindAnim("jump_launch");
 	if (!m_animJumpGlide)
@@ -116,6 +123,8 @@ bool Player::Init(IMG* img, DXRender* render, IFP* ifp)
 		printf("[Warn] Player: walk_player not found, idle only\n");
 	if (!m_animRun)
 		printf("[Warn] Player: run_player not found\n");
+	if (!m_animSprint)
+		printf("[Warn] Player: SPRINT_civi not found\n");
 	if (!m_animJumpLaunch)
 		printf("[Warn] Player: JUMP_launch not found\n");
 
@@ -685,7 +694,7 @@ void Player::UpdateBoneMatrices()
 		XMStoreFloat4x4(&m_skinPalette[i], XMMatrixIdentity());
 }
 
-void Player::Update(float dt, float moveX, float moveZ, bool moving, bool running, bool jump)
+void Player::Update(float dt, float moveX, float moveZ, bool moving, bool walking, bool sprinting, bool jump)
 {
 	if (dt < 0.0f)
 		dt = 0.0f;
@@ -700,9 +709,16 @@ void Player::Update(float dt, float moveX, float moveZ, bool moving, bool runnin
 	 *  4) integrate
 	 *  5) foot vertical probe (CPed::ProcessEntityCollision)
 	 *  6) sphere wall response (ProcessColModels / bPedPhysics)
+	 *
+	 * Move speeds follow re3 PlayerPed seek ratios (WALK=1.0, RUN=1.8, SPRINT=2.5),
+	 * normalized so default run == m_moveSpeed.
 	 */
 	float desiredVX = 0.0f;
 	float desiredVZ = 0.0f;
+
+	/* Shift (sprint) wins over Alt (walk), same priority as pad GetSprint in re3. */
+	bool wantSprint = moving && sprinting;
+	bool wantWalk = moving && walking && !wantSprint;
 
 	if (moving) {
 		float len = sqrtf(moveX * moveX + moveZ * moveZ);
@@ -710,7 +726,13 @@ void Player::Update(float dt, float moveX, float moveZ, bool moving, bool runnin
 			moveX /= len;
 			moveZ /= len;
 			m_heading = atan2f(-moveX, moveZ);
-			float speed = running ? (m_moveSpeed * 2.5f) : (m_moveSpeed * 0.3f);
+			/* re3: WALK 0.6 / RUN 3.0 / SPRINT 5.4 */
+			float speedMul = 3.0f;
+			if (wantSprint)
+				speedMul = 5.4f;
+			else if (wantWalk)
+				speedMul = 0.6f;
+			float speed = m_moveSpeed * (speedMul / 1.8f);
 			desiredVX = moveX * speed;
 			desiredVZ = moveZ * speed;
 		}
@@ -781,16 +803,28 @@ void Player::Update(float dt, float moveX, float moveZ, bool moving, bool runnin
 		}
 	}
 
+	auto pickMoveAnim = [&]() -> IfpAnim* {
+		/* re3 SetRealMoveAnim: PEDMOVE_SPRINT→RUNFAST, RUN→RUN, WALK→WALK */
+		if (wantSprint && m_animSprint)
+			return m_animSprint;
+		if (wantSprint && m_animRun)
+			return m_animRun;
+		if (wantWalk && m_animWalk)
+			return m_animWalk;
+		if (m_animRun)
+			return m_animRun;
+		return m_animWalk;
+	};
+
 	/* Animation selection. */
 	if (m_landAnimTimer > 0.0f) {
 		m_landAnimTimer -= dt;
 		if (m_landAnimTimer <= 0.0f && m_isStanding) {
 			m_landAnimTimer = 0.0f;
 			if (moving) {
-				if (running && m_animRun)
-					SetAnim(m_animRun);
-				else if (m_animWalk)
-					SetAnim(m_animWalk);
+				IfpAnim* moveAnim = pickMoveAnim();
+				if (moveAnim)
+					SetAnim(moveAnim);
 			} else {
 				SetAnim(m_animIdle);
 			}
@@ -802,10 +836,9 @@ void Player::Update(float dt, float moveX, float moveZ, bool moving, bool runnin
 		} else if (m_animJumpGlide && m_currentAnim != m_animJumpGlide && m_currentAnim != m_animJumpLaunch)
 			SetAnim(m_animJumpGlide);
 	} else if (moving) {
-		if (running && m_animRun)
-			SetAnim(m_animRun);
-		else if (m_animWalk)
-			SetAnim(m_animWalk);
+		IfpAnim* moveAnim = pickMoveAnim();
+		if (moveAnim)
+			SetAnim(moveAnim);
 	} else {
 		SetAnim(m_animIdle);
 	}
@@ -813,7 +846,7 @@ void Player::Update(float dt, float moveX, float moveZ, bool moving, bool runnin
 	if (m_currentAnim) {
 		m_animTime += dt;
 		if (m_currentAnim->totalLength > 0.0f) {
-			/* Launch/land play once; walk/run/idle/glide loop. */
+			/* Launch/land play once; walk/run/sprint/idle/glide loop. */
 			bool oneshot = (m_currentAnim == m_animJumpLaunch || m_currentAnim == m_animJumpLand);
 			if (oneshot) {
 				if (m_animTime > m_currentAnim->totalLength)
