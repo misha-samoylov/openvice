@@ -36,6 +36,10 @@
 #define FOG_END_FACTOR 0.98f
 /* Daytime hour for tobj visibility (re3 CTimeModelInfo). Night lights are off. */
 #define WORLD_HOUR 12
+/* VC stadium interior IDs (gtamods.com/wiki/Interior). */
+#define INTERIOR_DIRTRING 14
+#define INTERIOR_BLOODRING 15
+#define INTERIOR_HOTRING 16
 /* Matches DXRender clear color — fog fades geometry into the sky. */
 static const float g_skyColor[4] = { 0.49804f, 0.78431f, 0.94510f, 1.0f };
 
@@ -396,6 +400,12 @@ void BuildSceneInstances()
 		int count = g_ipl[i]->GetCountObjects();
 		for (int j = 0; j < count; j++) {
 			mapItem objectInfo = g_ipl[i]->GetItem(j);
+
+			/* Skip Hyman Memorial Stadium event arenas (dirt/blood/hotring). */
+			if (objectInfo.interior == INTERIOR_DIRTRING
+				|| objectInfo.interior == INTERIOR_BLOODRING
+				|| objectInfo.interior == INTERIOR_HOTRING)
+				continue;
 
 			std::unordered_map<int, Model*>::iterator it = g_modelsById.find(objectInfo.id);
 			if (it == g_modelsById.end())
