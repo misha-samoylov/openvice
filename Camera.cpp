@@ -1,5 +1,7 @@
 #include "Camera.hpp"
 
+#include <cmath>
+
 void Camera::Init(float width, float height, float farPlane)
 {
 	m_cameraPosition = XMVectorSet(0.0f, 50.0f, 0.0f, 0.0f);
@@ -35,6 +37,36 @@ void Camera::Update(float camPitch, float camYaw, float moveLeftRight, float mov
 	m_cameraTarget = m_cameraPosition + m_cameraTarget;
 
 	m_cameraView = XMMatrixLookAtLH(m_cameraPosition, m_cameraTarget, m_cameraUp);
+}
+
+void Camera::Follow(float targetX, float targetY, float targetZ,
+	float yaw, float pitch, float distance, float heightOffset)
+{
+	if (pitch > 1.2f) pitch = 1.2f;
+	if (pitch < -0.3f) pitch = -0.3f;
+
+	XMVECTOR target = XMVectorSet(targetX, targetY + heightOffset, targetZ, 0.0f);
+
+	float cp = cosf(pitch);
+	float sp = sinf(pitch);
+	float cy = cosf(yaw);
+	float sy = sinf(yaw);
+
+	/* Orbit behind the look direction (yaw=0 looks down +Z). */
+	XMVECTOR offset = XMVectorSet(
+		sy * cp * distance,
+		-sp * distance,
+		-cy * cp * distance,
+		0.0f
+	);
+
+	m_cameraPosition = target + offset;
+	m_cameraTarget = target;
+	m_cameraUp = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+	m_cameraView = XMMatrixLookAtLH(m_cameraPosition, m_cameraTarget, m_cameraUp);
+
+	m_cameraForward = XMVector3Normalize(m_cameraTarget - m_cameraPosition);
+	m_cameraRight = XMVector3Normalize(XMVector3Cross(m_cameraUp, m_cameraForward));
 }
 
 XMMATRIX Camera::GetView()

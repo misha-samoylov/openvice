@@ -11,6 +11,8 @@ public:
 	void Cleanup();
 	void Update(float camPitch, float camYaw,
 		float moveLeftRight, float moveBackForward);
+	void Follow(float targetX, float targetY, float targetZ,
+		float yaw, float pitch, float distance, float heightOffset);
 
 	XMMATRIX GetView();
 	XMMATRIX GetProjection();

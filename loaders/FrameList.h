@@ -12,6 +12,16 @@ public:
 	void ReadExtension(char* bytes, size_t* offset);
 	void Dump(uint32_t index);
 
+	int32_t GetParent() const { return m_parent; }
+	const float* GetPosition() const { return m_position; }
+	const float* GetRotationMatrix() const { return m_rotationMatrix; }
+	const char* GetName() const { return m_name; }
+	bool HasHAnim() const { return m_hasHAnim; }
+	int32_t GetHAnimBoneId() const { return m_hAnimBoneId; }
+	uint32_t GetAnimBoneCount() const { return m_AnimBoneCount; }
+	const int32_t* GetHAnimBoneIds() const { return m_hAnimBoneIds; }
+	const uint32_t* GetHAnimBoneTypes() const { return m_hAnimBoneTypes; }
+
 private:
 	float m_rotationMatrix[9];
 	float m_position[3];

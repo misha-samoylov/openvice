@@ -13,6 +13,9 @@ public:
 	void Init();
 	void Cleanup();
 
+	int32_t GetFrameIndex() const { return m_frameIndex; }
+	int32_t GetGeometryIndex() const { return m_geometryIndex; }
+
 private:
 	int32_t m_frameIndex;
 	int32_t m_geometryIndex;

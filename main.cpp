@@ -21,12 +21,14 @@
 #include "Frustum.h"
 #include "Model.h"
 #include "Water.h"
+#include "Player.h"
+#include "loaders/IFP.h"
 
 #define PROJECT_NAME "openvice"
-#define WINDOW_WIDTH 1920
-#define WINDOW_HEIGHT 1080
+#define WINDOW_WIDTH 3840
+#define WINDOW_HEIGHT 2160
 #define WINDOW_TITLE L"openvice"
-#define CAMERA_FAR_PLANE 800.0f
+#define CAMERA_FAR_PLANE 1000.0f
 
 int frameCount = 0;
 Frustum g_frustum;
@@ -63,6 +65,7 @@ struct SceneInstance {
 std::vector<SceneInstance> g_opaqueInstances;
 std::vector<SceneInstance> g_alphaInstances;
 Water* g_water = nullptr;
+Player* g_player = nullptr;
 
 template <typename T>
 void remove_duplicates(std::vector<T>& vec)
@@ -398,6 +401,9 @@ void RenderScene(DXRender *render, Camera *camera)
 
 	DrawInstances(render, ctx, g_opaqueInstances);
 
+	if (g_player)
+		g_player->Render(render, ctx);
+
 	if (g_water)
 		g_water->Render(render, camera, g_frustum, CAMERA_FAR_PLANE);
 
@@ -548,13 +554,33 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 		g_water = nullptr;
 	}
 
+	IFP* ifp = new IFP();
+	if (!ifp->Load("C:/Games/Grand Theft Auto Vice City/anim/ped.ifp")) {
+		printf("[Error] Failed to load ped.ifp - player disabled\n");
+		delete ifp;
+		ifp = nullptr;
+	} else {
+		g_player = new Player();
+		if (!g_player->Init(imgLoader, render, ifp)) {
+			printf("[Error] Player init failed\n");
+			g_player->Cleanup();
+			delete g_player;
+			g_player = nullptr;
+		} else {
+			g_player->SetPosition(0.0f, 30.0f, 0.0f);
+		}
+	}
+
 	printf("[Info] %s loaded\n", PROJECT_NAME);
 
 	float moveLeftRight = 0.0f;
 	float moveBackForward = 0.0f;
 
 	float camYaw = 0.0f;
-	float camPitch = 0.0f;
+	float camPitch = 0.25f;
+	float camDistance = 14.0f;
+	const float camDistanceMin = 3.0f;
+	const float camDistanceMax = 40.0f;
 
 	DIMOUSESTATE mouseLastState;
 	DIMOUSESTATE mouseCurrState;
@@ -590,7 +616,7 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 
 			input->Detect();
 
-			float speed = 10.0f * frameTime;
+			float speed = 10.0f * (float)frameTime;
 
 			if (input->IsKey(DIK_ESCAPE)) {
 				PostQuitMessage(EXIT_SUCCESS);
@@ -610,20 +636,23 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 				printf("[Info] Changed render to solid\n");
 			}
 
+			moveLeftRight = 0.0f;
+			moveBackForward = 0.0f;
+
 			if (input->IsKey(DIK_W)) {
-				moveBackForward += speed;
+				moveBackForward += 1.0f;
 			}
 
 			if (input->IsKey(DIK_A)) {
-				moveLeftRight -= speed;
+				moveLeftRight -= 1.0f;
 			}
 
 			if (input->IsKey(DIK_S)) {
-				moveBackForward -= speed;
+				moveBackForward -= 1.0f;
 			}
 
 			if (input->IsKey(DIK_D)) {
-				moveLeftRight += speed;
+				moveLeftRight += 1.0f;
 			}
 
 			mouseCurrState.lX = input->GetMouseSpeedX();
@@ -632,22 +661,65 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 			if ((mouseCurrState.lX != mouseLastState.lX)
 				|| (mouseCurrState.lY != mouseLastState.lY)) {
 
-				camYaw += mouseLastState.lX * 0.001f;
+				/* GTA-style: mouse right looks right (orbit camera). */
+				camYaw -= mouseCurrState.lX * 0.001f;
 				camPitch += mouseCurrState.lY * 0.001f;
 
 				mouseLastState = mouseCurrState;
 			}
 
-			camera->Update(camPitch, camYaw, moveLeftRight, moveBackForward);
+			{
+				float wheel = input->GetMouseWheel();
+				if (wheel != 0.0f) {
+					camDistance -= wheel * 0.02f;
+					if (camDistance < camDistanceMin)
+						camDistance = camDistanceMin;
+					if (camDistance > camDistanceMax)
+						camDistance = camDistanceMax;
+				}
+			}
+
+			if (g_player) {
+				/*
+				 * Camera::Follow places the camera at
+				 *   (sy*cp, -sp, -cy*cp) * distance from the player.
+				 * Horizontal look / walk direction is therefore (-sy, cy) on XZ,
+				 * and camera right is (cy, sy)  same as GTA VC 3rd-person.
+				 */
+				float s = sinf(camYaw);
+				float c = cosf(camYaw);
+				float mx = -moveBackForward * s + moveLeftRight * c;
+				float mz =  moveBackForward * c + moveLeftRight * s;
+				bool moving = (moveLeftRight != 0.0f || moveBackForward != 0.0f);
+				bool running = moving && input->IsKey(DIK_LSHIFT);
+
+				g_player->Update((float)frameTime, mx, mz, moving, running);
+
+				XMVECTOR p = g_player->GetPosition();
+				camera->Follow(
+					XMVectorGetX(p), XMVectorGetY(p), XMVectorGetZ(p),
+					camYaw, camPitch, camDistance, 1.4f
+				);
+			} else {
+				camera->Update(camPitch, camYaw, moveLeftRight * speed, moveBackForward * speed);
+			}
 
 			if (g_water)
 				g_water->Update((float)frameTime);
 
 			RenderScene(render, camera);
-
-			moveLeftRight = 0.0f;
-			moveBackForward = 0.0f;
 		}
+	}
+
+	if (g_player) {
+		g_player->Cleanup();
+		delete g_player;
+		g_player = nullptr;
+	}
+	if (ifp) {
+		ifp->Cleanup();
+		delete ifp;
+		ifp = nullptr;
 	}
 
 	if (g_water) {

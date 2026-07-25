@@ -15,6 +15,7 @@ public:
 	bool IsKey(BYTE key);
 	float GetMouseSpeedX();
 	float GetMouseSpeedY();
+	float GetMouseWheel();
 
 private:
 	LPDIRECTINPUT8 m_pDirectInput;

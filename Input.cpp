@@ -76,6 +76,11 @@ float Input::GetMouseSpeedY()
 	return (float)m_mouseCurrState.lY;
 }
 
+float Input::GetMouseWheel()
+{
+	return (float)m_mouseCurrState.lZ;
+}
+
 void Input::Cleanup()
 {
 	m_pDIKeyboard->Unacquire();
