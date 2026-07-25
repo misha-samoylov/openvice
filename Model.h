@@ -14,6 +14,9 @@ public:
 	Model()
 		: m_id(0)
 		, m_hasAlpha(false)
+		, m_isTimed(false)
+		, m_timeOn(0)
+		, m_timeOff(24)
 		, m_hasBounds(false)
 		, m_boundCenterX(0.0f)
 		, m_boundCenterY(0.0f)
@@ -31,6 +34,23 @@ public:
 
 	void SetAlpha(bool IsAlpha) { m_hasAlpha = IsAlpha; };
 	bool IsAlpha() const { return m_hasAlpha; };
+
+	/* Timed objects (IDE tobj) — night window lights, neons, etc. */
+	void SetTimed(bool timed, int timeOn, int timeOff)
+	{
+		m_isTimed = timed;
+		m_timeOn = timeOn;
+		m_timeOff = timeOff;
+	}
+	bool IsTimed() const { return m_isTimed; }
+	bool IsVisibleAtHour(int hour) const
+	{
+		if (!m_isTimed)
+			return true;
+		if (m_timeOn > m_timeOff)
+			return hour >= m_timeOn || hour < m_timeOff;
+		return hour >= m_timeOn && hour < m_timeOff;
+	}
 
 	void SetName(std::string name) { m_name = name; };
 	const std::string& GetName() const { return m_name; }
@@ -69,6 +89,9 @@ private:
 
 	int m_id;
 	bool m_hasAlpha;
+	bool m_isTimed;
+	int m_timeOn;
+	int m_timeOff;
 	std::string m_name;
 	std::vector<Mesh*> m_pMeshes;
 

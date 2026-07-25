@@ -34,6 +34,8 @@
 #define CAMERA_FAR_PLANE 1500.0f
 #define FOG_START_FACTOR 0.55f
 #define FOG_END_FACTOR 0.98f
+/* Daytime hour for tobj visibility (re3 CTimeModelInfo). Night lights are off. */
+#define WORLD_HOUR 12
 /* Matches DXRender clear color — fog fades geometry into the sky. */
 static const float g_skyColor[4] = { 0.49804f, 0.78431f, 0.94510f, 1.0f };
 
@@ -400,6 +402,10 @@ void BuildSceneInstances()
 				continue;
 
 			Model* model = it->second;
+			/* Hide IDE tobj outside their hours (night window lights, neons). */
+			if (!model->IsVisibleAtHour(WORLD_HOUR))
+				continue;
+
 			SceneInstance inst;
 			inst.model = model;
 			inst.x = objectInfo.x;
@@ -420,10 +426,11 @@ void BuildSceneInstances()
 		}
 	}
 
-	printf("[Info] Scene instances: opaque=%u alpha=%u models=%u\n",
+	printf("[Info] Scene instances: opaque=%u alpha=%u models=%u (hour=%d, timed hidden)\n",
 		(unsigned)g_opaqueInstances.size(),
 		(unsigned)g_alphaInstances.size(),
-		(unsigned)g_models.size());
+		(unsigned)g_models.size(),
+		WORLD_HOUR);
 }
 
 static void AppendColPlacements(const std::vector<SceneInstance>& instances, std::vector<ColInstancePlacement>& out)
@@ -625,7 +632,11 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 	for (int i = 0; i < g_ideFile.size(); i++) {
 		for (int j = 0; j < g_ideFile[i]->GetCountItems(); j++) {
 			struct itemDefinition* itemDef = &g_ideFile[i]->GetItems()[j];
+			size_t before = g_models.size();
 			LoadFileDFFWithName(imgLoader, render, itemDef->modelName, itemDef->objectId);
+			if (g_models.size() > before) {
+				g_models.back()->SetTimed(itemDef->isTimed, itemDef->timeOn, itemDef->timeOff);
+			}
 		}
 	}
 
