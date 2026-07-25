@@ -142,12 +142,27 @@ void LoadAllTexturesFromTXDFile(IMG *pImgLoader, const char *filename)
 	//free(fileBuffer);
 }
 
+/* GTA VC LODs: "LOD*" / "lod*" prefix, or "IslandLOD*". Case-insensitive. */
+static bool IsLodModelName(const char* name)
+{
+	if (!name)
+		return false;
+	while (*name == ' ' || *name == '\t')
+		name++;
+	if (!name[0])
+		return false;
+	if (_strnicmp(name, "lod", 3) == 0)
+		return true;
+	if (_strnicmp(name, "IslandLOD", 9) == 0)
+		return true;
+	return false;
+}
+
 int LoadFileDFFWithName(IMG* pImgLoader, DXRender* render, char *name, int modelId)
 {
-	/* Skip LOD files */
-	if (strstr(name, "LOD") != NULL) {
+	/* Skip LOD models — they occupy the same space as HD and cause z-fighting. */
+	if (IsLodModelName(name))
 		return 0;
-	}
 
 	char result_name[MAX_LENGTH_FILENAME + 4];
 	strcpy(result_name, name);
@@ -405,6 +420,10 @@ void BuildSceneInstances()
 			if (objectInfo.interior == INTERIOR_DIRTRING
 				|| objectInfo.interior == INTERIOR_BLOODRING
 				|| objectInfo.interior == INTERIOR_HOTRING)
+				continue;
+
+			/* Skip LOD placements even if a model slipped through loading. */
+			if (IsLodModelName(objectInfo.modelName))
 				continue;
 
 			std::unordered_map<int, Model*>::iterator it = g_modelsById.find(objectInfo.id);
