@@ -66,6 +66,7 @@ bool Player::Init(IMG* img, DXRender* render, IFP* ifp)
 	m_wasStanding = false;
 	m_world = nullptr;
 	m_animTime = 0.0f;
+	m_animBlend = 1.0f;
 	m_wasMoving = false;
 	m_isJumping = false;
 	m_landAnimTimer = 0.0f;
@@ -358,6 +359,8 @@ bool Player::LoadModel(IMG* img, DXRender* render)
 	m_inverseBind.resize(m_boneCount);
 	m_localQuat.resize(m_boneCount);
 	m_localPos.resize(m_boneCount);
+	m_blendFromQuat.resize(m_boneCount);
+	m_blendFromPos.resize(m_boneCount);
 	m_boneWorld.resize(m_boneCount);
 	m_skinPalette.resize(MAX_BONES);
 	m_boneSeq.resize(m_boneCount, nullptr);
@@ -498,9 +501,39 @@ void Player::SetAnim(IfpAnim* anim)
 	if (!anim || anim == m_currentAnim)
 		return;
 
+	/* Snapshot current pose and crossfade into the new clip. */
+	if (m_currentAnim && m_boneCount > 0) {
+		m_blendFromQuat = m_localQuat;
+		m_blendFromPos = m_localPos;
+		m_animBlend = 0.0f;
+	} else {
+		m_animBlend = 1.0f;
+	}
+
 	m_currentAnim = anim;
 	m_animTime = 0.0f;
 	BindAnims();
+}
+
+void Player::BlendAnimPose(float dt)
+{
+	if (m_animBlend >= 1.0f || m_boneCount == 0)
+		return;
+
+	m_animBlend += dt / ANIM_BLEND_DURATION;
+	if (m_animBlend > 1.0f)
+		m_animBlend = 1.0f;
+
+	const float t = m_animBlend;
+	for (uint32_t b = 0; b < m_boneCount; b++) {
+		XMVECTOR qFrom = XMLoadFloat4(&m_blendFromQuat[b]);
+		XMVECTOR qTo = XMLoadFloat4(&m_localQuat[b]);
+		XMStoreFloat4(&m_localQuat[b], XMQuaternionSlerp(qFrom, qTo, t));
+
+		m_localPos[b].x = m_blendFromPos[b].x + (m_localPos[b].x - m_blendFromPos[b].x) * t;
+		m_localPos[b].y = m_blendFromPos[b].y + (m_localPos[b].y - m_blendFromPos[b].y) * t;
+		m_localPos[b].z = m_blendFromPos[b].z + (m_localPos[b].z - m_blendFromPos[b].z) * t;
+	}
 }
 
 void Player::BindAnims()
@@ -791,6 +824,7 @@ void Player::Update(float dt, float moveX, float moveZ, bool moving, bool runnin
 			}
 		}
 		SampleAnim(m_currentAnim, m_animTime);
+		BlendAnimPose(dt);
 		UpdateBoneMatrices();
 	}
 

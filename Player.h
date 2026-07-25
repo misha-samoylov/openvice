@@ -71,6 +71,7 @@ private:
 	HRESULT CreateTextureSRV(DXRender* render, LoadedTex& tex, ID3D11ShaderResourceView** outSRV);
 	void BindAnims();
 	void SampleAnim(IfpAnim* anim, float time);
+	void BlendAnimPose(float dt);
 	void UpdateBoneMatrices();
 	void SetAnim(IfpAnim* anim);
 	int FindTexIndex(const char* name) const;
@@ -92,6 +93,8 @@ private:
 	IfpAnim* m_animJumpLand;
 	IfpAnim* m_currentAnim;
 	float m_animTime;
+	float m_animBlend; /* 0 = blend-from pose, 1 = fully current anim */
+	static constexpr float ANIM_BLEND_DURATION = 0.22f;
 	bool m_wasMoving;
 	bool m_isJumping;
 	float m_landAnimTimer;
@@ -103,6 +106,8 @@ private:
 	std::vector<XMFLOAT4X4> m_inverseBind;
 	std::vector<XMFLOAT4> m_localQuat;
 	std::vector<XMFLOAT3> m_localPos;
+	std::vector<XMFLOAT4> m_blendFromQuat;
+	std::vector<XMFLOAT3> m_blendFromPos;
 	std::vector<XMFLOAT4X4> m_boneWorld;
 	std::vector<XMFLOAT4X4> m_skinPalette;
 	std::vector<IfpSequence*> m_boneSeq;
