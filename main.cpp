@@ -742,6 +742,9 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 	const float camDistanceMin = 3.0f;
 	const float camDistanceMax = 40.0f;
 	bool freeCamera = false;
+	float freeCamSpeed = 1.0f;
+	const float freeCamSpeedMin = 0.1f;
+	const float freeCamSpeedMax = 50.0f;
 	bool numpad1WasDown = false;
 	bool numpad0WasDown = false;
 	bool numpad2WasDown = false;
@@ -780,7 +783,7 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 
 			input->Detect();
 
-			float speed = 10.0f * (float)frameTime;
+			float speed = 10.0f * freeCamSpeed * (float)frameTime;
 
 			if (input->IsKey(DIK_ESCAPE)) {
 				PostQuitMessage(EXIT_SUCCESS);
@@ -895,11 +898,23 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 			{
 				float wheel = input->GetMouseWheel();
 				if (wheel != 0.0f) {
-					camDistance -= wheel * 0.02f;
-					if (camDistance < camDistanceMin)
-						camDistance = camDistanceMin;
-					if (camDistance > camDistanceMax)
-						camDistance = camDistanceMax;
+					if (freeCamera) {
+						/* Scroll up = faster, down = slower. */
+						float factor = 1.0f + wheel * 0.0015f;
+						if (factor < 0.5f) factor = 0.5f;
+						if (factor > 2.0f) factor = 2.0f;
+						freeCamSpeed *= factor;
+						if (freeCamSpeed < freeCamSpeedMin)
+							freeCamSpeed = freeCamSpeedMin;
+						if (freeCamSpeed > freeCamSpeedMax)
+							freeCamSpeed = freeCamSpeedMax;
+					} else {
+						camDistance -= wheel * 0.02f;
+						if (camDistance < camDistanceMin)
+							camDistance = camDistanceMin;
+						if (camDistance > camDistanceMax)
+							camDistance = camDistanceMax;
+					}
 				}
 			}
 
