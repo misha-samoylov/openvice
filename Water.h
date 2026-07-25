@@ -29,8 +29,10 @@ private:
 	struct WaterCB {
 		XMMATRIX wvp;
 		XMFLOAT2 uvScroll;
-		XMFLOAT2 pad;
+		float fogStart;
+		float fogEnd;
 		XMFLOAT4 tint;
+		XMFLOAT4 fogColor;
 	};
 
 	bool LoadWaterPro(const char* path);
@@ -40,7 +42,7 @@ private:
 	bool CreateOceanBuffers(DXRender* render);
 	void AddQuad(std::vector<WaterVertex>& verts, std::vector<uint32_t>& indices,
 		float gx, float gy, float gz, float size, float uvScale);
-	void BindPipeline(DXRender* render, Camera* camera);
+	void BindPipeline(DXRender* render, Camera* camera, float drawDistance);
 	void DrawCoast(DXRender* render);
 	void DrawInfiniteOcean(DXRender* render, Camera* camera, float drawDistance);
 	bool IsInsideMapWaterGrid(float gtaX, float gtaY) const;

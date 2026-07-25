@@ -31,7 +31,11 @@
 #define WINDOW_WIDTH 3840
 #define WINDOW_HEIGHT 2160
 #define WINDOW_TITLE L"openvice"
-#define CAMERA_FAR_PLANE 1000.0f
+#define CAMERA_FAR_PLANE 1500.0f
+#define FOG_START_FACTOR 0.55f
+#define FOG_END_FACTOR 0.98f
+/* Matches DXRender clear color — fog fades geometry into the sky. */
+static const float g_skyColor[4] = { 0.49804f, 0.78431f, 0.94510f, 1.0f };
 
 int frameCount = 0;
 Frustum g_frustum;
@@ -477,6 +481,9 @@ void RenderScene(DXRender *render, Camera *camera)
 
 	MeshRenderContext ctx;
 	ctx.viewProj = XMMatrixMultiply(view, proj);
+	ctx.fogColor = XMFLOAT4(g_skyColor[0], g_skyColor[1], g_skyColor[2], g_skyColor[3]);
+	ctx.fogStart = CAMERA_FAR_PLANE * FOG_START_FACTOR;
+	ctx.fogEnd = CAMERA_FAR_PLANE * FOG_END_FACTOR;
 
 	/* Opaque geometry (and opaque submeshes of alpha models). */
 	render->SetOpaqueState();
@@ -494,7 +501,7 @@ void RenderScene(DXRender *render, Camera *camera)
 		g_water->Render(render, camera, g_frustum, CAMERA_FAR_PLANE);
 
 	/* Water changes D3D bindings — reset cache before alpha pass. */
-	ctx = MeshRenderContext();
+	ctx.ClearBindings();
 	ctx.viewProj = XMMatrixMultiply(view, proj);
 
 	SortAlphaInstancesBackToFront(g_alphaInstances, camera);

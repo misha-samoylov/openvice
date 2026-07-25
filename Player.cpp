@@ -893,6 +893,11 @@ void Player::Render(DXRender* render, MeshRenderContext& ctx)
 	XMMATRIX wvp = XMMatrixMultiply(world, ctx.viewProj);
 	objectConstBuffer cb;
 	cb.WVP = XMMatrixTranspose(wvp);
+	cb.fogColor = ctx.fogColor;
+	cb.fogStart = ctx.fogStart;
+	cb.fogEnd = ctx.fogEnd;
+	cb.pad[0] = 0.0f;
+	cb.pad[1] = 0.0f;
 
 	for (size_t i = 0; i < m_meshes.size(); i++) {
 		SkinnedMeshPart& part = m_meshes[i];
@@ -905,6 +910,7 @@ void Player::Render(DXRender* render, MeshRenderContext& ctx)
 
 		dc->UpdateSubresource(part.objectCB, 0, nullptr, &cb, 0, 0);
 		dc->VSSetConstantBuffers(0, 1, &part.objectCB);
+		dc->PSSetConstantBuffers(0, 1, &part.objectCB);
 
 		if (part.texture)
 			dc->PSSetShaderResources(0, 1, &part.texture);
@@ -913,9 +919,7 @@ void Player::Render(DXRender* render, MeshRenderContext& ctx)
 	}
 
 	/* Reset D3D binding cache so map meshes rebind correctly. */
-	XMMATRIX savedViewProj = ctx.viewProj;
-	ctx = MeshRenderContext();
-	ctx.viewProj = savedViewProj;
+	ctx.ClearBindings();
 }
 
 XMVECTOR Player::GetPosition() const

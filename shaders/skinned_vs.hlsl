@@ -1,6 +1,10 @@
 cbuffer cbPerObject : register(b0)
 {
 	float4x4 WVP;
+	float4 fogColor;
+	float fogStart;
+	float fogEnd;
+	float2 fogPad;
 };
 
 cbuffer cbBones : register(b1)
@@ -19,7 +23,8 @@ struct VS_INPUT
 struct VS_OUTPUT
 {
 	float4 Pos : SV_POSITION;
-	float2 TexCoord : TEXCOORD;
+	float2 TexCoord : TEXCOORD0;
+	float FogDist : TEXCOORD1;
 };
 
 VS_OUTPUT main(VS_INPUT input)
@@ -35,5 +40,6 @@ VS_OUTPUT main(VS_INPUT input)
 
 	output.Pos = mul(skinned, WVP);
 	output.TexCoord = input.TexCoord;
+	output.FogDist = output.Pos.w;
 	return output;
 }

@@ -200,8 +200,12 @@ void Mesh::Render(DXRender* pRender, MeshRenderContext& ctx)
 
 	XMMATRIX wvp = XMMatrixMultiply(m_World, ctx.viewProj);
 	m_objectConstBuffer.WVP = XMMatrixTranspose(wvp);
+	m_objectConstBuffer.fogColor = ctx.fogColor;
+	m_objectConstBuffer.fogStart = ctx.fogStart;
+	m_objectConstBuffer.fogEnd = ctx.fogEnd;
 	ctx3d->UpdateSubresource(m_pObjectBuffer, 0, NULL, &m_objectConstBuffer, 0, 0);
 	ctx3d->VSSetConstantBuffers(0, 1, &m_pObjectBuffer);
+	ctx3d->PSSetConstantBuffers(0, 1, &m_pObjectBuffer);
 
 	if (ctx.srv != m_pTexture) {
 		ctx3d->PSSetShaderResources(0, 1, &m_pTexture);

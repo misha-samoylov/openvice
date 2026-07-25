@@ -483,7 +483,7 @@ void Water::Update(float deltaTime)
 	if (m_uvV >= 1.0f) m_uvV -= 1.0f;
 }
 
-void Water::BindPipeline(DXRender* render, Camera* camera)
+void Water::BindPipeline(DXRender* render, Camera* camera, float drawDistance)
 {
 	ID3D11DeviceContext* ctx = render->GetDeviceContext();
 
@@ -491,8 +491,10 @@ void Water::BindPipeline(DXRender* render, Camera* camera)
 	XMMATRIX wvp = camera->GetView() * camera->GetProjection();
 	cb.wvp = XMMatrixTranspose(wvp);
 	cb.uvScroll = XMFLOAT2(m_uvU, m_uvV);
-	cb.pad = XMFLOAT2(0.0f, 0.0f);
+	cb.fogStart = drawDistance * 0.55f;
+	cb.fogEnd = drawDistance * 0.98f;
 	cb.tint = XMFLOAT4(0.45f, 0.65f, 0.75f, 0.85f);
+	cb.fogColor = XMFLOAT4(0.49804f, 0.78431f, 0.94510f, 1.0f);
 
 	ctx->UpdateSubresource(m_cb, 0, nullptr, &cb, 0, 0);
 
@@ -607,7 +609,7 @@ void Water::Render(DXRender* render, Camera* camera, Frustum& frustum, float dra
 
 	(void)frustum;
 
-	BindPipeline(render, camera);
+	BindPipeline(render, camera, drawDistance);
 	DrawCoast(render);
 	DrawInfiniteOcean(render, camera, drawDistance);
 

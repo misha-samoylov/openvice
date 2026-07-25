@@ -29,12 +29,19 @@ struct DDS_File {
 struct objectConstBuffer
 {
 	XMMATRIX WVP;
+	XMFLOAT4 fogColor;
+	float fogStart;
+	float fogEnd;
+	float pad[2];
 };
 
 /* Cached D3D bindings for the current frame — skip redundant Set* calls. */
 struct MeshRenderContext
 {
 	XMMATRIX viewProj;
+	XMFLOAT4 fogColor;
+	float fogStart;
+	float fogEnd;
 	ID3D11InputLayout* layout;
 	ID3D11VertexShader* vs;
 	ID3D11PixelShader* ps;
@@ -45,7 +52,10 @@ struct MeshRenderContext
 	D3D_PRIMITIVE_TOPOLOGY topology;
 
 	MeshRenderContext()
-		: layout(nullptr)
+		: fogColor(0.49804f, 0.78431f, 0.94510f, 1.0f)
+		, fogStart(800.0f)
+		, fogEnd(1450.0f)
+		, layout(nullptr)
 		, vs(nullptr)
 		, ps(nullptr)
 		, sampler(nullptr)
@@ -54,6 +64,18 @@ struct MeshRenderContext
 		, srv(nullptr)
 		, topology(D3D11_PRIMITIVE_TOPOLOGY_UNDEFINED)
 	{
+	}
+
+	void ClearBindings()
+	{
+		layout = nullptr;
+		vs = nullptr;
+		ps = nullptr;
+		sampler = nullptr;
+		vb = nullptr;
+		ib = nullptr;
+		srv = nullptr;
+		topology = D3D11_PRIMITIVE_TOPOLOGY_UNDEFINED;
 	}
 };
 

@@ -2,8 +2,10 @@ cbuffer cbWater : register(b0)
 {
 	float4x4 WVP;
 	float2 uvScroll;
-	float2 pad;
+	float fogStart;
+	float fogEnd;
 	float4 tint;
+	float4 fogColor;
 };
 
 struct VS_INPUT
@@ -15,7 +17,8 @@ struct VS_INPUT
 struct VS_OUTPUT
 {
 	float4 Pos : SV_POSITION;
-	float2 Tex : TEXCOORD;
+	float2 Tex : TEXCOORD0;
+	float FogDist : TEXCOORD1;
 };
 
 VS_OUTPUT main(VS_INPUT input)
@@ -23,5 +26,6 @@ VS_OUTPUT main(VS_INPUT input)
 	VS_OUTPUT output;
 	output.Pos = mul(float4(input.Pos, 1.0f), WVP);
 	output.Tex = input.Tex + uvScroll;
+	output.FogDist = output.Pos.w;
 	return output;
 }
