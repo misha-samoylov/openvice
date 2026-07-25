@@ -92,6 +92,10 @@ public:
 	void SetAlpha(bool a) { m_hasAlpha = a; }
 	bool GetAlpha() { return m_hasAlpha; }
 
+	/* DXT1 1-bit alpha → cutout; DXT3/5 → soft blended. */
+	void SetAlphaCutout(bool cutout) { m_alphaCutout = cutout; }
+	bool IsAlphaCutout() const { return m_alphaCutout; }
+
 	static void ReleaseSharedResources();
 
 private:
@@ -120,6 +124,7 @@ private:
 
 	int m_meshId;
 	bool m_hasAlpha;
+	bool m_alphaCutout;
 
 	static ID3D11VertexShader* s_pVertexShader;
 	static ID3D11PixelShader* s_pPixelShader;

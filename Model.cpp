@@ -94,9 +94,23 @@ void Model::SetPosition(float x, float y, float z, float sx, float sy, float sz,
 	}
 }
 
-void Model::Render(DXRender* pRender, MeshRenderContext& ctx)
+void Model::Render(DXRender* pRender, MeshRenderContext& ctx, int alphaFilter)
 {
 	for (int i = 0; i < (int)m_pMeshes.size(); i++) {
-		m_pMeshes[i]->Render(pRender, ctx);
+		Mesh* mesh = m_pMeshes[i];
+		bool isAlpha = mesh->GetAlpha();
+
+		if (alphaFilter < 0) {
+			if (isAlpha)
+				continue;
+		} else if (alphaFilter == 1) {
+			if (!isAlpha || !mesh->IsAlphaCutout())
+				continue;
+		} else if (alphaFilter == 2) {
+			if (!isAlpha || mesh->IsAlphaCutout())
+				continue;
+		}
+
+		mesh->Render(pRender, ctx);
 	}
 }

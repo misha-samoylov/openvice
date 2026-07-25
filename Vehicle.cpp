@@ -272,6 +272,12 @@ bool Vehicle::LoadWheelMeshes(IMG* img, DXRender* render)
 				for (size_t t = 0; t < localTex.size(); t++) {
 					if (_stricmp(localTex[t].name, matName) == 0) {
 						mesh->SetAlpha(localTex[t].isAlpha);
+						mesh->SetAlphaCutout(
+							localTex[t].isAlpha &&
+							localTex[t].dxt != 3 &&
+							localTex[t].dxt != 4 &&
+							localTex[t].dxt != 5
+						);
 						mesh->SetDataDDS(
 							render,
 							localTex[t].data,

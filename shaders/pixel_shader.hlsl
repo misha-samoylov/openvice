@@ -9,5 +9,8 @@ struct VS_OUTPUT
 
 float4 main(VS_OUTPUT input) : SV_TARGET
 {
-	return ObjTexture.Sample(ObjSamplerState, input.TexCoord);
+	float4 color = ObjTexture.Sample(ObjSamplerState, input.TexCoord);
+	/* Kill fully transparent texels so they never write depth or blend. */
+	clip(color.a - 0.01f);
+	return color;
 }

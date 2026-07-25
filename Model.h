@@ -52,7 +52,8 @@ public:
 		float sx, float sy, float sz,
 		float rx, float ry, float rz, float rr);
 
-	void Render(DXRender* pRender, MeshRenderContext& ctx);
+	/* alphaFilter: -1 opaque, 0 all, 1 cutout alpha, 2 soft alpha */
+	void Render(DXRender* pRender, MeshRenderContext& ctx, int alphaFilter = 0);
 
 	void Cleanup()
 	{

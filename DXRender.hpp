@@ -17,6 +17,13 @@ public:
 	void RenderStart();
 	void RenderEnd();
 
+	/* Opaque: blending off, depth write on. */
+	void SetOpaqueState();
+	/* Cutout alpha (trees): blending on, depth write on (PS clips transparent texels). */
+	void SetCutoutAlphaState();
+	/* Soft alpha (glass): blending on, depth write off вЂ” draw back-to-front. */
+	void SetSoftAlphaState();
+
 	ID3D11Device *GetDevice();
 	ID3D11DeviceContext *GetDeviceContext();
 
@@ -29,7 +36,8 @@ private:
 	HRESULT CreateBackBuffer();
 	
 	HRESULT CreateDepthStencil(HWND hWnd);
-	HRESULT CreateBlendState();
+	HRESULT CreateBlendStates();
+	HRESULT CreateDepthStencilStates();
 
 	ID3D11Device *m_pDevice;
 	ID3D11DeviceContext *m_pDeviceContext;
@@ -39,10 +47,15 @@ private:
 
 	ID3D11RasterizerState *m_pRasterizerState;
 
-	ID3D11Texture2D* m_pDepthStencil; // Текстура буфера глубин
-	ID3D11DepthStencilView* m_pDepthStencilView; // Объект вида, буфер глубин
+	ID3D11Texture2D* m_pDepthStencil;
+	ID3D11DepthStencilView* m_pDepthStencilView;
 
+	ID3D11BlendState* m_pBlendStateOpaque;
 	ID3D11BlendState* m_pBlendStateTransparency;
+
+	ID3D11DepthStencilState* m_pDepthStateOpaque;
+	ID3D11DepthStencilState* m_pDepthStateCutout;
+	ID3D11DepthStencilState* m_pDepthStateSoftAlpha;
 
 	bool m_vsync;
 };

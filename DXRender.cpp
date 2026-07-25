@@ -19,10 +19,10 @@ HRESULT DXRender::ChangeRasterizerStateToWireframe()
 	wfdesc.FillMode = D3D11_FILL_WIREFRAME;
 	wfdesc.CullMode = D3D11_CULL_NONE;
 
-	// Создаем растеризатор с данными настройками
+	// пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
 	hr = m_pDevice->CreateRasterizerState(&wfdesc, &m_pRasterizerState);
 
-	// Включаем указанные настройки растеризации
+	// пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
 	m_pDeviceContext->RSSetState(m_pRasterizerState);
 
 	return hr;
@@ -80,10 +80,10 @@ HRESULT DXRender::ChangeRasterizerStateToSolid()
 	solidDesc.FillMode = D3D11_FILL_SOLID;
 	solidDesc.CullMode = D3D11_CULL_FRONT;
 
-	// Создаем растеризатор с данными настройками
+	// пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
 	hr = m_pDevice->CreateRasterizerState(&solidDesc, &m_pRasterizerState);
 
-	// Включаем указанные настройки растеризации
+	// пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
 	m_pDeviceContext->RSSetState(m_pRasterizerState);
 
 	return hr;
@@ -104,42 +104,50 @@ HRESULT DXRender::CreateDepthStencil(HWND hWnd)
 	UINT width = rc.right - rc.left;
 	UINT height = rc.bottom - rc.top;
 
-	// Создаем текстуру-описание буфера глубин
+	// пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ-пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
 	D3D11_TEXTURE2D_DESC descDepth;
 	ZeroMemory(&descDepth, sizeof(descDepth));
-	descDepth.Width = width; // ширина и
-	descDepth.Height = height; // высота текстуры
-	descDepth.MipLevels = 1; // уровень интерполяции
+	descDepth.Width = width; // пїЅпїЅпїЅпїЅпїЅпїЅ пїЅ
+	descDepth.Height = height; // пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
+	descDepth.MipLevels = 1; // пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
 	descDepth.ArraySize = 1;
-	descDepth.Format = DXGI_FORMAT_D24_UNORM_S8_UINT; // формат (размер пикселя)
+	descDepth.Format = DXGI_FORMAT_D24_UNORM_S8_UINT; // пїЅпїЅпїЅпїЅпїЅпїЅ (пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ)
 	descDepth.SampleDesc.Count = 1;
 	descDepth.SampleDesc.Quality = 0;
 	descDepth.Usage = D3D11_USAGE_DEFAULT;
-	descDepth.BindFlags = D3D11_BIND_DEPTH_STENCIL; // вид - буфер глубин
+	descDepth.BindFlags = D3D11_BIND_DEPTH_STENCIL; // пїЅпїЅпїЅ - пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
 	descDepth.CPUAccessFlags = 0;
 	descDepth.MiscFlags = 0;
 
-	// При помощи заполненной структуры-описания создаем объект текстуры
+	// пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ-пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
 	hr = m_pDevice->CreateTexture2D(&descDepth, NULL, &m_pDepthStencil);
 	if (FAILED(hr))
 		return hr;
 
-	// Теперь надо создать сам объект буфера глубин
+	// пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
 	D3D11_DEPTH_STENCIL_VIEW_DESC descDSV;
 	ZeroMemory(&descDSV, sizeof(descDSV));
-	descDSV.Format = descDepth.Format; // формат как в текстуре
+	descDSV.Format = descDepth.Format; // пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
 	descDSV.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
 	descDSV.Texture2D.MipSlice = 0;
 
-	// При помощи заполненной структуры-описания и текстуры создаем объект буфера глубин
+	// пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ-пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
 	hr = m_pDevice->CreateDepthStencilView(m_pDepthStencil, &descDSV, &m_pDepthStencilView);
 
 	return hr;
 }
 
-HRESULT DXRender::CreateBlendState()
+HRESULT DXRender::CreateBlendStates()
 {
 	HRESULT hr;
+
+	D3D11_BLEND_DESC opaqueDesc;
+	ZeroMemory(&opaqueDesc, sizeof(opaqueDesc));
+	opaqueDesc.RenderTarget[0].BlendEnable = FALSE;
+	opaqueDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+	hr = m_pDevice->CreateBlendState(&opaqueDesc, &m_pBlendStateOpaque);
+	if (FAILED(hr))
+		return hr;
 
 	D3D11_RENDER_TARGET_BLEND_DESC rtbd;
 	ZeroMemory(&rtbd, sizeof(rtbd));
@@ -148,7 +156,7 @@ HRESULT DXRender::CreateBlendState()
 	rtbd.DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
 	rtbd.BlendOp = D3D11_BLEND_OP_ADD;
 	rtbd.SrcBlendAlpha = D3D11_BLEND_ONE;
-	rtbd.DestBlendAlpha = D3D11_BLEND_ZERO;
+	rtbd.DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
 	rtbd.BlendOpAlpha = D3D11_BLEND_OP_ADD;
 	rtbd.RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
 
@@ -157,8 +165,61 @@ HRESULT DXRender::CreateBlendState()
 	blendDesc.RenderTarget[0] = rtbd;
 
 	hr = m_pDevice->CreateBlendState(&blendDesc, &m_pBlendStateTransparency);
-
 	return hr;
+}
+
+HRESULT DXRender::CreateDepthStencilStates()
+{
+	HRESULT hr;
+
+	D3D11_DEPTH_STENCIL_DESC opaqueDs;
+	ZeroMemory(&opaqueDs, sizeof(opaqueDs));
+	opaqueDs.DepthEnable = TRUE;
+	opaqueDs.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
+	opaqueDs.DepthFunc = D3D11_COMPARISON_LESS;
+	hr = m_pDevice->CreateDepthStencilState(&opaqueDs, &m_pDepthStateOpaque);
+	if (FAILED(hr))
+		return hr;
+
+	/* Cutout alpha (trees/fences): solid texels write depth after PS clip. */
+	D3D11_DEPTH_STENCIL_DESC cutoutDs;
+	ZeroMemory(&cutoutDs, sizeof(cutoutDs));
+	cutoutDs.DepthEnable = TRUE;
+	cutoutDs.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
+	cutoutDs.DepthFunc = D3D11_COMPARISON_LESS;
+	hr = m_pDevice->CreateDepthStencilState(&cutoutDs, &m_pDepthStateCutout);
+	if (FAILED(hr))
+		return hr;
+
+	/* Soft alpha (glass): test only вЂ” do not occlude other translucent geometry. */
+	D3D11_DEPTH_STENCIL_DESC softDs;
+	ZeroMemory(&softDs, sizeof(softDs));
+	softDs.DepthEnable = TRUE;
+	softDs.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
+	softDs.DepthFunc = D3D11_COMPARISON_LESS;
+	hr = m_pDevice->CreateDepthStencilState(&softDs, &m_pDepthStateSoftAlpha);
+	return hr;
+}
+
+void DXRender::SetOpaqueState()
+{
+	float blendFactor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+	m_pDeviceContext->OMSetBlendState(m_pBlendStateOpaque, blendFactor, 0xffffffff);
+	m_pDeviceContext->OMSetDepthStencilState(m_pDepthStateOpaque, 0);
+}
+
+void DXRender::SetCutoutAlphaState()
+{
+	float blendFactor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+	m_pDeviceContext->OMSetBlendState(m_pBlendStateTransparency, blendFactor, 0xffffffff);
+	m_pDeviceContext->OMSetDepthStencilState(m_pDepthStateCutout, 0);
+}
+
+void DXRender::SetSoftAlphaState()
+{
+	float blendFactor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+	m_pDeviceContext->OMSetBlendState(m_pBlendStateTransparency, blendFactor, 0xffffffff);
+	m_pDeviceContext->OMSetDepthStencilState(m_pDepthStateSoftAlpha, 0);
 }
 
 HRESULT DXRender::Init(HWND hWnd, bool vsync)
@@ -225,10 +286,17 @@ HRESULT DXRender::Init(HWND hWnd, bool vsync)
 		return hr;
 	}
 
-	hr = CreateBlendState();
+	hr = CreateBlendStates();
 
 	if (FAILED(hr)) {
-		printf("Error: cannot CreateBlendState\n");
+		printf("Error: cannot CreateBlendStates\n");
+		return hr;
+	}
+
+	hr = CreateDepthStencilStates();
+
+	if (FAILED(hr)) {
+		printf("Error: cannot CreateDepthStencilStates\n");
 		return hr;
 	}
 
@@ -264,8 +332,20 @@ void DXRender::Cleanup()
 	if (m_pRasterizerState)
 		m_pRasterizerState->Release();
 
+	if (m_pBlendStateOpaque)
+		m_pBlendStateOpaque->Release();
+
 	if (m_pBlendStateTransparency)
 		m_pBlendStateTransparency->Release();
+
+	if (m_pDepthStateOpaque)
+		m_pDepthStateOpaque->Release();
+
+	if (m_pDepthStateCutout)
+		m_pDepthStateCutout->Release();
+
+	if (m_pDepthStateSoftAlpha)
+		m_pDepthStateSoftAlpha->Release();
 
 	if (m_pDeviceContext) 
 		m_pDeviceContext->Release();
@@ -276,17 +356,10 @@ void DXRender::Cleanup()
 
 void DXRender::RenderStart()
 {
-	// Очищаем задний буфер
 	float clearColor[4] = { 0.49804f, 0.78431f, 0.94510f, 1.0f };
 	m_pDeviceContext->ClearRenderTargetView(m_pRenderTargetView, clearColor);
-
-	// Очищаем буфер глубин до едицины (максимальная глубина)
 	m_pDeviceContext->ClearDepthStencilView(m_pDepthStencilView, D3D11_CLEAR_DEPTH, 1.0f, 0);
-
-	float blendFactor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
-	UINT sampleMask = 0xffffffff;
-
-	m_pDeviceContext->OMSetBlendState(m_pBlendStateTransparency, NULL, sampleMask);
+	SetOpaqueState();
 }
 
 void DXRender::RenderEnd()

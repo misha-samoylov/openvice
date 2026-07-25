@@ -330,6 +330,7 @@ HRESULT Mesh::Init(DXRender*pRender, float *pVertices, int verticesCount, unsign
 	HRESULT hr;
 
 	m_hasAlpha = false;
+	m_alphaCutout = false;
 	m_pTexture = nullptr;
 	m_pVertexBuffer = nullptr;
 	m_pIndexBuffer = nullptr;

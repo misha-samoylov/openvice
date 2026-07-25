@@ -28,8 +28,8 @@
 #include "CollisionWorld.h"
 
 #define PROJECT_NAME "openvice"
-#define WINDOW_WIDTH 1920
-#define WINDOW_HEIGHT 1080
+#define WINDOW_WIDTH 3840
+#define WINDOW_HEIGHT 2160
 #define WINDOW_TITLE L"openvice"
 #define CAMERA_FAR_PLANE 1000.0f
 
@@ -238,9 +238,9 @@ int LoadFileDFFWithName(IMG* pImgLoader, DXRender* render, char *name, int model
 				/*
 				 * Flip coordinates. We use Left Handed Coordinates,
 				 * but GTA engine use own coordinate system:
-				 * X ù east/west direction
-				 * Y ù north/south direction
-				 * Z ù up/down direction
+				 * X ÔøΩ east/west direction
+				 * Y ÔøΩ north/south direction
+				 * Z ÔøΩ up/down direction
 				 * @see https://gtamods.com/wiki/Map_system
 				*/
 				meshVertexData[v * 5 + 0] = x;
@@ -287,9 +287,13 @@ int LoadFileDFFWithName(IMG* pImgLoader, DXRender* render, char *name, int model
 			}
 
 			if (matIndex != -1) {
-				mesh->SetAlpha(g_Textures[matIndex].IsAlpha);
+				bool isAlpha = g_Textures[matIndex].IsAlpha;
+				uint32_t dxt = g_Textures[matIndex].dxtCompression;
+				mesh->SetAlpha(isAlpha);
+				/* DXT3/4/5 store soft alpha; DXT1 / non-DXT are cutout. */
+				mesh->SetAlphaCutout(isAlpha && dxt != 3 && dxt != 4 && dxt != 5);
 				
-				if (model->IsAlpha() == false && g_Textures[matIndex].IsAlpha) {
+				if (model->IsAlpha() == false && isAlpha) {
 					model->SetAlpha(true);
 				}
 
@@ -328,7 +332,9 @@ static bool IsInstanceVisible(Model* model, const SceneInstance& inst)
 	return g_frustum.CheckSphere(cx, cy, cz, radius);
 }
 
-static void DrawInstances(DXRender* render, MeshRenderContext& ctx, const std::vector<SceneInstance>& instances)
+/* alphaFilter: -1 opaque meshes, 0 all, 1 cutout alpha, 2 soft alpha */
+static void DrawInstances(DXRender* render, MeshRenderContext& ctx,
+	const std::vector<SceneInstance>& instances, int alphaFilter)
 {
 	for (size_t i = 0; i < instances.size(); i++) {
 		const SceneInstance& inst = instances[i];
@@ -342,8 +348,29 @@ static void DrawInstances(DXRender* render, MeshRenderContext& ctx, const std::v
 			inst.scale[0], inst.scale[1], inst.scale[2],
 			inst.rotation[0], inst.rotation[1], inst.rotation[2], inst.rotation[3]
 		);
-		model->Render(render, ctx);
+		model->Render(render, ctx, alphaFilter);
 	}
+}
+
+static void SortAlphaInstancesBackToFront(std::vector<SceneInstance>& instances, Camera* camera)
+{
+	XMVECTOR camPos = camera->GetPosition();
+	float cx = XMVectorGetX(camPos);
+	float cy = XMVectorGetY(camPos);
+	float cz = XMVectorGetZ(camPos);
+
+	std::sort(instances.begin(), instances.end(),
+		[cx, cy, cz](const SceneInstance& a, const SceneInstance& b) {
+			float dax = a.x - cx;
+			float day = a.y - cy;
+			float daz = a.z - cz;
+			float dbx = b.x - cx;
+			float dby = b.y - cy;
+			float dbz = b.z - cz;
+			float da = dax * dax + day * day + daz * daz;
+			float db = dbx * dbx + dby * dby + dbz * dbz;
+			return da > db; /* far first */
+		});
 }
 
 void BuildSceneInstances()
@@ -451,7 +478,10 @@ void RenderScene(DXRender *render, Camera *camera)
 	MeshRenderContext ctx;
 	ctx.viewProj = XMMatrixMultiply(view, proj);
 
-	DrawInstances(render, ctx, g_opaqueInstances);
+	/* Opaque geometry (and opaque submeshes of alpha models). */
+	render->SetOpaqueState();
+	DrawInstances(render, ctx, g_opaqueInstances, 0);
+	DrawInstances(render, ctx, g_alphaInstances, -1);
 
 	if (g_controllingVehicle) {
 		if (g_vehicle)
@@ -463,11 +493,19 @@ void RenderScene(DXRender *render, Camera *camera)
 	if (g_water)
 		g_water->Render(render, camera, g_frustum, CAMERA_FAR_PLANE);
 
-	/* Water changes D3D bindings ù reset cache before alpha pass. */
+	/* Water changes D3D bindings ‚Äî reset cache before alpha pass. */
 	ctx = MeshRenderContext();
 	ctx.viewProj = XMMatrixMultiply(view, proj);
 
-	DrawInstances(render, ctx, g_alphaInstances);
+	SortAlphaInstancesBackToFront(g_alphaInstances, camera);
+
+	/* Cutout first (trees/fences): alpha-test style with depth writes. */
+	render->SetCutoutAlphaState();
+	DrawInstances(render, ctx, g_alphaInstances, 1);
+
+	/* Soft translucent (glass): back-to-front, no depth write. */
+	render->SetSoftAlphaState();
+	DrawInstances(render, ctx, g_alphaInstances, 2);
 
 	render->RenderEnd();
 }
@@ -601,7 +639,7 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 
 	g_col = new COL();
 	if (!g_col->LoadAllFromIMG(imgLoader)) {
-		printf("[Warn] No collision models loaded ù player physics limited\n");
+		printf("[Warn] No collision models loaded ÔøΩ player physics limited\n");
 	}
 	BuildCollisionWorld();
 
