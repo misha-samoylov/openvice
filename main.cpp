@@ -27,8 +27,8 @@
 #include "CollisionWorld.h"
 
 #define PROJECT_NAME "openvice"
-#define WINDOW_WIDTH 3840
-#define WINDOW_HEIGHT 2160
+#define WINDOW_WIDTH 1920
+#define WINDOW_HEIGHT 1080
 #define WINDOW_TITLE L"openvice"
 #define CAMERA_FAR_PLANE 1000.0f
 
@@ -725,9 +725,10 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 			if ((mouseCurrState.lX != mouseLastState.lX)
 				|| (mouseCurrState.lY != mouseLastState.lY)) {
 
-				/* GTA-style: mouse right looks right (orbit camera). */
+				/* GTA-style: mouse right looks right (orbit camera).
+				 * Invert Y: mouse down ? camera rises (look down), mouse up ? camera drops. */
 				camYaw -= mouseCurrState.lX * 0.001f;
-				camPitch += mouseCurrState.lY * 0.001f;
+				camPitch -= mouseCurrState.lY * 0.001f;
 
 				mouseLastState = mouseCurrState;
 			}
