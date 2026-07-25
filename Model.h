@@ -33,6 +33,7 @@ public:
 	bool IsAlpha() const { return m_hasAlpha; };
 
 	void SetName(std::string name) { m_name = name; };
+	const std::string& GetName() const { return m_name; }
 
 	/* Local-space sphere already axis-remapped to engine coords (x, z, y). */
 	void IncludeBoundingSphere(float x, float y, float z, float radius);

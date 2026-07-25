@@ -95,7 +95,7 @@
       <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;_XM_SSE_INTRINSICS_;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <LanguageStandard>stdcpp14</LanguageStandard>
       <CompileAs>CompileAsCpp</CompileAs>
-      <AdditionalIncludeDirectories>C:\Users\misha\Documents\GitHub\DirectXTex\DirectXTex;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir);C:\Users\misha\Documents\GitHub\DirectXTex\DirectXTex;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -126,7 +126,7 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>C:\Users\misha\Documents\GitHub\DirectXTex\DirectXTex;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir);C:\Users\misha\Documents\GitHub\DirectXTex\DirectXTex;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
@@ -138,10 +138,12 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-	<ClCompile Include="Camera.cpp" />
+    <ClCompile Include="Camera.cpp" />
+    <ClCompile Include="CollisionWorld.cpp" />
     <ClCompile Include="Frustum.cpp" />
     <ClCompile Include="Input.cpp" />
     <ClCompile Include="loaders\AtomicList.cpp" />
+    <ClCompile Include="loaders\COL.cpp" />
     <ClCompile Include="loaders\FrameList.cpp" />
     <ClCompile Include="loaders\Geometry.cpp" />
     <ClCompile Include="loaders\IDE.cpp" />
@@ -164,9 +166,12 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Camera.hpp" />
+    <ClInclude Include="collision\ColTypes.h" />
+    <ClInclude Include="CollisionWorld.h" />
     <ClInclude Include="Frustum.h" />
     <ClInclude Include="Input.hpp" />
     <ClInclude Include="loaders\AtomicList.h" />
+    <ClInclude Include="loaders\COL.hpp" />
     <ClInclude Include="loaders\FrameList.h" />
     <ClInclude Include="loaders\Geometry.h" />
     <ClInclude Include="loaders\IDE.hpp" />

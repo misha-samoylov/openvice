@@ -9,6 +9,8 @@
 #include "loaders/IMG.hpp"
 #include "loaders/IFP.h"
 
+class CollisionWorld;
+
 using namespace DirectX;
 
 class Player
@@ -17,12 +19,16 @@ public:
 	bool Init(IMG* img, DXRender* render, IFP* ifp);
 	void Cleanup();
 
-	void Update(float dt, float moveX, float moveZ, bool moving, bool running = false);
+	void SetCollisionWorld(CollisionWorld* world) { m_world = world; }
+
+	void Update(float dt, float moveX, float moveZ, bool moving, bool running = false, bool jump = false);
 	void Render(DXRender* render, MeshRenderContext& ctx);
 
 	XMVECTOR GetPosition() const;
 	float GetHeading() const { return m_heading; }
 	void SetPosition(float x, float y, float z);
+	bool PlaceOnGround();
+	bool IsStanding() const { return m_isStanding; }
 
 private:
 	struct SkinnedVertex {
@@ -70,16 +76,25 @@ private:
 	int FindTexIndex(const char* name) const;
 
 	float m_posX, m_posY, m_posZ;
+	float m_velX, m_velY, m_velZ;
 	float m_heading;
 	float m_moveSpeed;
+	bool m_isStanding;
+	bool m_wasStanding;
+	CollisionWorld* m_world;
 
 	IFP* m_ifp;
 	IfpAnim* m_animIdle;
 	IfpAnim* m_animWalk;
 	IfpAnim* m_animRun;
+	IfpAnim* m_animJumpLaunch;
+	IfpAnim* m_animJumpGlide;
+	IfpAnim* m_animJumpLand;
 	IfpAnim* m_currentAnim;
 	float m_animTime;
 	bool m_wasMoving;
+	bool m_isJumping;
+	float m_landAnimTimer;
 
 	uint32_t m_boneCount;
 	std::vector<int32_t> m_boneIds;

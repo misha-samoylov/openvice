@@ -1,4 +1,5 @@
 #include "Player.h"
+#include "CollisionWorld.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -56,14 +57,25 @@ bool Player::Init(IMG* img, DXRender* render, IFP* ifp)
 	m_posX = 0.0f;
 	m_posY = 50.0f;
 	m_posZ = 0.0f;
+	m_velX = 0.0f;
+	m_velY = 0.0f;
+	m_velZ = 0.0f;
 	m_heading = 0.0f;
 	m_moveSpeed = 4.5f;
+	m_isStanding = false;
+	m_wasStanding = false;
+	m_world = nullptr;
 	m_animTime = 0.0f;
 	m_wasMoving = false;
+	m_isJumping = false;
+	m_landAnimTimer = 0.0f;
 	m_currentAnim = nullptr;
 	m_animIdle = nullptr;
 	m_animWalk = nullptr;
 	m_animRun = nullptr;
+	m_animJumpLaunch = nullptr;
+	m_animJumpGlide = nullptr;
+	m_animJumpLand = nullptr;
 	m_boneCount = 0;
 	m_vs = nullptr;
 	m_ps = nullptr;
@@ -79,12 +91,21 @@ bool Player::Init(IMG* img, DXRender* render, IFP* ifp)
 	m_animIdle = ifp->FindAnim("IDLE_STANCE");
 	m_animWalk = ifp->FindAnim("walk_player");
 	m_animRun = ifp->FindAnim("run_player");
+	m_animJumpLaunch = ifp->FindAnim("JUMP_launch");
+	m_animJumpGlide = ifp->FindAnim("JUMP_glide");
+	m_animJumpLand = ifp->FindAnim("JUMP_land");
 	if (!m_animIdle)
 		m_animIdle = ifp->FindAnim("idle_stance");
 	if (!m_animWalk)
 		m_animWalk = ifp->FindAnim("walk_civi");
 	if (!m_animRun)
 		m_animRun = ifp->FindAnim("run_civi");
+	if (!m_animJumpLaunch)
+		m_animJumpLaunch = ifp->FindAnim("jump_launch");
+	if (!m_animJumpGlide)
+		m_animJumpGlide = ifp->FindAnim("jump_glide");
+	if (!m_animJumpLand)
+		m_animJumpLand = ifp->FindAnim("jump_land");
 
 	if (!m_animIdle) {
 		printf("[Error] Player: IDLE_STANCE not found in IFP\n");
@@ -94,6 +115,8 @@ bool Player::Init(IMG* img, DXRender* render, IFP* ifp)
 		printf("[Warn] Player: walk_player not found, idle only\n");
 	if (!m_animRun)
 		printf("[Warn] Player: run_player not found\n");
+	if (!m_animJumpLaunch)
+		printf("[Warn] Player: JUMP_launch not found\n");
 
 	if (!InitPipeline(render))
 		return false;
@@ -629,23 +652,123 @@ void Player::UpdateBoneMatrices()
 		XMStoreFloat4x4(&m_skinPalette[i], XMMatrixIdentity());
 }
 
-void Player::Update(float dt, float moveX, float moveZ, bool moving, bool running)
+void Player::Update(float dt, float moveX, float moveZ, bool moving, bool running, bool jump)
 {
+	if (dt < 0.0f)
+		dt = 0.0f;
+	if (dt > 0.1f)
+		dt = 0.1f;
+
+	/*
+	 * Movement mirrors re3 ped flow:
+	 *  1) desired horizontal velocity from input (anim drives presentation)
+	 *  2) jump impulse like CPed::FinishLaunchCB ApplyMoveForce(0,0,8.5)
+	 *  3) gravity via CPhysical::ApplyGravity
+	 *  4) integrate
+	 *  5) foot vertical probe (CPed::ProcessEntityCollision)
+	 *  6) sphere wall response (ProcessColModels / bPedPhysics)
+	 */
+	float desiredVX = 0.0f;
+	float desiredVZ = 0.0f;
+
 	if (moving) {
 		float len = sqrtf(moveX * moveX + moveZ * moveZ);
 		if (len > 0.0001f) {
 			moveX /= len;
 			moveZ /= len;
-			/*
-			 * Model forward is +Y in GTA space; after RotZ * GtaToEngine that
-			 * becomes (-sin(h), 0, cos(h)) in engine XZ. Match walk direction.
-			 */
 			m_heading = atan2f(-moveX, moveZ);
 			float speed = running ? (m_moveSpeed * 2.2f) : m_moveSpeed;
-			m_posX += moveX * speed * dt;
-			m_posZ += moveZ * speed * dt;
+			desiredVX = moveX * speed;
+			desiredVZ = moveZ * speed;
+		}
+	}
+
+	m_wasMoving = moving;
+
+	/* Space / jump — only from standing, like pad0->JumpJustDown() → SetJump. */
+	if (jump && m_isStanding && !m_isJumping) {
+		m_velY = PED_JUMP_SPEED;
+		m_isStanding = false;
+		m_wasStanding = false;
+		m_isJumping = true;
+		m_landAnimTimer = 0.0f;
+		if (m_animJumpLaunch)
+			SetAnim(m_animJumpLaunch);
+		else if (m_animJumpGlide)
+			SetAnim(m_animJumpGlide);
+	}
+
+	if (m_isStanding) {
+		m_velX = desiredVX;
+		m_velZ = desiredVZ;
+		m_velY = 0.0f;
+	} else {
+		m_velX = desiredVX;
+		m_velZ = desiredVZ;
+		m_velY -= PED_GRAVITY * dt;
+		if (m_velY < -50.0f)
+			m_velY = -50.0f;
+	}
+
+	m_posX += m_velX * dt;
+	m_posY += m_velY * dt;
+	m_posZ += m_velZ * dt;
+
+	m_wasStanding = m_isStanding;
+	m_isStanding = false;
+
+	bool ascending = (m_velY > 0.05f);
+
+	if (m_world) {
+		float groundPedY = m_posY;
+		if (!ascending && m_world->ProbeFeet(m_posX, m_posY, m_posZ, m_wasStanding, &groundPedY)) {
+			if (m_wasStanding || groundPedY <= m_posY + 0.05f) {
+				bool landed = m_isJumping || !m_wasStanding;
+				m_posY = groundPedY;
+				m_velY = 0.0f;
+				m_isStanding = true;
+				if (landed && m_isJumping) {
+					m_isJumping = false;
+					m_landAnimTimer = 0.35f;
+					if (m_animJumpLand)
+						SetAnim(m_animJumpLand);
+				}
+			}
 		}
 
+		m_world->ResolvePedSpheres(&m_posX, &m_posY, &m_posZ);
+
+		/* Re-snap after wall push so we stay glued to ground while walking. */
+		if (!ascending && (m_isStanding || m_wasStanding)) {
+			if (m_world->ProbeFeet(m_posX, m_posY, m_posZ, true, &groundPedY)) {
+				m_posY = groundPedY;
+				m_velY = 0.0f;
+				m_isStanding = true;
+			}
+		}
+	}
+
+	/* Animation selection. */
+	if (m_landAnimTimer > 0.0f) {
+		m_landAnimTimer -= dt;
+		if (m_landAnimTimer <= 0.0f && m_isStanding) {
+			m_landAnimTimer = 0.0f;
+			if (moving) {
+				if (running && m_animRun)
+					SetAnim(m_animRun);
+				else if (m_animWalk)
+					SetAnim(m_animWalk);
+			} else {
+				SetAnim(m_animIdle);
+			}
+		}
+	} else if (m_isJumping || !m_isStanding) {
+		if (m_animJumpGlide && m_currentAnim == m_animJumpLaunch) {
+			if (m_currentAnim->totalLength > 0.0f && m_animTime >= m_currentAnim->totalLength * 0.95f)
+				SetAnim(m_animJumpGlide);
+		} else if (m_animJumpGlide && m_currentAnim != m_animJumpGlide && m_currentAnim != m_animJumpLaunch)
+			SetAnim(m_animJumpGlide);
+	} else if (moving) {
 		if (running && m_animRun)
 			SetAnim(m_animRun);
 		else if (m_animWalk)
@@ -654,17 +777,43 @@ void Player::Update(float dt, float moveX, float moveZ, bool moving, bool runnin
 		SetAnim(m_animIdle);
 	}
 
-	m_wasMoving = moving;
-
 	if (m_currentAnim) {
 		m_animTime += dt;
 		if (m_currentAnim->totalLength > 0.0f) {
-			while (m_animTime >= m_currentAnim->totalLength)
-				m_animTime -= m_currentAnim->totalLength;
+			/* Launch/land play once; walk/run/idle/glide loop. */
+			bool oneshot = (m_currentAnim == m_animJumpLaunch || m_currentAnim == m_animJumpLand);
+			if (oneshot) {
+				if (m_animTime > m_currentAnim->totalLength)
+					m_animTime = m_currentAnim->totalLength;
+			} else {
+				while (m_animTime >= m_currentAnim->totalLength)
+					m_animTime -= m_currentAnim->totalLength;
+			}
 		}
 		SampleAnim(m_currentAnim, m_animTime);
 		UpdateBoneMatrices();
 	}
+}
+
+bool Player::PlaceOnGround()
+{
+	if (!m_world)
+		return false;
+
+	float groundY = 0.0f;
+	if (!m_world->FindGroundY(m_posX, m_posY + 5.0f, m_posZ, &groundY)) {
+		/* High probe like CWorld::FindGroundZForCoord. */
+		if (!m_world->FindGroundY(m_posX, 1000.0f, m_posZ, &groundY))
+			return false;
+	}
+
+	m_posY = groundY + PED_FEET_OFFSET;
+	m_velX = m_velY = m_velZ = 0.0f;
+	m_isStanding = true;
+	m_wasStanding = true;
+	m_isJumping = false;
+	m_landAnimTimer = 0.0f;
+	return true;
 }
 
 void Player::Render(DXRender* render, MeshRenderContext& ctx)
@@ -735,6 +884,11 @@ void Player::SetPosition(float x, float y, float z)
 	m_posX = x;
 	m_posY = y;
 	m_posZ = z;
+	m_velX = m_velY = m_velZ = 0.0f;
+	m_isStanding = false;
+	m_wasStanding = false;
+	m_isJumping = false;
+	m_landAnimTimer = 0.0f;
 }
 
 void Player::Cleanup()

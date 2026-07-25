@@ -123,8 +123,6 @@ char *IMG::GetFileById(uint32_t modelId)
 	fileSize = m_pFilesDir[modelId].size * IMG_BLOCK_SIZE;
 	fileOffset = m_pFilesDir[modelId].offset * IMG_BLOCK_SIZE;
 
-	printf("[Info] ImgLoader: Loading %s file\n", m_pFilesDir[modelId].name);
-
 	return &m_dataPtrImg[fileOffset];
 }
 

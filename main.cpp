@@ -23,6 +23,8 @@
 #include "Water.h"
 #include "Player.h"
 #include "loaders/IFP.h"
+#include "loaders/COL.hpp"
+#include "CollisionWorld.h"
 
 #define PROJECT_NAME "openvice"
 #define WINDOW_WIDTH 3840
@@ -66,6 +68,8 @@ std::vector<SceneInstance> g_opaqueInstances;
 std::vector<SceneInstance> g_alphaInstances;
 Water* g_water = nullptr;
 Player* g_player = nullptr;
+COL* g_col = nullptr;
+CollisionWorld* g_collisionWorld = nullptr;
 
 template <typename T>
 void remove_duplicates(std::vector<T>& vec)
@@ -388,6 +392,51 @@ void BuildSceneInstances()
 		(unsigned)g_models.size());
 }
 
+static void AppendColPlacements(const std::vector<SceneInstance>& instances, std::vector<ColInstancePlacement>& out)
+{
+	for (size_t i = 0; i < instances.size(); i++) {
+		const SceneInstance& inst = instances[i];
+		if (!inst.model || !g_col)
+			continue;
+		ColModel* col = g_col->FindByName(inst.model->GetName().c_str());
+		if (!col)
+			continue;
+
+		ColInstancePlacement p;
+		p.model = col;
+		p.x = inst.x;
+		p.y = inst.y;
+		p.z = inst.z;
+		p.scale[0] = inst.scale[0];
+		p.scale[1] = inst.scale[1];
+		p.scale[2] = inst.scale[2];
+		p.rotation[0] = inst.rotation[0];
+		p.rotation[1] = inst.rotation[1];
+		p.rotation[2] = inst.rotation[2];
+		p.rotation[3] = inst.rotation[3];
+		out.push_back(p);
+	}
+}
+
+void BuildCollisionWorld()
+{
+	if (g_collisionWorld) {
+		g_collisionWorld->Clear();
+		delete g_collisionWorld;
+		g_collisionWorld = nullptr;
+	}
+	if (!g_col)
+		return;
+
+	std::vector<ColInstancePlacement> placements;
+	placements.reserve(g_opaqueInstances.size() + g_alphaInstances.size());
+	AppendColPlacements(g_opaqueInstances, placements);
+	AppendColPlacements(g_alphaInstances, placements);
+
+	g_collisionWorld = new CollisionWorld();
+	g_collisionWorld->Build(g_col, placements);
+}
+
 void RenderScene(DXRender *render, Camera *camera)
 {
 	XMMATRIX view = camera->GetView();
@@ -543,6 +592,12 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 
 	BuildSceneInstances();
 
+	g_col = new COL();
+	if (!g_col->LoadAllFromIMG(imgLoader)) {
+		printf("[Warn] No collision models loaded  player physics limited\n");
+	}
+	BuildCollisionWorld();
+
 	g_water = new Water();
 	if (!g_water->Init(
 		render,
@@ -567,7 +622,16 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 			delete g_player;
 			g_player = nullptr;
 		} else {
-			g_player->SetPosition(0.0f, 30.0f, 0.0f);
+			g_player->SetCollisionWorld(g_collisionWorld);
+			/* Ocean Drive-ish spawn; PlaceOnGround snaps via COL like re3 FindZCoorForPed. */
+			g_player->SetPosition(0.0f, 50.0f, 0.0f);
+			if (!g_player->PlaceOnGround()) {
+				printf("[Warn] Player PlaceOnGround failed at spawn, keeping Y=50\n");
+			} else {
+				XMVECTOR p = g_player->GetPosition();
+				printf("[Info] Player placed on ground at %.2f %.2f %.2f\n",
+					XMVectorGetX(p), XMVectorGetY(p), XMVectorGetZ(p));
+			}
 		}
 	}
 
@@ -692,8 +756,13 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 				float mz =  moveBackForward * c + moveLeftRight * s;
 				bool moving = (moveLeftRight != 0.0f || moveBackForward != 0.0f);
 				bool running = moving && input->IsKey(DIK_LSHIFT);
+				/* Edge-trigger Space like re3 JumpJustDown. */
+				static bool spaceWasDown = false;
+				bool spaceDown = input->IsKey(DIK_SPACE);
+				bool jump = spaceDown && !spaceWasDown;
+				spaceWasDown = spaceDown;
 
-				g_player->Update((float)frameTime, mx, mz, moving, running);
+				g_player->Update((float)frameTime, mx, mz, moving, running, jump);
 
 				XMVECTOR p = g_player->GetPosition();
 				camera->Follow(
@@ -720,6 +789,17 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 		ifp->Cleanup();
 		delete ifp;
 		ifp = nullptr;
+	}
+
+	if (g_collisionWorld) {
+		g_collisionWorld->Clear();
+		delete g_collisionWorld;
+		g_collisionWorld = nullptr;
+	}
+	if (g_col) {
+		g_col->Cleanup();
+		delete g_col;
+		g_col = nullptr;
 	}
 
 	if (g_water) {

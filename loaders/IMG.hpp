@@ -25,6 +25,7 @@ public:
 	char* GetFilenameById(uint32_t modelId);
 	char *GetFileById(uint32_t modelId);
 	int GetFileIndexByName(const char *name);
+	int GetFileCount() const { return m_countFiles; }
 	int SaveFileById(uint32_t modelId);
 	int SaveFile(int32_t offset, int32_t size, const char *name);
 	int32_t GetFileSize(uint32_t modelId);
