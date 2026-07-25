@@ -775,8 +775,8 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 				PostQuitMessage(EXIT_SUCCESS);
 			}
 
-			if (input->IsKey(DIK_LSHIFT)) {
-				speed *= 50;
+			if (freeCamera && (input->IsKey(DIK_LSHIFT) || input->IsKey(DIK_RSHIFT))) {
+				speed *= 5.0f;
 			}
 
 			if (input->IsKey(DIK_F1)) {
