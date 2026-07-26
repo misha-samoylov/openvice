@@ -207,8 +207,8 @@ bool Vehicle::LoadWheelMeshes(IMG* img, DXRender* render)
 {
 	/*
 	 * re3/VC: wheel models live in models/generic/wheels.dff (not gta3.img).
-	 * Cheetah IDE wheel id 250 = frame "wheel_sport". Textures: wheels.txd /
-	 * models/generic.txd / IMG generic.txd.
+	 * Cheetah IDE wheel id 250 = frame "wheel_sport" (geometry often on
+	 * wheel_sport_l0). Textures: wheels.txd / models/generic.txd / IMG.
 	 */
 	static const char* kWheelsDff =
 		"C:/Games/Grand Theft Auto Vice City/models/generic/wheels.dff";
@@ -308,23 +308,55 @@ bool Vehicle::LoadWheelMeshes(IMG* img, DXRender* render)
 		return false;
 	}
 
+	/* Prefer hi-LOD atomic; bare "wheel_sport" is a parent frame with no geom. */
+	auto wheelPriority = [](const char* name) -> int {
+		if (!name)
+			return 100;
+		if (_stricmp(name, "wheel_sport_l0") == 0)
+			return 0;
+		if (_stricmp(name, "wheel_sport") == 0)
+			return 1;
+		if (_strnicmp(name, "wheel_sport", 11) == 0) {
+			if (strstr(name, "64") || strstr(name, "_l1"))
+				return 50;
+			return 10;
+		}
+		return 100;
+	};
+
 	int sportGeom = -1;
 	int sportFrame = -1;
+	int bestPri = 100;
 	for (uint32_t ai = 0; ai < atomics->GetNumAtomic(); ai++) {
 		Atomic* atomic = atomics->GetAtomic((int)ai);
 		int fi = atomic->GetFrameIndex();
 		if (fi < 0 || fi >= frames->GetNumFrames())
 			continue;
 		const char* name = frames->GetFrame(fi)->GetName();
-		if (!name || _stricmp(name, "wheel_sport") != 0)
+		int pri = wheelPriority(name);
+		if (pri >= bestPri)
 			continue;
-		sportGeom = atomic->GetGeometryIndex();
+		int gi = atomic->GetGeometryIndex();
+		if (gi < 0 || (uint32_t)gi >= clump->m_numGeometries)
+			continue;
+		Geometry* g = geometries[gi];
+		if (!g || !g->vertices || g->vertexCount == 0)
+			continue;
+		bestPri = pri;
+		sportGeom = gi;
 		sportFrame = fi;
-		break;
 	}
 
-	if (sportGeom < 0 || (uint32_t)sportGeom >= clump->m_numGeometries) {
-		printf("[Warn] Vehicle: wheel_sport atomic not found in wheels.dff\n");
+	if (sportGeom < 0) {
+		printf("[Warn] Vehicle: no wheel_sport atomic in wheels.dff (atomics=%u)\n",
+			atomics->GetNumAtomic());
+		for (uint32_t ai = 0; ai < atomics->GetNumAtomic() && ai < 32; ai++) {
+			Atomic* atomic = atomics->GetAtomic((int)ai);
+			int fi = atomic->GetFrameIndex();
+			const char* name = (fi >= 0 && fi < frames->GetNumFrames())
+				? frames->GetFrame(fi)->GetName() : "?";
+			printf("  atomic[%u] frame='%s'\n", ai, name ? name : "(null)");
+		}
 		clump->Clear();
 		delete clump;
 		for (size_t i = 0; i < localTex.size(); i++)
@@ -333,46 +365,47 @@ bool Vehicle::LoadWheelMeshes(IMG* img, DXRender* render)
 	}
 
 	Geometry* geometry = geometries[sportGeom];
-	if (!geometry || !geometry->vertices || geometry->vertexCount == 0) {
-		clump->Clear();
-		delete clump;
-		for (size_t i = 0; i < localTex.size(); i++)
-			free(localTex[i].data);
-		return false;
-	}
+	const char* usedName = frames->GetFrame(sportFrame)->GetName();
+	printf("[Info] Vehicle: using wheel frame '%s' geom=%d verts=%u splits=%u tex=%d\n",
+		usedName ? usedName : "?", sportGeom, geometry->vertexCount,
+		(unsigned)geometry->splits.size(), (int)localTex.size());
 
-	/* Bake wheel frame LTM (usually identity under Group01) then GTA→engine. */
-	XMMATRIX worldGta = FrameWorldGta(frames, sportFrame);
+	/*
+	 * wheels.dff packs every wheel type in one clump with large frame offsets
+	 * (wheel_sport LTM ~ Y=-6.7). Baking that LTM shoved meshes ~7m off the
+	 * chassis. Geometry is already wheel-local — only remap GTA Z-up → Y-up.
+	 */
+	(void)sportFrame;
 	int v_count = (int)geometry->vertexCount;
 	float* meshVertexData = (float*)malloc(sizeof(float) * v_count * 5);
 	for (int v = 0; v < v_count; v++) {
 		float gx = geometry->vertices[v * 3 + 0];
 		float gy = geometry->vertices[v * 3 + 1];
 		float gz = geometry->vertices[v * 3 + 2];
-		XMVECTOR w = XMVector3Transform(XMVectorSet(gx, gy, gz, 1.0f), worldGta);
-		float wx = XMVectorGetX(w);
-		float wy = XMVectorGetY(w);
-		float wz = XMVectorGetZ(w);
 		float tx = 0.0f, ty = 0.0f;
 		if (geometry->flags & FLAGS_TEXTURED) {
 			tx = geometry->texCoords[0][v * 2 + 0];
 			ty = geometry->texCoords[0][v * 2 + 1];
 		}
-		meshVertexData[v * 5 + 0] = wx;
-		meshVertexData[v * 5 + 1] = wz;
-		meshVertexData[v * 5 + 2] = wy;
+		meshVertexData[v * 5 + 0] = gx;
+		meshVertexData[v * 5 + 1] = gz;
+		meshVertexData[v * 5 + 2] = gy;
 		meshVertexData[v * 5 + 3] = tx;
 		meshVertexData[v * 5 + 4] = ty;
 	}
 
+	int meshesBuilt = 0;
 	for (uint32_t si = 0; si < geometry->splits.size(); si++) {
 		std::vector<uint32_t> triIndices;
 		geometry->ExpandSplitToTriangles(si, triIndices);
-		if (triIndices.empty())
+		if (triIndices.empty()) {
+			printf("[Warn] Vehicle: wheel split %u expanded to 0 tris (faceType=%u numIdx=%u)\n",
+				si, geometry->faceType, geometry->splits[si].m_numIndices);
 			continue;
+		}
 
 		Mesh* mesh = new Mesh();
-		mesh->Init(
+		HRESULT hr = mesh->Init(
 			render,
 			meshVertexData,
 			v_count * 5,
@@ -380,8 +413,14 @@ bool Vehicle::LoadWheelMeshes(IMG* img, DXRender* render)
 			(int)triIndices.size(),
 			D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST
 		);
+		if (FAILED(hr)) {
+			printf("[Warn] Vehicle: wheel Mesh::Init failed hr=0x%08lx\n", hr);
+			delete mesh;
+			continue;
+		}
 
 		uint32_t matIndex = geometry->splits[si].matIndex;
+		bool textured = false;
 		if (matIndex < geometry->m_numMaterials) {
 			Material* material = geometry->materialList[matIndex];
 			const char* matName = material->texture.name;
@@ -404,11 +443,15 @@ bool Vehicle::LoadWheelMeshes(IMG* img, DXRender* render)
 					localTex[t].dxt,
 					localTex[t].depth
 				);
+				textured = true;
 				break;
 			}
+			if (!textured && matName && matName[0])
+				printf("[Warn] Vehicle: wheel texture '%s' not in TXD\n", matName);
 		}
 
 		m_wheelMeshes.push_back(mesh);
+		meshesBuilt++;
 	}
 
 	free(meshVertexData);
@@ -418,9 +461,9 @@ bool Vehicle::LoadWheelMeshes(IMG* img, DXRender* render)
 	for (size_t i = 0; i < localTex.size(); i++)
 		free(localTex[i].data);
 
-	printf("[Info] Vehicle: wheel_sport meshes=%d scale=%.2f\n",
-		(int)m_wheelMeshes.size(), m_wheelScale);
-	return !m_wheelMeshes.empty();
+	printf("[Info] Vehicle: wheel meshes=%d scale=%.2f\n",
+		meshesBuilt, m_wheelScale);
+	return meshesBuilt > 0;
 }
 
 void Vehicle::Cleanup()
@@ -762,10 +805,13 @@ void Vehicle::Render(DXRender* render, MeshRenderContext& ctx)
 	m_model->Render(render, ctx);
 
 	if (!m_wheelMeshes.empty()) {
+		/* Model may leave skinned/other bindings — force Mesh pipeline rebind. */
+		ctx.ClearBindings();
+		render->SetVehicleRasterizer(m_wireframe || render->IsWireframe());
+
 		/*
-		 * Visual wheels stay in chassis-local space (re3 PreRender style).
-		 * Bullet getWheelTransformWS uses a different axle/steer basis and
-		 * drifted from the body when composed via OpenGL→XM conversion.
+		 * Chassis-local wheels (re3 PreRender). Suspension compress from Bullet
+		 * spring ratio; keep a sane range so wheels stay visible.
 		 */
 		for (int i = 0; i < WHEEL_COUNT; i++) {
 			float spin = m_wheelRotation[i];
@@ -775,7 +821,8 @@ void Vehicle::Render(DXRender* render, MeshRenderContext& ctx)
 				steerZ = (float)M_PI + steerZ;
 			}
 
-			float compress = (1.0f - m_springRatio[i]) * m_springLength;
+			float ratio = Clampf(m_springRatio[i], 0.15f, 1.0f);
+			float compress = (1.0f - ratio) * m_springLength;
 			ColVec3 pos = m_wheelLocal[i];
 			pos.y = m_wheelRestY[i] + compress;
 
