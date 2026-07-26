@@ -127,7 +127,9 @@ bool Vehicle::Init(Model* model, ColModel* col, CollisionWorld* world, IMG* img,
 		m_wheelRestY[i] = m_wheelLocal[i].y;
 	}
 
+	/* Wheel hubs should rest at ~ground+radius after PlaceOnGround. */
 	m_heightAboveRoad = 0.95f;
+	m_rideHeight = 0.06f; /* small body lift above suspension hard-points */
 
 	if (!m_model) {
 		printf("[Error] Vehicle: no model\n");
@@ -538,11 +540,15 @@ void Vehicle::CreateBulletVehicle()
 		if (n > 16) n = 16;
 		for (size_t i = 0; i < n; i++) {
 			const ColSphere& s = m_col->spheres[i];
-			btSphereShape* sphere = new btSphereShape(s.radius);
+			/* Slightly smaller than COL so wheels take the load at ride height. */
+			float r = s.radius * 0.88f;
+			if (r < 0.12f) r = 0.12f;
+			btSphereShape* sphere = new btSphereShape(r);
 			m_childShapes.push_back(sphere);
 			btTransform local;
 			local.setIdentity();
-			local.setOrigin(btVector3(s.center.x, s.center.y, s.center.z));
+			/* Nudge up so bottoms clear the road when hubs are at ground+radius. */
+			local.setOrigin(btVector3(s.center.x, s.center.y + m_wheelRadius * 0.25f, s.center.z));
 			m_chassisShape->addChildShape(local, sphere);
 		}
 	} else if (m_col) {
@@ -582,19 +588,27 @@ void Vehicle::CreateBulletVehicle()
 	btRigidBody::btRigidBodyConstructionInfo info(m_mass, m_motionState, m_chassisShape, inertia);
 	m_chassisBody = new btRigidBody(info);
 	m_chassisBody->setActivationState(DISABLE_DEACTIVATION);
-	m_chassisBody->setDamping(0.05f, 0.4f);
-	m_chassisBody->setFriction(0.8f);
+	m_chassisBody->setDamping(0.05f, 0.35f);
+	m_chassisBody->setFriction(0.35f);
+	m_chassisBody->setRestitution(0.0f);
+	m_chassisBody->setCcdMotionThreshold(0.05f);
+	m_chassisBody->setCcdSweptSphereRadius(0.4f);
 
+	/*
+	 * Must collide with static ground as a safety net — otherwise a missed
+	 * wheel ray (COL seams while driving) drops the car through the map.
+	 * Slightly smaller COL spheres so suspension, not the body, carries ride height.
+	 */
 	dyn->addRigidBody(m_chassisBody);
 
 	m_vehicleRaycaster = new btDefaultVehicleRaycaster(dyn);
 	btRaycastVehicle::btVehicleTuning tuning;
-	tuning.m_suspensionStiffness = 20.0f + m_suspForce * 25.0f;
+	tuning.m_suspensionStiffness = 22.0f + m_suspForce * 24.0f;
 	tuning.m_suspensionCompression = 4.4f;
-	tuning.m_suspensionDamping = 2.3f + m_suspDamp * 10.0f;
-	tuning.m_maxSuspensionTravelCm = m_springLength * 100.0f;
-	tuning.m_frictionSlip = 8.5f + m_traction * 2.0f;
-	tuning.m_maxSuspensionForce = 6000.0f;
+	tuning.m_suspensionDamping = 2.6f + m_suspDamp * 10.0f;
+	tuning.m_maxSuspensionTravelCm = 60.0f;
+	tuning.m_frictionSlip = 9.0f + m_traction;
+	tuning.m_maxSuspensionForce = 25000.0f;
 
 	m_rayVehicle = new btRaycastVehicle(tuning, m_chassisBody, m_vehicleRaycaster);
 	m_rayVehicle->setCoordinateSystem(0, 1, 2); /* X right, Y up, Z forward */
@@ -602,18 +616,22 @@ void Vehicle::CreateBulletVehicle()
 
 	btVector3 wheelDir(0, -1, 0);
 	btVector3 wheelAxle(-1, 0, 0);
-	float restLen = m_springLength;
-	if (restLen < 0.08f)
-		restLen = 0.08f;
+	/*
+	 * Rest length from hard-point to hub. Long enough that rays keep contact
+	 * over map seams; travel budget allows compression without losing the ray.
+	 */
+	float restLen = m_suspUpper + m_rideHeight + 0.12f;
+	if (restLen < 0.35f)
+		restLen = 0.35f;
 
 	for (int i = 0; i < WHEEL_COUNT; i++) {
 		btVector3 connection(
 			m_wheelLocal[i].x,
-			m_wheelLocal[i].y + m_suspUpper,
+			m_wheelLocal[i].y + restLen,
 			m_wheelLocal[i].z);
 		m_rayVehicle->addWheel(
 			connection, wheelDir, wheelAxle,
-			restLen, m_wheelRadius, tuning, m_wheelIsFront[i]);
+			restLen, m_wheelRadius * 1.05f, tuning, m_wheelIsFront[i]);
 	}
 
 	for (int i = 0; i < m_rayVehicle->getNumWheels(); i++) {
@@ -623,10 +641,12 @@ void Vehicle::CreateBulletVehicle()
 		wi.m_wheelsDampingCompression = tuning.m_suspensionCompression;
 		wi.m_frictionSlip = tuning.m_frictionSlip;
 		wi.m_rollInfluence = 0.1f;
+		wi.m_maxSuspensionForce = tuning.m_maxSuspensionForce;
+		wi.m_maxSuspensionTravelCm = tuning.m_maxSuspensionTravelCm;
 	}
 
-	printf("[Info] Vehicle: Bullet raycast vehicle created (wheels=%d)\n",
-		m_rayVehicle->getNumWheels());
+	printf("[Info] Vehicle: Bullet raycast vehicle created (wheels=%d rest=%.2f)\n",
+		m_rayVehicle->getNumWheels(), restLen);
 }
 
 void Vehicle::ProcessControlInputs(float throttle, float steer, bool handbrake)
@@ -731,7 +751,7 @@ void Vehicle::Update(float dt, float throttle, float steer, bool handbrake)
 	ProcessControlInputs(throttle, steer, handbrake);
 
 	if (m_rayVehicle) {
-		float engineForce = m_gasPedal * m_engineAccel * m_mass * 0.55f;
+		float engineForce = m_gasPedal * m_engineAccel * m_mass * 0.90f;
 		float brakeForce = m_brakePedal * m_brakeDecel * m_mass * 0.35f;
 
 		/* Cheetah is RWD. */
@@ -821,7 +841,7 @@ void Vehicle::Render(DXRender* render, MeshRenderContext& ctx)
 				steerZ = (float)M_PI + steerZ;
 			}
 
-			float ratio = Clampf(m_springRatio[i], 0.15f, 1.0f);
+			float ratio = Clampf(m_springRatio[i], 0.25f, 1.0f);
 			float compress = (1.0f - ratio) * m_springLength;
 			ColVec3 pos = m_wheelLocal[i];
 			pos.y = m_wheelRestY[i] + compress;
@@ -869,6 +889,15 @@ bool Vehicle::PlaceOnGround()
 		if (!m_world->FindGroundY(m_posX, 1000.0f, m_posZ, &groundY))
 			return false;
 	}
-	WarpChassis(m_posX, groundY + m_heightAboveRoad + 0.4f, m_posZ);
+	/*
+	 * Chassis origin so wheel hubs (dummies) sit at ground + tyre radius.
+	 * Suspension rays then hit the road; chassis COL ignores static ground.
+	 */
+	float hubY = 0.0f;
+	for (int i = 0; i < WHEEL_COUNT; i++)
+		hubY += m_wheelLocal[i].y;
+	hubY *= 0.25f;
+	float y = groundY + m_wheelRadius - hubY + 0.12f;
+	WarpChassis(m_posX, y, m_posZ);
 	return true;
 }

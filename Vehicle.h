@@ -102,6 +102,7 @@ private:
 	float m_traction;
 	float m_maxSpeed;
 	float m_heightAboveRoad;
+	float m_rideHeight; /* extra body lift above wheel hubs (arch gap) */
 
 	/* Wheel local positions (engine space: X right, Y up, Z forward). */
 	ColVec3 m_wheelLocal[WHEEL_COUNT];
