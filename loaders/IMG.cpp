@@ -136,7 +136,8 @@ int IMG::GetFileIndexByName(const char *name)
 	int index = -1;
 
 	for (int i = 0; i < m_countFiles; i++) {
-		if (strcmp(m_pFilesDir[i].name, name) == 0) {
+		/* DIR names vary in case (lod vs LOD); VC treats them case-insensitively. */
+		if (_stricmp(m_pFilesDir[i].name, name) == 0) {
 			index = i;
 			break;
 		}

@@ -158,6 +158,59 @@ static bool IsLodModelName(const char* name)
 	return false;
 }
 
+/*
+ * re3 CTimeModelInfo::FindOtherTimeModel — day/night building pairs use
+ * "_dy" / "_nt" suffixes and occupy the same world position in IPL.
+ * Some pairs are tobj (timed); a few sit in objs without hours (e.g.
+ * miamiland_kb01). Without complementary times both draw → z-fighting
+ * (Vice Point Langer = od_bighotel_dy / od_bighotel_nt).
+ */
+static const char* FindDayNightSuffix(const char* name)
+{
+	if (!name)
+		return nullptr;
+	const char* p = strstr(name, "_nt");
+	if (p && (p[3] == '\0' || p[3] == '.'))
+		return p;
+	p = strstr(name, "_dy");
+	if (p && (p[3] == '\0' || p[3] == '.'))
+		return p;
+	return nullptr;
+}
+
+static bool IsNightModelName(const char* name)
+{
+	const char* p = FindDayNightSuffix(name);
+	return p && p[1] == 'n';
+}
+
+static bool IsDayModelName(const char* name)
+{
+	const char* p = FindDayNightSuffix(name);
+	return p && p[1] == 'd';
+}
+
+/* Default VC hotel window: day 5–21, night 21–5 (matches od_bighotel tobj). */
+static void EnsureDayNightModelTimes()
+{
+	int assigned = 0;
+	for (size_t i = 0; i < g_models.size(); i++) {
+		Model* m = g_models[i];
+		if (m->IsTimed())
+			continue;
+		const char* name = m->GetName().c_str();
+		if (IsNightModelName(name)) {
+			m->SetTimed(true, 21, 5);
+			assigned++;
+		} else if (IsDayModelName(name)) {
+			m->SetTimed(true, 5, 21);
+			assigned++;
+		}
+	}
+	if (assigned > 0)
+		printf("[Info] Assigned day/night hours to %d untimed _dy/_nt models\n", assigned);
+}
+
 int LoadFileDFFWithName(IMG* pImgLoader, DXRender* render, char *name, int modelId)
 {
 	/* Skip LOD models — they occupy the same space as HD and cause z-fighting. */
@@ -431,7 +484,10 @@ void BuildSceneInstances()
 				continue;
 
 			Model* model = it->second;
-			/* Hide IDE tobj outside their hours (night window lights, neons). */
+			/*
+			 * Hide timed models outside their hours (re3 GetIsTimeInRange).
+			 * Covers tobj nitelites and _dy/_nt building pairs (e.g. Langer).
+			 */
 			if (!model->IsVisibleAtHour(WORLD_HOUR))
 				continue;
 
@@ -664,10 +720,33 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 			size_t before = g_models.size();
 			LoadFileDFFWithName(imgLoader, render, itemDef->modelName, itemDef->objectId);
 			if (g_models.size() > before) {
-				g_models.back()->SetTimed(itemDef->isTimed, itemDef->timeOn, itemDef->timeOff);
+				Model* loaded = g_models.back();
+				loaded->SetTimed(itemDef->isTimed, itemDef->timeOn, itemDef->timeOff);
+				/*
+				 * Name-based fallback (re3 _dy/_nt pairs). If IDE left the
+				 * model untimed (objs section), still give complementary hours.
+				 */
+				if (!loaded->IsTimed()) {
+					if (IsNightModelName(itemDef->modelName))
+						loaded->SetTimed(true, 21, 5);
+					else if (IsDayModelName(itemDef->modelName))
+						loaded->SetTimed(true, 5, 21);
+				}
+				/*
+				 * Drop models that are invisible at WORLD_HOUR (night hotels,
+				 * nitelites). Same as re3 not streaming/rendering them.
+				 */
+				if (!loaded->IsVisibleAtHour(WORLD_HOUR)) {
+					loaded->Cleanup();
+					delete loaded;
+					g_models.pop_back();
+				}
 			}
 		}
 	}
+
+	/* Catch any remaining untimed _dy/_nt (should be rare after per-item fallback). */
+	EnsureDayNightModelTimes();
 
 	for (int i = 0; i < sizeof(maps) / sizeof(maps[0]); i++) {
 		char path[256];
