@@ -605,7 +605,7 @@ void RenderScene(DXRender *render, Camera *camera)
 	ctx.fogColor = XMFLOAT4(g_skyColor[0], g_skyColor[1], g_skyColor[2], g_skyColor[3]);
 	ctx.fogStart = CAMERA_FAR_PLANE * FOG_START_FACTOR;
 	ctx.fogEnd = CAMERA_FAR_PLANE * FOG_END_FACTOR;
-	ctx.shadowBias = 0.0025f;
+	ctx.shadowBias = 0.0008f;
 	ctx.receiveShadows = 1.0f;
 
 	/* ---- Shadow map pass (casters near focus) ---- */
@@ -623,12 +623,11 @@ void RenderScene(DXRender *render, Camera *camera)
 		DrawInstances(render, ctx, g_alphaInstances, -1, focusX, focusY, focusZ);
 		DrawInstances(render, ctx, g_alphaInstances, 1, focusX, focusY, focusZ);
 
-		if (g_controllingVehicle) {
-			if (g_vehicle)
-				g_vehicle->Render(render, ctx);
-		} else if (g_player) {
+		/* Dynamic casters last so they win depth over the map under them. */
+		if (g_vehicle)
+			g_vehicle->Render(render, ctx);
+		if (g_player && !g_controllingVehicle)
 			g_player->Render(render, ctx);
-		}
 
 		g_shadowMap->End(render);
 		ctx.ClearBindings();

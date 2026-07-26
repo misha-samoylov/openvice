@@ -86,9 +86,9 @@ HRESULT ShadowMap::Init(DXRender* render)
 	ZeroMemory(&rsDesc, sizeof(rsDesc));
 	rsDesc.FillMode = D3D11_FILL_SOLID;
 	rsDesc.CullMode = D3D11_CULL_NONE;
-	rsDesc.DepthBias = 2000;
+	rsDesc.DepthBias = 100;
 	rsDesc.DepthBiasClamp = 0.0f;
-	rsDesc.SlopeScaledDepthBias = 2.5f;
+	rsDesc.SlopeScaledDepthBias = 1.0f;
 	rsDesc.DepthClipEnable = TRUE;
 	hr = device->CreateRasterizerState(&rsDesc, &m_rasterizer);
 	if (FAILED(hr)) {

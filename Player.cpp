@@ -921,12 +921,20 @@ void Player::Render(DXRender* render, MeshRenderContext& ctx)
 
 	dc->IASetInputLayout(m_layout);
 	dc->VSSetShader(m_vs, nullptr, 0);
-	ID3D11PixelShader* ps = (ctx.pass == MESH_PASS_SHADOW) ? m_shadowPS : m_ps;
-	dc->PSSetShader(ps, nullptr, 0);
-	dc->PSSetSamplers(0, 1, &m_sampler);
+
+	/*
+	 * Shadow pass: depth-only (null PS) for opaque parts so alpha-clip cannot
+	 * discard the whole ped. Alpha meshes still use shadow_ps + clip.
+	 */
+	const bool shadowPass = (ctx.pass == MESH_PASS_SHADOW);
+	if (!shadowPass) {
+		dc->PSSetShader(m_ps, nullptr, 0);
+		dc->PSSetSamplers(0, 1, &m_sampler);
+	}
+
 	dc->VSSetConstantBuffers(1, 1, &m_boneCB);
 
-	if (ctx.pass == MESH_PASS_COLOR && ctx.shadowSRV && ctx.shadowSampler) {
+	if (!shadowPass && ctx.shadowSRV && ctx.shadowSampler) {
 		dc->PSSetShaderResources(1, 1, &ctx.shadowSRV);
 		dc->PSSetSamplers(1, 1, &ctx.shadowSampler);
 	}
@@ -950,7 +958,7 @@ void Player::Render(DXRender* render, MeshRenderContext& ctx)
 	cb.fogColor = ctx.fogColor;
 	cb.fogStart = ctx.fogStart;
 	cb.fogEnd = ctx.fogEnd;
-	cb.receiveShadows = (ctx.pass == MESH_PASS_COLOR) ? ctx.receiveShadows : 0.0f;
+	cb.receiveShadows = shadowPass ? 0.0f : ctx.receiveShadows;
 	cb.shadowBias = ctx.shadowBias;
 
 	for (size_t i = 0; i < m_meshes.size(); i++) {
@@ -966,8 +974,19 @@ void Player::Render(DXRender* render, MeshRenderContext& ctx)
 		dc->VSSetConstantBuffers(0, 1, &part.objectCB);
 		dc->PSSetConstantBuffers(0, 1, &part.objectCB);
 
-		if (part.texture)
-			dc->PSSetShaderResources(0, 1, &part.texture);
+		if (shadowPass) {
+			if (part.hasAlpha && part.texture) {
+				dc->PSSetShader(m_shadowPS, nullptr, 0);
+				dc->PSSetSamplers(0, 1, &m_sampler);
+				dc->PSSetShaderResources(0, 1, &part.texture);
+			} else {
+				/* Opaque: write depth for every covered pixel. */
+				dc->PSSetShader(nullptr, nullptr, 0);
+			}
+		} else {
+			if (part.texture)
+				dc->PSSetShaderResources(0, 1, &part.texture);
+		}
 
 		dc->DrawIndexed(part.indexCount, 0, 0);
 	}
