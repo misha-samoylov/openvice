@@ -78,6 +78,7 @@ bool Player::Init(IMG* img, DXRender* render, IFP* ifp)
 	m_ghost = nullptr;
 	m_capsule = nullptr;
 	m_character = nullptr;
+	m_collisionEnabled = true;
 	m_animTime = 0.0f;
 	m_animBlend = 1.0f;
 	m_wasMoving = false;
@@ -765,7 +766,25 @@ void Player::CreateCharacterController()
 	dyn->addAction(m_character);
 
 	WarpCharacter(m_posX, m_posY, m_posZ);
+	m_collisionEnabled = true;
 	printf("[Info] Player: Bullet character controller ready\n");
+}
+
+void Player::SetCollisionEnabled(bool enabled)
+{
+	m_collisionEnabled = enabled;
+	if (!m_ghost)
+		return;
+
+	int flags = m_ghost->getCollisionFlags();
+	if (enabled)
+		flags &= ~btCollisionObject::CF_NO_CONTACT_RESPONSE;
+	else
+		flags |= btCollisionObject::CF_NO_CONTACT_RESPONSE;
+	m_ghost->setCollisionFlags(flags);
+
+	if (!enabled && m_character)
+		m_character->setWalkDirection(btVector3(0, 0, 0));
 }
 
 void Player::DestroyCharacterController()

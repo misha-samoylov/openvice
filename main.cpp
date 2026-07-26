@@ -1329,6 +1329,9 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 				if (np2 && !numpad2WasDown && g_vehicle) {
 					g_controllingVehicle = !g_controllingVehicle;
 					if (g_controllingVehicle) {
+						/* Drop Tommy collision first so Cheetah spawn doesn't shove him. */
+						if (g_player)
+							g_player->SetCollisionEnabled(false);
 						if (g_player) {
 							XMVECTOR p = g_player->GetPosition();
 							g_vehicle->SetPosition(
@@ -1336,15 +1339,16 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 							g_vehicle->SetHeading(g_player->GetHeading());
 							g_vehicle->PlaceOnGround();
 						}
-						printf("[Info] Driving Cheetah (NUMPAD2) - WASD drive, Space handbrake\n");
+						printf("[Info] Driving Cheetah (NUMPAD2) - Tommy collision OFF\n");
 					} else {
 						if (g_player && g_vehicle) {
 							XMVECTOR p = g_vehicle->GetPosition();
 							g_player->SetPosition(
 								XMVectorGetX(p) + 2.0f, XMVectorGetY(p) + 1.0f, XMVectorGetZ(p));
 							g_player->PlaceOnGround();
+							g_player->SetCollisionEnabled(true);
 						}
-						printf("[Info] Controlling Tommy (NUMPAD2)\n");
+						printf("[Info] Controlling Tommy (NUMPAD2) - collision ON\n");
 					}
 				}
 				numpad1WasDown = np1;

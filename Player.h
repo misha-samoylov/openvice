@@ -38,6 +38,10 @@ public:
 	bool PlaceOnGround();
 	bool IsStanding() const { return m_isStanding; }
 
+	/* Disable ped capsule contacts (e.g. while driving so Cheetah doesn't hit Tommy). */
+	void SetCollisionEnabled(bool enabled);
+	bool IsCollisionEnabled() const { return m_collisionEnabled; }
+
 private:
 	struct SkinnedVertex {
 		float x, y, z;
@@ -95,6 +99,7 @@ private:
 	float m_moveSpeed;
 	bool m_isStanding;
 	bool m_wasStanding;
+	bool m_collisionEnabled;
 	CollisionWorld* m_world;
 
 	btPairCachingGhostObject* m_ghost;
