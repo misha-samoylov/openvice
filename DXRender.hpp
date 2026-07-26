@@ -19,6 +19,8 @@ public:
 
 	/* Rebind color RTV + scene depth + main viewport (after shadow pass). */
 	void RestoreMainTargets();
+	/* Color RTV only (no depth) — for fullscreen post-process. */
+	void BindColorTargetOnly();
 
 	/* Opaque: blending off, depth write on. */
 	void SetOpaqueState();
@@ -29,6 +31,9 @@ public:
 
 	ID3D11Device *GetDevice();
 	ID3D11DeviceContext *GetDeviceContext();
+	/* Scene depth as shader resource (unbind DSV before sampling). */
+	ID3D11ShaderResourceView *GetDepthSRV() const { return m_pDepthSRV; }
+	ID3D11RenderTargetView *GetBackBufferRTV() const { return m_pRenderTargetView; }
 
 	HRESULT ChangeRasterizerStateToWireframe();
 	HRESULT ChangeRasterizerStateToSolid();
@@ -67,6 +72,7 @@ private:
 
 	ID3D11Texture2D* m_pDepthStencil;
 	ID3D11DepthStencilView* m_pDepthStencilView;
+	ID3D11ShaderResourceView* m_pDepthSRV;
 
 	ID3D11BlendState* m_pBlendStateOpaque;
 	ID3D11BlendState* m_pBlendStateTransparency;

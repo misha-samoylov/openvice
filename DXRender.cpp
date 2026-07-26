@@ -114,6 +114,20 @@ void DXRender::RestoreMainTargets()
 	m_pDeviceContext->RSSetViewports(1, &vp);
 }
 
+void DXRender::BindColorTargetOnly()
+{
+	m_pDeviceContext->OMSetRenderTargets(1, &m_pRenderTargetView, nullptr);
+
+	D3D11_VIEWPORT vp;
+	vp.Width = (FLOAT)m_width;
+	vp.Height = (FLOAT)m_height;
+	vp.MinDepth = 0.0f;
+	vp.MaxDepth = 1.0f;
+	vp.TopLeftX = 0;
+	vp.TopLeftY = 0;
+	m_pDeviceContext->RSSetViewports(1, &vp);
+}
+
 HRESULT DXRender::CreateBackBuffer()
 {
 	/* front buffer - RenderTargetOutput */
@@ -146,36 +160,44 @@ HRESULT DXRender::CreateDepthStencil(HWND hWnd)
 	UINT width = rc.right - rc.left;
 	UINT height = rc.bottom - rc.top;
 
-	// ������� ��������-�������� ������ ������
+	/*
+	 * Typeless depth so the same buffer can be a DSV while drawing and an SRV
+	 * for SSAO / other post effects (unbind DSV before sampling).
+	 */
 	D3D11_TEXTURE2D_DESC descDepth;
 	ZeroMemory(&descDepth, sizeof(descDepth));
-	descDepth.Width = width; // ������ �
-	descDepth.Height = height; // ������ ��������
-	descDepth.MipLevels = 1; // ������� ������������
+	descDepth.Width = width;
+	descDepth.Height = height;
+	descDepth.MipLevels = 1;
 	descDepth.ArraySize = 1;
-	descDepth.Format = DXGI_FORMAT_D24_UNORM_S8_UINT; // ������ (������ �������)
+	descDepth.Format = DXGI_FORMAT_R24G8_TYPELESS;
 	descDepth.SampleDesc.Count = 1;
 	descDepth.SampleDesc.Quality = 0;
 	descDepth.Usage = D3D11_USAGE_DEFAULT;
-	descDepth.BindFlags = D3D11_BIND_DEPTH_STENCIL; // ��� - ����� ������
+	descDepth.BindFlags = D3D11_BIND_DEPTH_STENCIL | D3D11_BIND_SHADER_RESOURCE;
 	descDepth.CPUAccessFlags = 0;
 	descDepth.MiscFlags = 0;
 
-	// ��� ������ ����������� ���������-�������� ������� ������ ��������
 	hr = m_pDevice->CreateTexture2D(&descDepth, NULL, &m_pDepthStencil);
 	if (FAILED(hr))
 		return hr;
 
-	// ������ ���� ������� ��� ������ ������ ������
 	D3D11_DEPTH_STENCIL_VIEW_DESC descDSV;
 	ZeroMemory(&descDSV, sizeof(descDSV));
-	descDSV.Format = descDepth.Format; // ������ ��� � ��������
+	descDSV.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
 	descDSV.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
 	descDSV.Texture2D.MipSlice = 0;
 
-	// ��� ������ ����������� ���������-�������� � �������� ������� ������ ������ ������
 	hr = m_pDevice->CreateDepthStencilView(m_pDepthStencil, &descDSV, &m_pDepthStencilView);
+	if (FAILED(hr))
+		return hr;
 
+	D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc;
+	ZeroMemory(&srvDesc, sizeof(srvDesc));
+	srvDesc.Format = DXGI_FORMAT_R24_UNORM_X8_TYPELESS;
+	srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+	srvDesc.Texture2D.MipLevels = 1;
+	hr = m_pDevice->CreateShaderResourceView(m_pDepthStencil, &srvDesc, &m_pDepthSRV);
 	return hr;
 }
 
@@ -273,6 +295,9 @@ HRESULT DXRender::Init(HWND hWnd, bool vsync)
 	m_pRSCullFront = nullptr;
 	m_pRSCullNone = nullptr;
 	m_pRSWireframe = nullptr;
+	m_pDepthStencil = nullptr;
+	m_pDepthStencilView = nullptr;
+	m_pDepthSRV = nullptr;
 
 	RECT rc;
 	GetClientRect(hWnd, &rc);
@@ -370,8 +395,20 @@ void DXRender::Cleanup()
 	if (m_pDeviceContext) 
 		m_pDeviceContext->ClearState();
 
-	if (m_pDepthStencilView)
+	if (m_pDepthSRV) {
+		m_pDepthSRV->Release();
+		m_pDepthSRV = nullptr;
+	}
+
+	if (m_pDepthStencilView) {
 		m_pDepthStencilView->Release();
+		m_pDepthStencilView = nullptr;
+	}
+
+	if (m_pDepthStencil) {
+		m_pDepthStencil->Release();
+		m_pDepthStencil = nullptr;
+	}
 
 	if (m_pRenderTargetView) 
 		m_pRenderTargetView->Release();

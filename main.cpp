@@ -28,6 +28,7 @@
 #include "loaders/COL.hpp"
 #include "CollisionWorld.h"
 #include "ShadowMap.h"
+#include "SSAO.h"
 #include "PhysicsDebugDraw.h"
 
 #define PROJECT_NAME "openvice"
@@ -87,6 +88,8 @@ Vehicle* g_vehicle = nullptr;
 COL* g_col = nullptr;
 CollisionWorld* g_collisionWorld = nullptr;
 ShadowMap* g_shadowMap = nullptr;
+SSAO* g_ssao = nullptr;
+bool g_ssaoEnabled = true;
 PhysicsDebugDraw* g_physicsDebugDraw = nullptr;
 bool g_controllingVehicle = false;
 bool g_physicsDebugVisible = false;
@@ -981,6 +984,10 @@ void RenderScene(DXRender *render, Camera *camera)
 		render->GetDeviceContext()->PSSetShaderResources(1, 1, &nullSRV);
 	}
 
+	/* Screen-space ambient occlusion (multiplies onto color). */
+	if (g_ssao && g_ssaoEnabled)
+		g_ssao->Apply(render, camera);
+
 	render->RenderEnd();
 }
 
@@ -1019,6 +1026,14 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 		g_shadowMap->Cleanup();
 		delete g_shadowMap;
 		g_shadowMap = nullptr;
+	}
+
+	g_ssao = new SSAO();
+	if (FAILED(g_ssao->Init(render))) {
+		printf("[Error] SSAO init failed — continuing without ambient occlusion\n");
+		g_ssao->Cleanup();
+		delete g_ssao;
+		g_ssao = nullptr;
 	}
 
 	TCHAR imgPath[] = L"C:/Games/Grand Theft Auto Vice City/models/gta3.img";
@@ -1379,6 +1394,16 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 			}
 
 			{
+				static bool f8WasDown = false;
+				bool f8Down = input->IsKey(DIK_F8);
+				if (f8Down && !f8WasDown && g_ssao) {
+					g_ssaoEnabled = !g_ssaoEnabled;
+					printf("[Info] SSAO %s (F8)\n", g_ssaoEnabled ? "ON" : "OFF");
+				}
+				f8WasDown = f8Down;
+			}
+
+			{
 				bool np1 = input->IsKey(DIK_NUMPAD1);
 				bool np0 = input->IsKey(DIK_NUMPAD0);
 				bool np2 = input->IsKey(DIK_NUMPAD2);
@@ -1611,6 +1636,12 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 		g_shadowMap->Cleanup();
 		delete g_shadowMap;
 		g_shadowMap = nullptr;
+	}
+
+	if (g_ssao) {
+		g_ssao->Cleanup();
+		delete g_ssao;
+		g_ssao = nullptr;
 	}
 
 	if (g_physicsDebugDraw) {
