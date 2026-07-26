@@ -29,41 +29,63 @@ struct DDS_File {
 struct objectConstBuffer
 {
 	XMMATRIX WVP;
+	XMMATRIX World;
+	XMMATRIX LightVP;
 	XMFLOAT4 fogColor;
 	float fogStart;
 	float fogEnd;
-	float pad[2];
+	float receiveShadows;
+	float shadowBias;
+};
+
+enum MeshPass
+{
+	MESH_PASS_COLOR = 0,
+	MESH_PASS_SHADOW = 1
 };
 
 /* Cached D3D bindings for the current frame — skip redundant Set* calls. */
 struct MeshRenderContext
 {
 	XMMATRIX viewProj;
+	XMMATRIX lightViewProj;
 	XMFLOAT4 fogColor;
 	float fogStart;
 	float fogEnd;
+	float receiveShadows;
+	float shadowBias;
+	MeshPass pass;
 	ID3D11InputLayout* layout;
 	ID3D11VertexShader* vs;
 	ID3D11PixelShader* ps;
 	ID3D11SamplerState* sampler;
+	ID3D11SamplerState* shadowSampler;
 	ID3D11Buffer* vb;
 	ID3D11Buffer* ib;
 	ID3D11ShaderResourceView* srv;
+	ID3D11ShaderResourceView* shadowSRV;
 	D3D_PRIMITIVE_TOPOLOGY topology;
 
 	MeshRenderContext()
 		: fogColor(0.49804f, 0.78431f, 0.94510f, 1.0f)
 		, fogStart(800.0f)
 		, fogEnd(1450.0f)
+		, receiveShadows(0.0f)
+		, shadowBias(0.0015f)
+		, pass(MESH_PASS_COLOR)
 		, layout(nullptr)
 		, vs(nullptr)
 		, ps(nullptr)
 		, sampler(nullptr)
+		, shadowSampler(nullptr)
 		, vb(nullptr)
 		, ib(nullptr)
 		, srv(nullptr)
+		, shadowSRV(nullptr)
 		, topology(D3D11_PRIMITIVE_TOPOLOGY_UNDEFINED)
 	{
+		viewProj = XMMatrixIdentity();
+		lightViewProj = XMMatrixIdentity();
 	}
 
 	void ClearBindings()
@@ -72,9 +94,11 @@ struct MeshRenderContext
 		vs = nullptr;
 		ps = nullptr;
 		sampler = nullptr;
+		shadowSampler = nullptr;
 		vb = nullptr;
 		ib = nullptr;
 		srv = nullptr;
+		shadowSRV = nullptr;
 		topology = D3D11_PRIMITIVE_TOPOLOGY_UNDEFINED;
 	}
 };
@@ -150,6 +174,7 @@ private:
 
 	static ID3D11VertexShader* s_pVertexShader;
 	static ID3D11PixelShader* s_pPixelShader;
+	static ID3D11PixelShader* s_pShadowPixelShader;
 	static ID3D11InputLayout* s_pVertexLayout;
 	static ID3D11SamplerState* s_pSampler;
 	static int s_sharedRefCount;

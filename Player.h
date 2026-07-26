@@ -120,6 +120,7 @@ private:
 
 	ID3D11VertexShader* m_vs;
 	ID3D11PixelShader* m_ps;
+	ID3D11PixelShader* m_shadowPS;
 	ID3D11InputLayout* m_layout;
 	ID3D11SamplerState* m_sampler;
 	ID3D11Buffer* m_boneCB;

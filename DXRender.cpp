@@ -32,12 +32,12 @@ void DXRender::InitViewport(HWND hWnd)
 {
 	RECT rc;
 	GetClientRect(hWnd, &rc);
-	UINT width = rc.right - rc.left;
-	UINT height = rc.bottom - rc.top;
+	m_width = rc.right - rc.left;
+	m_height = rc.bottom - rc.top;
 
 	D3D11_VIEWPORT vp;
-	vp.Width = (FLOAT)width;
-	vp.Height = (FLOAT)height;
+	vp.Width = (FLOAT)m_width;
+	vp.Height = (FLOAT)m_height;
 	vp.MinDepth = 0.0f;
 	vp.MaxDepth = 1.0f;
 	vp.TopLeftX = 0;
@@ -46,6 +46,20 @@ void DXRender::InitViewport(HWND hWnd)
 	/* connect viewport to device context */
 	UINT countViewports = 1;
 	m_pDeviceContext->RSSetViewports(countViewports, &vp);
+}
+
+void DXRender::RestoreMainTargets()
+{
+	m_pDeviceContext->OMSetRenderTargets(1, &m_pRenderTargetView, m_pDepthStencilView);
+
+	D3D11_VIEWPORT vp;
+	vp.Width = (FLOAT)m_width;
+	vp.Height = (FLOAT)m_height;
+	vp.MinDepth = 0.0f;
+	vp.MaxDepth = 1.0f;
+	vp.TopLeftX = 0;
+	vp.TopLeftY = 0;
+	m_pDeviceContext->RSSetViewports(1, &vp);
 }
 
 HRESULT DXRender::CreateBackBuffer()
@@ -225,11 +239,15 @@ void DXRender::SetSoftAlphaState()
 HRESULT DXRender::Init(HWND hWnd, bool vsync)
 {
 	m_vsync = vsync;
+	m_width = 0;
+	m_height = 0;
 
 	RECT rc;
 	GetClientRect(hWnd, &rc);
 	UINT width = rc.right - rc.left;
 	UINT height = rc.bottom - rc.top;
+	m_width = width;
+	m_height = height;
 
 	/* properties front buffer and attach it to window */
 	DXGI_SWAP_CHAIN_DESC sd;

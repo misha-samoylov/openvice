@@ -17,6 +17,9 @@ public:
 	void RenderStart();
 	void RenderEnd();
 
+	/* Rebind color RTV + scene depth + main viewport (after shadow pass). */
+	void RestoreMainTargets();
+
 	/* Opaque: blending off, depth write on. */
 	void SetOpaqueState();
 	/* Cutout alpha (trees): blending on, depth write on (PS clips transparent texels). */
@@ -30,6 +33,9 @@ public:
 	HRESULT ChangeRasterizerStateToWireframe();
 	HRESULT ChangeRasterizerStateToSolid();
 	void ApplyRasterizerState();
+
+	UINT GetBackBufferWidth() const { return m_width; }
+	UINT GetBackBufferHeight() const { return m_height; }
 
 private:
 	void InitViewport(HWND hWnd);
@@ -57,5 +63,7 @@ private:
 	ID3D11DepthStencilState* m_pDepthStateCutout;
 	ID3D11DepthStencilState* m_pDepthStateSoftAlpha;
 
+	UINT m_width;
+	UINT m_height;
 	bool m_vsync;
 };

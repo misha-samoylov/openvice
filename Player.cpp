@@ -81,6 +81,7 @@ bool Player::Init(IMG* img, DXRender* render, IFP* ifp)
 	m_boneCount = 0;
 	m_vs = nullptr;
 	m_ps = nullptr;
+	m_shadowPS = nullptr;
 	m_layout = nullptr;
 	m_sampler = nullptr;
 	m_boneCB = nullptr;
@@ -186,6 +187,18 @@ bool Player::InitPipeline(DXRender* render)
 	hr = render->GetDevice()->CreatePixelShader(
 		psBlob->GetBufferPointer(), psBlob->GetBufferSize(), nullptr, &m_ps);
 	psBlob->Release();
+	if (FAILED(hr))
+		return false;
+
+	ID3DBlob* shadowPsBlob = nullptr;
+	hr = D3DReadFileToBlob(L"shadow_ps.cso", &shadowPsBlob);
+	if (FAILED(hr)) {
+		printf("[Error] Player: cannot read shadow_ps.cso\n");
+		return false;
+	}
+	hr = render->GetDevice()->CreatePixelShader(
+		shadowPsBlob->GetBufferPointer(), shadowPsBlob->GetBufferSize(), nullptr, &m_shadowPS);
+	shadowPsBlob->Release();
 	if (FAILED(hr))
 		return false;
 
@@ -908,9 +921,15 @@ void Player::Render(DXRender* render, MeshRenderContext& ctx)
 
 	dc->IASetInputLayout(m_layout);
 	dc->VSSetShader(m_vs, nullptr, 0);
-	dc->PSSetShader(m_ps, nullptr, 0);
+	ID3D11PixelShader* ps = (ctx.pass == MESH_PASS_SHADOW) ? m_shadowPS : m_ps;
+	dc->PSSetShader(ps, nullptr, 0);
 	dc->PSSetSamplers(0, 1, &m_sampler);
 	dc->VSSetConstantBuffers(1, 1, &m_boneCB);
+
+	if (ctx.pass == MESH_PASS_COLOR && ctx.shadowSRV && ctx.shadowSampler) {
+		dc->PSSetShaderResources(1, 1, &ctx.shadowSRV);
+		dc->PSSetSamplers(1, 1, &ctx.shadowSampler);
+	}
 
 	dc->UpdateSubresource(m_boneCB, 0, nullptr, m_skinPalette.data(), 0, 0);
 
@@ -926,11 +945,13 @@ void Player::Render(DXRender* render, MeshRenderContext& ctx)
 	XMMATRIX wvp = XMMatrixMultiply(world, ctx.viewProj);
 	objectConstBuffer cb;
 	cb.WVP = XMMatrixTranspose(wvp);
+	cb.World = XMMatrixTranspose(world);
+	cb.LightVP = XMMatrixTranspose(ctx.lightViewProj);
 	cb.fogColor = ctx.fogColor;
 	cb.fogStart = ctx.fogStart;
 	cb.fogEnd = ctx.fogEnd;
-	cb.pad[0] = 0.0f;
-	cb.pad[1] = 0.0f;
+	cb.receiveShadows = (ctx.pass == MESH_PASS_COLOR) ? ctx.receiveShadows : 0.0f;
+	cb.shadowBias = ctx.shadowBias;
 
 	for (size_t i = 0; i < m_meshes.size(); i++) {
 		SkinnedMeshPart& part = m_meshes[i];
@@ -991,4 +1012,5 @@ void Player::Cleanup()
 	if (m_layout) { m_layout->Release(); m_layout = nullptr; }
 	if (m_vs) { m_vs->Release(); m_vs = nullptr; }
 	if (m_ps) { m_ps->Release(); m_ps = nullptr; }
+	if (m_shadowPS) { m_shadowPS->Release(); m_shadowPS = nullptr; }
 }

@@ -2,6 +2,7 @@
 
 ID3D11VertexShader* Mesh::s_pVertexShader = nullptr;
 ID3D11PixelShader* Mesh::s_pPixelShader = nullptr;
+ID3D11PixelShader* Mesh::s_pShadowPixelShader = nullptr;
 ID3D11InputLayout* Mesh::s_pVertexLayout = nullptr;
 ID3D11SamplerState* Mesh::s_pSampler = nullptr;
 int Mesh::s_sharedRefCount = 0;
@@ -99,6 +100,24 @@ HRESULT Mesh::EnsureSharedPipeline(DXRender *pRender)
 		return hr;
 	}
 
+	ID3DBlob *pShadowPSBlob = nullptr;
+	hr = D3DReadFileToBlob(L"shadow_ps.cso", &pShadowPSBlob);
+	if (FAILED(hr)) {
+		printf("Error: cannot read compiled shadow pixel shader\n");
+		return hr;
+	}
+	hr = pRender->GetDevice()->CreatePixelShader(
+		pShadowPSBlob->GetBufferPointer(),
+		pShadowPSBlob->GetBufferSize(),
+		NULL,
+		&s_pShadowPixelShader
+	);
+	pShadowPSBlob->Release();
+	if (FAILED(hr)) {
+		printf("Error: cannot create shadow pixel shader\n");
+		return hr;
+	}
+
 	D3D11_SAMPLER_DESC sampDesc;
 	ZeroMemory(&sampDesc, sizeof(sampDesc));
 	sampDesc.Filter = D3D11_FILTER_ANISOTROPIC;
@@ -135,6 +154,10 @@ void Mesh::ReleaseSharedResources()
 	if (s_pPixelShader) {
 		s_pPixelShader->Release();
 		s_pPixelShader = nullptr;
+	}
+	if (s_pShadowPixelShader) {
+		s_pShadowPixelShader->Release();
+		s_pShadowPixelShader = nullptr;
 	}
 	s_sharedRefCount = 0;
 }
@@ -193,16 +216,23 @@ void Mesh::Render(DXRender* pRender, MeshRenderContext& ctx)
 		ctx.vs = s_pVertexShader;
 	}
 
-	if (ctx.ps != s_pPixelShader) {
-		ctx3d->PSSetShader(s_pPixelShader, NULL, 0);
-		ctx.ps = s_pPixelShader;
+	ID3D11PixelShader* desiredPS =
+		(ctx.pass == MESH_PASS_SHADOW) ? s_pShadowPixelShader : s_pPixelShader;
+	if (ctx.ps != desiredPS) {
+		ctx3d->PSSetShader(desiredPS, NULL, 0);
+		ctx.ps = desiredPS;
 	}
 
 	XMMATRIX wvp = XMMatrixMultiply(m_World, ctx.viewProj);
 	m_objectConstBuffer.WVP = XMMatrixTranspose(wvp);
+	m_objectConstBuffer.World = XMMatrixTranspose(m_World);
+	m_objectConstBuffer.LightVP = XMMatrixTranspose(ctx.lightViewProj);
 	m_objectConstBuffer.fogColor = ctx.fogColor;
 	m_objectConstBuffer.fogStart = ctx.fogStart;
 	m_objectConstBuffer.fogEnd = ctx.fogEnd;
+	m_objectConstBuffer.receiveShadows =
+		(ctx.pass == MESH_PASS_COLOR) ? ctx.receiveShadows : 0.0f;
+	m_objectConstBuffer.shadowBias = ctx.shadowBias;
 	ctx3d->UpdateSubresource(m_pObjectBuffer, 0, NULL, &m_objectConstBuffer, 0, 0);
 	ctx3d->VSSetConstantBuffers(0, 1, &m_pObjectBuffer);
 	ctx3d->PSSetConstantBuffers(0, 1, &m_pObjectBuffer);
@@ -210,6 +240,15 @@ void Mesh::Render(DXRender* pRender, MeshRenderContext& ctx)
 	if (ctx.srv != m_pTexture) {
 		ctx3d->PSSetShaderResources(0, 1, &m_pTexture);
 		ctx.srv = m_pTexture;
+	}
+
+	if (ctx.pass == MESH_PASS_COLOR && ctx.shadowSRV) {
+		if (ctx.shadowSRV) {
+			ctx3d->PSSetShaderResources(1, 1, &ctx.shadowSRV);
+		}
+		if (ctx.shadowSampler && ctx.shadowSampler != nullptr) {
+			ctx3d->PSSetSamplers(1, 1, &ctx.shadowSampler);
+		}
 	}
 
 	if (ctx.sampler != s_pSampler) {

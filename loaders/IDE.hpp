@@ -37,6 +37,12 @@ struct itemDefinition {
 
 	/* IDE flag bit 8 — additive (window night-lights, neons). */
 	bool IsAdditive() const { return (flags & 8) != 0; }
+
+	/*
+	 * IDE flag bit 6 (0x40) — NO_ZBUFFER_WRITE.
+	 * Marks baked static shadow meshes (tree shadows, etc.).
+	 */
+	bool IsShadowModel() const { return (flags & 0x40) != 0; }
 };
 
 class IDE

@@ -26,6 +26,7 @@
 #include "loaders/IFP.h"
 #include "loaders/COL.hpp"
 #include "CollisionWorld.h"
+#include "ShadowMap.h"
 
 #define PROJECT_NAME "openvice"
 #define WINDOW_WIDTH 3840
@@ -82,6 +83,7 @@ Player* g_player = nullptr;
 Vehicle* g_vehicle = nullptr;
 COL* g_col = nullptr;
 CollisionWorld* g_collisionWorld = nullptr;
+ShadowMap* g_shadowMap = nullptr;
 bool g_controllingVehicle = false;
 
 template <typename T>
@@ -410,16 +412,40 @@ static bool IsInstanceVisible(Model* model, const SceneInstance& inst)
 	return g_frustum.CheckSphere(cx, cy, cz, radius);
 }
 
+static bool IsInstanceInShadowRange(Model* model, const SceneInstance& inst,
+	float focusX, float focusY, float focusZ, float range)
+{
+	float cx, cy, cz, radius;
+	model->GetWorldCullSphere(
+		inst.x, inst.y, inst.z,
+		inst.scale[0], inst.scale[1], inst.scale[2],
+		&cx, &cy, &cz, &radius
+	);
+
+	float dx = cx - focusX;
+	float dy = cy - focusY;
+	float dz = cz - focusZ;
+	float maxR = range + radius;
+	return (dx * dx + dy * dy + dz * dz) <= (maxR * maxR);
+}
+
 /* alphaFilter: -1 opaque meshes, 0 all, 1 cutout alpha, 2 soft alpha */
 static void DrawInstances(DXRender* render, MeshRenderContext& ctx,
-	const std::vector<SceneInstance>& instances, int alphaFilter)
+	const std::vector<SceneInstance>& instances, int alphaFilter,
+	float shadowFocusX = 0.0f, float shadowFocusY = 0.0f, float shadowFocusZ = 0.0f)
 {
+	const float shadowRange = ShadowMap::CASCADE_HALF_EXTENT;
+
 	for (size_t i = 0; i < instances.size(); i++) {
 		const SceneInstance& inst = instances[i];
 		Model* model = inst.model;
 
-		if (!IsInstanceVisible(model, inst))
+		if (ctx.pass == MESH_PASS_SHADOW) {
+			if (!IsInstanceInShadowRange(model, inst, shadowFocusX, shadowFocusY, shadowFocusZ, shadowRange))
+				continue;
+		} else if (!IsInstanceVisible(model, inst)) {
 			continue;
+		}
 
 		model->SetPosition(
 			inst.x, inst.y, inst.z,
@@ -569,13 +595,54 @@ void RenderScene(DXRender *render, Camera *camera)
 	XMMATRIX proj = camera->GetProjection();
 	g_frustum.ConstructFrustum(CAMERA_FAR_PLANE, proj, view);
 
-	render->RenderStart();
+	/* Shadow cascade follows the camera (free-cam and orbit). */
+	XMVECTOR focus = camera->GetPosition();
+	float focusX = XMVectorGetX(focus);
+	float focusY = XMVectorGetY(focus);
+	float focusZ = XMVectorGetZ(focus);
 
 	MeshRenderContext ctx;
-	ctx.viewProj = XMMatrixMultiply(view, proj);
 	ctx.fogColor = XMFLOAT4(g_skyColor[0], g_skyColor[1], g_skyColor[2], g_skyColor[3]);
 	ctx.fogStart = CAMERA_FAR_PLANE * FOG_START_FACTOR;
 	ctx.fogEnd = CAMERA_FAR_PLANE * FOG_END_FACTOR;
+	ctx.shadowBias = 0.0025f;
+	ctx.receiveShadows = 1.0f;
+
+	/* ---- Shadow map pass (casters near focus) ---- */
+	if (g_shadowMap) {
+		g_shadowMap->UpdateLight(focusX, focusY, focusZ);
+		g_shadowMap->Begin(render);
+
+		ctx.pass = MESH_PASS_SHADOW;
+		ctx.viewProj = g_shadowMap->GetLightViewProj();
+		ctx.lightViewProj = ctx.viewProj;
+		ctx.receiveShadows = 0.0f;
+		ctx.ClearBindings();
+
+		DrawInstances(render, ctx, g_opaqueInstances, 0, focusX, focusY, focusZ);
+		DrawInstances(render, ctx, g_alphaInstances, -1, focusX, focusY, focusZ);
+		DrawInstances(render, ctx, g_alphaInstances, 1, focusX, focusY, focusZ);
+
+		if (g_controllingVehicle) {
+			if (g_vehicle)
+				g_vehicle->Render(render, ctx);
+		} else if (g_player) {
+			g_player->Render(render, ctx);
+		}
+
+		g_shadowMap->End(render);
+		ctx.ClearBindings();
+	}
+
+	/* ---- Color pass ---- */
+	render->RenderStart();
+
+	ctx.pass = MESH_PASS_COLOR;
+	ctx.viewProj = XMMatrixMultiply(view, proj);
+	ctx.lightViewProj = g_shadowMap ? g_shadowMap->GetLightViewProj() : XMMatrixIdentity();
+	ctx.receiveShadows = g_shadowMap ? 1.0f : 0.0f;
+	ctx.shadowSRV = g_shadowMap ? g_shadowMap->GetSRV() : nullptr;
+	ctx.shadowSampler = g_shadowMap ? g_shadowMap->GetCmpSampler() : nullptr;
 
 	/* Opaque geometry (and opaque submeshes of alpha models). */
 	render->SetOpaqueState();
@@ -595,6 +662,8 @@ void RenderScene(DXRender *render, Camera *camera)
 	/* Water changes D3D bindings — reset cache before alpha pass. */
 	ctx.ClearBindings();
 	ctx.viewProj = XMMatrixMultiply(view, proj);
+	ctx.shadowSRV = g_shadowMap ? g_shadowMap->GetSRV() : nullptr;
+	ctx.shadowSampler = g_shadowMap ? g_shadowMap->GetCmpSampler() : nullptr;
 
 	SortAlphaInstancesBackToFront(g_alphaInstances, camera);
 
@@ -605,6 +674,12 @@ void RenderScene(DXRender *render, Camera *camera)
 	/* Soft translucent (glass): back-to-front, no depth write. */
 	render->SetSoftAlphaState();
 	DrawInstances(render, ctx, g_alphaInstances, 2);
+
+	/* Unbind shadow SRV before Present. */
+	if (g_shadowMap) {
+		ID3D11ShaderResourceView* nullSRV = nullptr;
+		render->GetDeviceContext()->PSSetShaderResources(1, 1, &nullSRV);
+	}
 
 	render->RenderEnd();
 }
@@ -629,6 +704,14 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 
 	DXRender* render = new DXRender();
 	render->Init(window->GetHandleWindow(), vsync);
+
+	g_shadowMap = new ShadowMap();
+	if (FAILED(g_shadowMap->Init(render))) {
+		printf("[Error] ShadowMap init failed — continuing without dynamic shadows\n");
+		g_shadowMap->Cleanup();
+		delete g_shadowMap;
+		g_shadowMap = nullptr;
+	}
 
 	TCHAR imgPath[] = L"C:/Games/Grand Theft Auto Vice City/models/gta3.img";
 	TCHAR dirPath[] = L"C:/Games/Grand Theft Auto Vice City/models/gta3.dir";
@@ -714,9 +797,19 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 
 
 	/* Loading models. IDE file doesn't contain dublicate models */
+	int skippedShadows = 0;
 	for (int i = 0; i < g_ideFile.size(); i++) {
 		for (int j = 0; j < g_ideFile[i]->GetCountItems(); j++) {
 			struct itemDefinition* itemDef = &g_ideFile[i]->GetItems()[j];
+			/*
+			 * IDE flag 0x40 = baked static shadow mesh (tree shadows, etc.).
+			 * Skip — replaced by real directional shadow maps.
+			 */
+			if (itemDef->IsShadowModel()) {
+				skippedShadows++;
+				continue;
+			}
+
 			size_t before = g_models.size();
 			LoadFileDFFWithName(imgLoader, render, itemDef->modelName, itemDef->objectId);
 			if (g_models.size() > before) {
@@ -744,6 +837,9 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 			}
 		}
 	}
+
+	if (skippedShadows > 0)
+		printf("[Info] Skipped %d baked shadow models (IDE flag 0x40)\n", skippedShadows);
 
 	/* Catch any remaining untimed _dy/_nt (should be rare after per-item fallback). */
 	EnsureDayNightModelTimes();
@@ -1104,6 +1200,12 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 		g_water->Cleanup();
 		delete g_water;
 		g_water = nullptr;
+	}
+
+	if (g_shadowMap) {
+		g_shadowMap->Cleanup();
+		delete g_shadowMap;
+		g_shadowMap = nullptr;
 	}
 
 	render->Cleanup();
