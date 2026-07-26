@@ -10,22 +10,62 @@ ID3D11DeviceContext *DXRender::GetDeviceContext()
 	return m_pDeviceContext;
 }
 
-HRESULT DXRender::ChangeRasterizerStateToWireframe()
+HRESULT DXRender::CreateRasterizerStates()
 {
 	HRESULT hr;
+	D3D11_RASTERIZER_DESC desc;
+	ZeroMemory(&desc, sizeof(desc));
+	desc.FillMode = D3D11_FILL_SOLID;
+	desc.CullMode = D3D11_CULL_FRONT;
+	desc.DepthClipEnable = TRUE;
+	hr = m_pDevice->CreateRasterizerState(&desc, &m_pRSCullFront);
+	if (FAILED(hr))
+		return hr;
 
-	D3D11_RASTERIZER_DESC wfdesc;
-	ZeroMemory(&wfdesc, sizeof(D3D11_RASTERIZER_DESC));
-	wfdesc.FillMode = D3D11_FILL_WIREFRAME;
-	wfdesc.CullMode = D3D11_CULL_NONE;
+	desc.CullMode = D3D11_CULL_NONE;
+	hr = m_pDevice->CreateRasterizerState(&desc, &m_pRSCullNone);
+	if (FAILED(hr))
+		return hr;
 
-	// ������� ������������ � ������� �����������
-	hr = m_pDevice->CreateRasterizerState(&wfdesc, &m_pRasterizerState);
+	desc.FillMode = D3D11_FILL_WIREFRAME;
+	desc.CullMode = D3D11_CULL_NONE;
+	hr = m_pDevice->CreateRasterizerState(&desc, &m_pRSWireframe);
+	if (FAILED(hr))
+		return hr;
 
-	// �������� ��������� ��������� ������������
+	m_pRasterizerState = m_pRSCullFront;
 	m_pDeviceContext->RSSetState(m_pRasterizerState);
+	return S_OK;
+}
 
-	return hr;
+HRESULT DXRender::ChangeRasterizerStateToWireframe()
+{
+	m_pRasterizerState = m_pRSWireframe;
+	m_pDeviceContext->RSSetState(m_pRasterizerState);
+	return S_OK;
+}
+
+HRESULT DXRender::ChangeRasterizerStateToSolid()
+{
+	m_pRasterizerState = m_pRSCullFront;
+	m_pDeviceContext->RSSetState(m_pRasterizerState);
+	return S_OK;
+}
+
+void DXRender::SetCullNone()
+{
+	m_pDeviceContext->RSSetState(m_pRSCullNone);
+}
+
+void DXRender::SetCullFront()
+{
+	m_pDeviceContext->RSSetState(m_pRSCullFront);
+}
+
+void DXRender::ApplyRasterizerState()
+{
+	if (m_pRasterizerState)
+		m_pDeviceContext->RSSetState(m_pRasterizerState);
 }
 
 void DXRender::InitViewport(HWND hWnd)
@@ -83,30 +123,6 @@ HRESULT DXRender::CreateBackBuffer()
 	}
 
 	return hr;
-}
-
-HRESULT DXRender::ChangeRasterizerStateToSolid()
-{
-	HRESULT hr;
-
-	D3D11_RASTERIZER_DESC solidDesc;
-	ZeroMemory(&solidDesc, sizeof(D3D11_RASTERIZER_DESC));
-	solidDesc.FillMode = D3D11_FILL_SOLID;
-	solidDesc.CullMode = D3D11_CULL_FRONT;
-
-	// ������� ������������ � ������� �����������
-	hr = m_pDevice->CreateRasterizerState(&solidDesc, &m_pRasterizerState);
-
-	// �������� ��������� ��������� ������������
-	m_pDeviceContext->RSSetState(m_pRasterizerState);
-
-	return hr;
-}
-
-void DXRender::ApplyRasterizerState()
-{
-	if (m_pRasterizerState)
-		m_pDeviceContext->RSSetState(m_pRasterizerState);
 }
 
 HRESULT DXRender::CreateDepthStencil(HWND hWnd)
@@ -241,6 +257,10 @@ HRESULT DXRender::Init(HWND hWnd, bool vsync)
 	m_vsync = vsync;
 	m_width = 0;
 	m_height = 0;
+	m_pRasterizerState = nullptr;
+	m_pRSCullFront = nullptr;
+	m_pRSCullNone = nullptr;
+	m_pRSWireframe = nullptr;
 
 	RECT rc;
 	GetClientRect(hWnd, &rc);
@@ -323,10 +343,10 @@ HRESULT DXRender::Init(HWND hWnd, bool vsync)
 
 	InitViewport(hWnd);
 
-	hr = ChangeRasterizerStateToSolid();
+	hr = CreateRasterizerStates();
 
 	if (FAILED(hr)) {
-		printf("Error: cannot ChangeRasterizerStateToSolid\n");
+		printf("Error: cannot CreateRasterizerStates\n");
 		return hr;
 	}
 
@@ -347,8 +367,13 @@ void DXRender::Cleanup()
 	if (m_pSwapChain) 
 		m_pSwapChain->Release();
 
-	if (m_pRasterizerState)
-		m_pRasterizerState->Release();
+	if (m_pRSCullFront)
+		m_pRSCullFront->Release();
+	if (m_pRSCullNone)
+		m_pRSCullNone->Release();
+	if (m_pRSWireframe)
+		m_pRSWireframe->Release();
+	m_pRasterizerState = nullptr;
 
 	if (m_pBlendStateOpaque)
 		m_pBlendStateOpaque->Release();

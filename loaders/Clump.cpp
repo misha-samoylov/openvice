@@ -71,6 +71,7 @@ void Clump::Read(char *bytes)
 	m_lightList->Read(numLights, bytes, &offset);
 
 	m_hasCollision = false;
+	m_colData = NULL;
 
 	ReadExtension(bytes, &offset);
 }

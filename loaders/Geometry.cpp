@@ -480,6 +480,47 @@ bool Geometry::isDegenerateFace(uint32_t i, uint32_t j, uint32_t k)
 	return false;
 }
 
+void Geometry::ExpandSplitToTriangles(uint32_t splitIndex, std::vector<uint32_t>& outIndices) const
+{
+	outIndices.clear();
+	if (splitIndex >= splits.size())
+		return;
+
+	const Split& s = splits[splitIndex];
+	if (!s.indices || s.m_numIndices < 3)
+		return;
+
+	if (faceType == FACETYPE_STRIP) {
+		/*
+		 * Standard strip expansion (same winding as D3D TRIANGLESTRIP).
+		 * Do NOT use generateFaces()' swapped order — that inverts fronts and
+		 * with CULL_FRONT buildings only show from the inside.
+		 */
+		for (uint32_t j = 0; j + 2 < s.m_numIndices; j++) {
+			uint32_t i0 = s.indices[j + 0];
+			uint32_t i1 = s.indices[j + 1];
+			uint32_t i2 = s.indices[j + 2];
+			if (i0 == i1 || i0 == i2 || i1 == i2)
+				continue;
+			if ((j & 1) == 0) {
+				outIndices.push_back(i0);
+				outIndices.push_back(i1);
+				outIndices.push_back(i2);
+			} else {
+				outIndices.push_back(i0);
+				outIndices.push_back(i2);
+				outIndices.push_back(i1);
+			}
+		}
+	} else {
+		for (uint32_t j = 0; j + 2 < s.m_numIndices; j += 3) {
+			outIndices.push_back(s.indices[j + 0]);
+			outIndices.push_back(s.indices[j + 1]);
+			outIndices.push_back(s.indices[j + 2]);
+		}
+	}
+}
+
 // native console data doesn't have face information, use this to generate it
 void Geometry::generateFaces(void)
 {

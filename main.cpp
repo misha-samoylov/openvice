@@ -331,10 +331,10 @@ int LoadFileDFFWithName(IMG* pImgLoader, DXRender* render, char *name, int model
 				meshVertexData[v * 5 + 4] = ty;
 			}
 
-			D3D_PRIMITIVE_TOPOLOGY topology =
-				geometry->faceType == FACETYPE_STRIP
-				? D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP
-				: D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+			std::vector<uint32_t> triIndices;
+			geometry->ExpandSplitToTriangles(i, triIndices);
+			if (triIndices.empty())
+				continue;
 
 			Mesh* mesh = new Mesh();
 
@@ -342,9 +342,9 @@ int LoadFileDFFWithName(IMG* pImgLoader, DXRender* render, char *name, int model
 				render, 
 				meshVertexData,
 				v_count * 5,
-				(unsigned int*)geometry->splits[i].indices,
-				geometry->splits[i].m_numIndices,
-				topology
+				triIndices.data(),
+				(int)triIndices.size(),
+				D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST
 			);
 
 			uint32_t materialIndex = geometry->splits[i].matIndex;
@@ -397,6 +397,222 @@ int LoadFileDFFWithName(IMG* pImgLoader, DXRender* render, char *name, int model
 
 	g_models.push_back(model);
 
+	return 0;
+}
+
+/*
+ * Vehicle DFFs store component meshes in frame-local space (doors, bumpers,
+ * bonnet, …). Map loading ignores atomics/frames, which piles those parts at
+ * the origin and also draws damaged + VLO atomics. Bake each atomic's frame
+ * LTM into vertices, then apply the usual GTA→engine (x,z,y) remap.
+ */
+static XMMATRIX FrameLocalGtaMat(Frame* f)
+{
+	const float* r = f->GetRotationMatrix();
+	const float* p = f->GetPosition();
+	XMMATRIX m = XMMatrixIdentity();
+	m.r[0] = XMVectorSet(r[0], r[1], r[2], 0.0f);
+	m.r[1] = XMVectorSet(r[3], r[4], r[5], 0.0f);
+	m.r[2] = XMVectorSet(r[6], r[7], r[8], 0.0f);
+	m.r[3] = XMVectorSet(p[0], p[1], p[2], 1.0f);
+	return m;
+}
+
+static XMMATRIX FrameWorldGtaMat(FrameList* frames, int idx)
+{
+	if (idx < 0 || idx >= frames->GetNumFrames())
+		return XMMatrixIdentity();
+	Frame* f = frames->GetFrame(idx);
+	XMMATRIX local = FrameLocalGtaMat(f);
+	int parent = f->GetParent();
+	if (parent < 0)
+		return local;
+	return XMMatrixMultiply(local, FrameWorldGtaMat(frames, parent));
+}
+
+static bool ShouldSkipVehicleAtomic(const char* name)
+{
+	if (!name || !name[0])
+		return true;
+	/*
+	 * Match re3 CVehicleModelInfo::HideDamagedAtomicCB /
+	 * SetAtomicRendererCB for an intact hi-detail car.
+	 */
+	if (strstr(name, "_dam") != NULL)
+		return true;
+	if (strstr(name, "_vlo") != NULL)
+		return true;
+	if (strstr(name, "_lo") != NULL)
+		return true;
+	if (_strnicmp(name, "extra", 5) == 0)
+		return true;
+	return false;
+}
+
+
+int LoadVehicleDFFWithName(IMG* pImgLoader, DXRender* render, char* name, int modelId)
+{
+	char result_name[MAX_LENGTH_FILENAME + 4];
+	strcpy(result_name, name);
+	strcat(result_name, ".dff");
+
+	int fileId = pImgLoader->GetFileIndexByName(result_name);
+	if (fileId == -1)
+		return 1;
+
+	char* fileBuffer = (char*)pImgLoader->GetFileById(fileId);
+	Clump* clump = new Clump();
+	clump->Read(fileBuffer);
+
+	FrameList* frames = clump->GetFrameList();
+	AtomicList* atomics = clump->GetAtomicList();
+	Geometry** geometries = clump->GetGeometryList();
+	if (!frames || !atomics || !geometries) {
+		clump->Clear();
+		delete clump;
+		return 1;
+	}
+
+	Model* model = new Model();
+	model->SetId(modelId);
+	model->SetName(name);
+	model->SetAlpha(false);
+
+	int loadedAtomics = 0;
+	for (uint32_t ai = 0; ai < atomics->GetNumAtomic(); ai++) {
+		Atomic* atomic = atomics->GetAtomic((int)ai);
+		int frameIndex = atomic->GetFrameIndex();
+		int geomIndex = atomic->GetGeometryIndex();
+		if (frameIndex < 0 || frameIndex >= frames->GetNumFrames())
+			continue;
+		if (geomIndex < 0 || (uint32_t)geomIndex >= clump->m_numGeometries)
+			continue;
+
+		Frame* frame = frames->GetFrame(frameIndex);
+		const char* frameName = frame->GetName();
+		if (ShouldSkipVehicleAtomic(frameName))
+			continue;
+
+		Geometry* geometry = geometries[geomIndex];
+		if (!geometry || !geometry->vertices || geometry->vertexCount == 0)
+			continue;
+
+		XMMATRIX worldGta = FrameWorldGtaMat(frames, frameIndex);
+
+		float minX = FLT_MAX, minY = FLT_MAX, minZ = FLT_MAX;
+		float maxX = -FLT_MAX, maxY = -FLT_MAX, maxZ = -FLT_MAX;
+
+		int v_count = (int)geometry->vertexCount;
+		float* meshVertexData = (float*)malloc(sizeof(float) * v_count * 5);
+
+		for (int v = 0; v < v_count; v++) {
+			float gx = geometry->vertices[v * 3 + 0];
+			float gy = geometry->vertices[v * 3 + 1];
+			float gz = geometry->vertices[v * 3 + 2];
+
+			XMVECTOR local = XMVectorSet(gx, gy, gz, 1.0f);
+			XMVECTOR world = XMVector3Transform(local, worldGta);
+			float wx = XMVectorGetX(world);
+			float wy = XMVectorGetY(world);
+			float wz = XMVectorGetZ(world);
+
+			/* GTA Z-up → engine Y-up. */
+			float ex = wx;
+			float ey = wz;
+			float ez = wy;
+
+			float tx = 0.0f, ty = 0.0f;
+			if (geometry->flags & FLAGS_TEXTURED) {
+				tx = geometry->texCoords[0][v * 2 + 0];
+				ty = geometry->texCoords[0][v * 2 + 1];
+			}
+
+			meshVertexData[v * 5 + 0] = ex;
+			meshVertexData[v * 5 + 1] = ey;
+			meshVertexData[v * 5 + 2] = ez;
+			meshVertexData[v * 5 + 3] = tx;
+			meshVertexData[v * 5 + 4] = ty;
+
+			if (ex < minX) minX = ex;
+			if (ey < minY) minY = ey;
+			if (ez < minZ) minZ = ez;
+			if (ex > maxX) maxX = ex;
+			if (ey > maxY) maxY = ey;
+			if (ez > maxZ) maxZ = ez;
+		}
+
+		float cx = (minX + maxX) * 0.5f;
+		float cy = (minY + maxY) * 0.5f;
+		float cz = (minZ + maxZ) * 0.5f;
+		float hx = (maxX - minX) * 0.5f;
+		float hy = (maxY - minY) * 0.5f;
+		float hz = (maxZ - minZ) * 0.5f;
+		float radius = sqrtf(hx * hx + hy * hy + hz * hz);
+		model->IncludeBoundingSphere(cx, cy, cz, radius);
+
+		for (uint32_t si = 0; si < geometry->splits.size(); si++) {
+			std::vector<uint32_t> triIndices;
+			geometry->ExpandSplitToTriangles(si, triIndices);
+			if (triIndices.empty())
+				continue;
+
+			Mesh* mesh = new Mesh();
+			mesh->Init(
+				render,
+				meshVertexData,
+				v_count * 5,
+				triIndices.data(),
+				(int)triIndices.size(),
+				D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST
+			);
+
+			uint32_t materialIndex = geometry->splits[si].matIndex;
+			if (materialIndex < geometry->m_numMaterials) {
+				Material* material = geometry->materialList[materialIndex];
+				const char* matName = material->texture.name;
+				for (int im = 0; im < (int)g_Textures.size(); im++) {
+					if (strcmp(g_Textures[im].name, matName) != 0)
+						continue;
+
+					bool isAlpha = g_Textures[im].IsAlpha;
+					uint32_t dxt = g_Textures[im].dxtCompression;
+					mesh->SetAlpha(isAlpha);
+					mesh->SetAlphaCutout(isAlpha && dxt != 3 && dxt != 4 && dxt != 5);
+					if (!model->IsAlpha() && isAlpha)
+						model->SetAlpha(true);
+					mesh->SetDataDDS(
+						render,
+						g_Textures[im].source,
+						g_Textures[im].size,
+						g_Textures[im].width,
+						g_Textures[im].height,
+						g_Textures[im].dxtCompression,
+						g_Textures[im].depth
+					);
+					break;
+				}
+			}
+
+			model->AddMesh(mesh);
+		}
+
+		free(meshVertexData);
+		loadedAtomics++;
+	}
+
+	clump->Clear();
+	delete clump;
+
+	if (loadedAtomics == 0) {
+		printf("[Error] Vehicle DFF '%s': no atomics loaded\n", name);
+		model->Cleanup();
+		delete model;
+		return 1;
+	}
+
+	g_models.push_back(model);
+	printf("[Info] Vehicle '%s': %d atomics, %d meshes\n",
+		name, loadedAtomics, (int)model->GetMeshes().size());
 	return 0;
 }
 
@@ -648,12 +864,10 @@ void RenderScene(DXRender *render, Camera *camera)
 	DrawInstances(render, ctx, g_opaqueInstances, 0);
 	DrawInstances(render, ctx, g_alphaInstances, -1);
 
-	if (g_controllingVehicle) {
-		if (g_vehicle)
-			g_vehicle->Render(render, ctx);
-	} else if (g_player) {
+	if (g_vehicle)
+		g_vehicle->Render(render, ctx);
+	if (g_player && !g_controllingVehicle)
 		g_player->Render(render, ctx);
-	}
 
 	if (g_water)
 		g_water->Render(render, camera, g_frustum, CAMERA_FAR_PLANE);
@@ -868,7 +1082,7 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 	{
 		LoadAllTexturesFromTXDFile(imgLoader, "cheetah");
 		char cheetahName[] = "cheetah";
-		if (LoadFileDFFWithName(imgLoader, render, cheetahName, MI_CHEETAH) == 0) {
+		if (LoadVehicleDFFWithName(imgLoader, render, cheetahName, MI_CHEETAH) == 0) {
 			Model* cheetahModel = nullptr;
 			for (size_t i = 0; i < g_models.size(); i++) {
 				if (g_models[i]->GetId() == MI_CHEETAH) {

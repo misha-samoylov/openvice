@@ -34,6 +34,10 @@ public:
 	HRESULT ChangeRasterizerStateToSolid();
 	void ApplyRasterizerState();
 
+	/* Vehicles: RW winding vs Y/Z remap fights CULL_FRONT — draw both sides. */
+	void SetCullNone();
+	void SetCullFront();
+
 	UINT GetBackBufferWidth() const { return m_width; }
 	UINT GetBackBufferHeight() const { return m_height; }
 
@@ -44,6 +48,7 @@ private:
 	HRESULT CreateDepthStencil(HWND hWnd);
 	HRESULT CreateBlendStates();
 	HRESULT CreateDepthStencilStates();
+	HRESULT CreateRasterizerStates();
 
 	ID3D11Device *m_pDevice;
 	ID3D11DeviceContext *m_pDeviceContext;
@@ -52,6 +57,9 @@ private:
 	ID3D11RenderTargetView *m_pRenderTargetView;
 
 	ID3D11RasterizerState *m_pRasterizerState;
+	ID3D11RasterizerState *m_pRSCullFront;
+	ID3D11RasterizerState *m_pRSCullNone;
+	ID3D11RasterizerState *m_pRSWireframe;
 
 	ID3D11Texture2D* m_pDepthStencil;
 	ID3D11DepthStencilView* m_pDepthStencilView;

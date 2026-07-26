@@ -191,12 +191,24 @@ bool Vehicle::LoadWheelDummies(IMG* img)
 
 bool Vehicle::LoadWheelMeshes(IMG* img, DXRender* render)
 {
-	/* Textures live in generic.txd (already loaded into g_Textures from map path ideally).
-	 * Also try loading wheel_sport materials from generic if present in IMG. */
-	int txdId = img->GetFileIndexByName("generic.txd");
+	/*
+	 * re3/VC: wheel models live in models/generic/wheels.dff (not gta3.img).
+	 * Cheetah IDE wheel id 250 = frame "wheel_sport". Textures: wheels.txd /
+	 * models/generic.txd / IMG generic.txd.
+	 */
+	static const char* kWheelsDff =
+		"C:/Games/Grand Theft Auto Vice City/models/generic/wheels.dff";
+	static const char* kWheelsTxdPaths[] = {
+		"C:/Games/Grand Theft Auto Vice City/models/generic/wheels.txd",
+		"C:/Games/Grand Theft Auto Vice City/models/generic.txd",
+		nullptr
+	};
+
 	std::vector<WheelTex> localTex;
-	if (txdId >= 0) {
-		char* buf = img->GetFileById((uint32_t)txdId);
+
+	auto appendTxdBuffer = [&](char* buf) {
+		if (!buf)
+			return;
 		size_t offset = 0;
 		TextureDictionary txd;
 		txd.read(buf, &offset);
@@ -215,93 +227,185 @@ bool Vehicle::LoadWheelMeshes(IMG* img, DXRender* render)
 			wt.isAlpha = t.IsAlpha;
 			localTex.push_back(wt);
 		}
+	};
+
+	for (int i = 0; kWheelsTxdPaths[i]; i++) {
+		FILE* f = fopen(kWheelsTxdPaths[i], "rb");
+		if (!f)
+			continue;
+		fseek(f, 0, SEEK_END);
+		long sz = ftell(f);
+		fseek(f, 0, SEEK_SET);
+		if (sz > 0) {
+			char* buf = (char*)malloc((size_t)sz);
+			if (fread(buf, 1, (size_t)sz, f) == (size_t)sz)
+				appendTxdBuffer(buf);
+			free(buf);
+		}
+		fclose(f);
+		if (!localTex.empty())
+			break;
 	}
 
-	int dffId = img->GetFileIndexByName("wheel_sport.dff");
-	if (dffId < 0) {
+	if (localTex.empty() && img) {
+		int txdId = img->GetFileIndexByName("generic.txd");
+		if (txdId >= 0)
+			appendTxdBuffer(img->GetFileById((uint32_t)txdId));
+	}
+
+	FILE* dffFile = fopen(kWheelsDff, "rb");
+	if (!dffFile) {
+		printf("[Warn] Vehicle: cannot open %s\n", kWheelsDff);
+		for (size_t i = 0; i < localTex.size(); i++)
+			free(localTex[i].data);
+		return false;
+	}
+	fseek(dffFile, 0, SEEK_END);
+	long dffSize = ftell(dffFile);
+	fseek(dffFile, 0, SEEK_SET);
+	if (dffSize <= 0) {
+		fclose(dffFile);
+		for (size_t i = 0; i < localTex.size(); i++)
+			free(localTex[i].data);
+		return false;
+	}
+	char* fileBuffer = (char*)malloc((size_t)dffSize);
+	if (fread(fileBuffer, 1, (size_t)dffSize, dffFile) != (size_t)dffSize) {
+		free(fileBuffer);
+		fclose(dffFile);
+		for (size_t i = 0; i < localTex.size(); i++)
+			free(localTex[i].data);
+		return false;
+	}
+	fclose(dffFile);
+
+	Clump* clump = new Clump();
+	clump->Read(fileBuffer);
+	free(fileBuffer);
+
+	FrameList* frames = clump->GetFrameList();
+	AtomicList* atomics = clump->GetAtomicList();
+	Geometry** geometries = clump->GetGeometryList();
+	if (!frames || !atomics || !geometries) {
+		clump->Clear();
+		delete clump;
 		for (size_t i = 0; i < localTex.size(); i++)
 			free(localTex[i].data);
 		return false;
 	}
 
-	char* fileBuffer = img->GetFileById((uint32_t)dffId);
-	Clump* clump = new Clump();
-	clump->Read(fileBuffer);
-
-	for (uint32_t gi = 0; gi < clump->m_numGeometries; gi++) {
-		Geometry* geometry = clump->GetGeometryList()[gi];
-		for (uint32_t si = 0; si < geometry->splits.size(); si++) {
-			int v_count = geometry->vertexCount;
-			float* meshVertexData = (float*)malloc(sizeof(float) * v_count * 5);
-			for (int v = 0; v < v_count; v++) {
-				float x = geometry->vertices[v * 3 + 0];
-				float y = geometry->vertices[v * 3 + 1];
-				float z = geometry->vertices[v * 3 + 2];
-				float tx = 0.0f, ty = 0.0f;
-				if (geometry->flags & FLAGS_TEXTURED) {
-					tx = geometry->texCoords[0][v * 2 + 0];
-					ty = geometry->texCoords[0][v * 2 + 1];
-				}
-				meshVertexData[v * 5 + 0] = x;
-				meshVertexData[v * 5 + 1] = z;
-				meshVertexData[v * 5 + 2] = y;
-				meshVertexData[v * 5 + 3] = tx;
-				meshVertexData[v * 5 + 4] = ty;
-			}
-
-			D3D_PRIMITIVE_TOPOLOGY topology =
-				geometry->faceType == FACETYPE_STRIP
-				? D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP
-				: D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-
-			Mesh* mesh = new Mesh();
-			mesh->Init(
-				render,
-				meshVertexData,
-				v_count * 5,
-				(unsigned int*)geometry->splits[si].indices,
-				geometry->splits[si].m_numIndices,
-				topology
-			);
-			free(meshVertexData);
-
-			uint32_t matIndex = geometry->splits[si].matIndex;
-			if (matIndex < geometry->m_numMaterials) {
-				Material* material = geometry->materialList[matIndex];
-				const char* matName = material->texture.name;
-				for (size_t t = 0; t < localTex.size(); t++) {
-					if (_stricmp(localTex[t].name, matName) == 0) {
-						mesh->SetAlpha(localTex[t].isAlpha);
-						mesh->SetAlphaCutout(
-							localTex[t].isAlpha &&
-							localTex[t].dxt != 3 &&
-							localTex[t].dxt != 4 &&
-							localTex[t].dxt != 5
-						);
-						mesh->SetDataDDS(
-							render,
-							localTex[t].data,
-							localTex[t].size,
-							localTex[t].width,
-							localTex[t].height,
-							localTex[t].dxt,
-							localTex[t].depth
-						);
-						break;
-					}
-				}
-			}
-
-			m_wheelMeshes.push_back(mesh);
-		}
+	int sportGeom = -1;
+	int sportFrame = -1;
+	for (uint32_t ai = 0; ai < atomics->GetNumAtomic(); ai++) {
+		Atomic* atomic = atomics->GetAtomic((int)ai);
+		int fi = atomic->GetFrameIndex();
+		if (fi < 0 || fi >= frames->GetNumFrames())
+			continue;
+		const char* name = frames->GetFrame(fi)->GetName();
+		if (!name || _stricmp(name, "wheel_sport") != 0)
+			continue;
+		sportGeom = atomic->GetGeometryIndex();
+		sportFrame = fi;
+		break;
 	}
 
+	if (sportGeom < 0 || (uint32_t)sportGeom >= clump->m_numGeometries) {
+		printf("[Warn] Vehicle: wheel_sport atomic not found in wheels.dff\n");
+		clump->Clear();
+		delete clump;
+		for (size_t i = 0; i < localTex.size(); i++)
+			free(localTex[i].data);
+		return false;
+	}
+
+	Geometry* geometry = geometries[sportGeom];
+	if (!geometry || !geometry->vertices || geometry->vertexCount == 0) {
+		clump->Clear();
+		delete clump;
+		for (size_t i = 0; i < localTex.size(); i++)
+			free(localTex[i].data);
+		return false;
+	}
+
+	/* Bake wheel frame LTM (usually identity under Group01) then GTA→engine. */
+	XMMATRIX worldGta = FrameWorldGta(frames, sportFrame);
+	int v_count = (int)geometry->vertexCount;
+	float* meshVertexData = (float*)malloc(sizeof(float) * v_count * 5);
+	for (int v = 0; v < v_count; v++) {
+		float gx = geometry->vertices[v * 3 + 0];
+		float gy = geometry->vertices[v * 3 + 1];
+		float gz = geometry->vertices[v * 3 + 2];
+		XMVECTOR w = XMVector3Transform(XMVectorSet(gx, gy, gz, 1.0f), worldGta);
+		float wx = XMVectorGetX(w);
+		float wy = XMVectorGetY(w);
+		float wz = XMVectorGetZ(w);
+		float tx = 0.0f, ty = 0.0f;
+		if (geometry->flags & FLAGS_TEXTURED) {
+			tx = geometry->texCoords[0][v * 2 + 0];
+			ty = geometry->texCoords[0][v * 2 + 1];
+		}
+		meshVertexData[v * 5 + 0] = wx;
+		meshVertexData[v * 5 + 1] = wz;
+		meshVertexData[v * 5 + 2] = wy;
+		meshVertexData[v * 5 + 3] = tx;
+		meshVertexData[v * 5 + 4] = ty;
+	}
+
+	for (uint32_t si = 0; si < geometry->splits.size(); si++) {
+		std::vector<uint32_t> triIndices;
+		geometry->ExpandSplitToTriangles(si, triIndices);
+		if (triIndices.empty())
+			continue;
+
+		Mesh* mesh = new Mesh();
+		mesh->Init(
+			render,
+			meshVertexData,
+			v_count * 5,
+			triIndices.data(),
+			(int)triIndices.size(),
+			D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST
+		);
+
+		uint32_t matIndex = geometry->splits[si].matIndex;
+		if (matIndex < geometry->m_numMaterials) {
+			Material* material = geometry->materialList[matIndex];
+			const char* matName = material->texture.name;
+			for (size_t t = 0; t < localTex.size(); t++) {
+				if (_stricmp(localTex[t].name, matName) != 0)
+					continue;
+				mesh->SetAlpha(localTex[t].isAlpha);
+				mesh->SetAlphaCutout(
+					localTex[t].isAlpha &&
+					localTex[t].dxt != 3 &&
+					localTex[t].dxt != 4 &&
+					localTex[t].dxt != 5
+				);
+				mesh->SetDataDDS(
+					render,
+					localTex[t].data,
+					localTex[t].size,
+					localTex[t].width,
+					localTex[t].height,
+					localTex[t].dxt,
+					localTex[t].depth
+				);
+				break;
+			}
+		}
+
+		m_wheelMeshes.push_back(mesh);
+	}
+
+	free(meshVertexData);
 	clump->Clear();
 	delete clump;
 
 	for (size_t i = 0; i < localTex.size(); i++)
 		free(localTex[i].data);
 
+	printf("[Info] Vehicle: wheel_sport meshes=%d scale=%.2f\n",
+		(int)m_wheelMeshes.size(), m_wheelScale);
 	return !m_wheelMeshes.empty();
 }
 
@@ -579,51 +683,54 @@ void Vehicle::Render(DXRender* render, MeshRenderContext& ctx)
 	float qy = sinf(half);
 	float qw = cosf(half);
 
+	/* Double-sided: vehicle strips fight CULL_FRONT after Y/Z remap. */
+	render->SetCullNone();
+
 	m_model->SetPosition(
 		m_posX, m_posY, m_posZ,
 		1.0f, 1.0f, 1.0f,
 		0.0f, qy, 0.0f, qw);
 	m_model->Render(render, ctx);
 
-	if (m_wheelMeshes.empty())
-		return;
+	if (!m_wheelMeshes.empty()) {
+		/*
+		 * re3 CAutomobile::PreRender (engine-space remapped):
+		 *   SetRotate(spin, 0, steer) on GTA XYZ → RotateX(spin)*RotateY(steer) here
+		 *   Left wheels: -spin, PI+steer
+		 *   Then Scale(wheelScale) and Translate(dummy pos with suspension Y)
+		 */
+		XMMATRIX chassis =
+			XMMatrixRotationY(m_heading) *
+			XMMatrixTranslation(m_posX, m_posY, m_posZ);
 
-	/*
-	 * re3 CAutomobile::PreRender (engine-space remapped):
-	 *   SetRotate(spin, 0, steer) on GTA XYZ → RotateX(spin)*RotateY(steer) here
-	 *   Left wheels: -spin, PI+steer
-	 *   Then Scale(wheelScale) and Translate(dummy pos)
-	 */
-	XMMATRIX chassis =
-		XMMatrixRotationY(m_heading) *
-		XMMatrixTranslation(m_posX, m_posY, m_posZ);
+		for (int i = 0; i < WHEEL_COUNT; i++) {
+			float spin = m_wheelRotation[i];
+			float steerZ = m_wheelIsFront[i] ? m_steerAngle : 0.0f;
+			if (m_wheelIsLeft[i]) {
+				spin = -spin;
+				steerZ = (float)M_PI + steerZ;
+			}
 
-	for (int i = 0; i < WHEEL_COUNT; i++) {
-		float spin = m_wheelRotation[i];
-		float steerZ = m_wheelIsFront[i] ? m_steerAngle : 0.0f;
-		if (m_wheelIsLeft[i]) {
-			spin = -spin;
-			steerZ = (float)M_PI + steerZ;
-		}
+			float compress = (1.0f - m_springRatio[i]) * m_springLength;
+			ColVec3 pos = m_wheelLocal[i];
+			pos.y = m_wheelRestY[i] + compress;
 
-		/* Suspension compresses wheel upward (engine Y). */
-		float compress = (1.0f - m_springRatio[i]) * m_springLength;
-		ColVec3 pos = m_wheelLocal[i];
-		pos.y = m_wheelRestY[i] + compress;
+			XMMATRIX local =
+				XMMatrixRotationX(spin) *
+				XMMatrixRotationY(steerZ) *
+				XMMatrixScaling(m_wheelScale, m_wheelScale, m_wheelScale) *
+				XMMatrixTranslation(pos.x, pos.y, pos.z);
 
-		XMMATRIX local =
-			XMMatrixRotationX(spin) *
-			XMMatrixRotationY(steerZ) *
-			XMMatrixScaling(m_wheelScale, m_wheelScale, m_wheelScale) *
-			XMMatrixTranslation(pos.x, pos.y, pos.z);
+			XMMATRIX world = XMMatrixMultiply(local, chassis);
 
-		XMMATRIX world = XMMatrixMultiply(local, chassis);
-
-		for (size_t m = 0; m < m_wheelMeshes.size(); m++) {
-			m_wheelMeshes[m]->SetWorld(world);
-			m_wheelMeshes[m]->Render(render, ctx);
+			for (size_t m = 0; m < m_wheelMeshes.size(); m++) {
+				m_wheelMeshes[m]->SetWorld(world);
+				m_wheelMeshes[m]->Render(render, ctx);
+			}
 		}
 	}
+
+	render->ApplyRasterizerState();
 }
 
 XMVECTOR Vehicle::GetPosition() const
