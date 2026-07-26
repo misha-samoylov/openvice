@@ -866,6 +866,7 @@ void RenderScene(DXRender *render, Camera *camera)
 
 	/* Opaque geometry (and opaque submeshes of alpha models). */
 	render->SetOpaqueState();
+	render->ApplyRasterizerState();
 	DrawInstances(render, ctx, g_opaqueInstances, 0);
 	DrawInstances(render, ctx, g_alphaInstances, -1);
 
@@ -887,10 +888,12 @@ void RenderScene(DXRender *render, Camera *camera)
 
 	/* Cutout first (trees/fences): alpha-test style with depth writes. */
 	render->SetCutoutAlphaState();
+	render->ApplyRasterizerState();
 	DrawInstances(render, ctx, g_alphaInstances, 1);
 
 	/* Soft translucent (glass): back-to-front, no depth write. */
 	render->SetSoftAlphaState();
+	render->ApplyRasterizerState();
 	DrawInstances(render, ctx, g_alphaInstances, 2);
 
 	/* Bullet physics debug lines (F3). Drawn last so they stay visible. */
@@ -1235,14 +1238,32 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 				speed *= 5.0f;
 			}
 
-			if (input->IsKey(DIK_F1)) {
-				render->ChangeRasterizerStateToWireframe();
-				printf("[Info] Changed render to wireframe\n");
+			{
+				static bool f1WasDown = false;
+				bool f1Down = input->IsKey(DIK_F1);
+				if (f1Down && !f1WasDown) {
+					bool on = !render->IsWireframe();
+					if (on)
+						render->ChangeRasterizerStateToWireframe();
+					else
+						render->ChangeRasterizerStateToSolid();
+					if (g_vehicle)
+						g_vehicle->SetWireframe(on);
+					printf("[Info] World+Cheetah DX11 wireframe %s (F1)\n", on ? "ON" : "OFF");
+				}
+				f1WasDown = f1Down;
 			}
 
-			if (input->IsKey(DIK_F2)) {
-				render->ChangeRasterizerStateToSolid();
-				printf("[Info] Changed render to solid\n");
+			{
+				static bool f2WasDown = false;
+				bool f2Down = input->IsKey(DIK_F2);
+				if (f2Down && !f2WasDown) {
+					render->ChangeRasterizerStateToSolid();
+					if (g_vehicle)
+						g_vehicle->SetWireframe(false);
+					printf("[Info] Wireframe OFF (F2)\n");
+				}
+				f2WasDown = f2Down;
 			}
 
 			{

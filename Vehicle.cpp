@@ -23,18 +23,6 @@ namespace {
 float Minf(float a, float b) { return a < b ? a : b; }
 float Clampf(float v, float lo, float hi) { return v < lo ? lo : (v > hi ? hi : v); }
 
-XMMATRIX BtTransformToXm(const btTransform& t)
-{
-	btScalar m[16];
-	t.getOpenGLMatrix(m);
-	/* Bullet OpenGL matrix is column-major; XMMatrix is row-major. */
-	return XMMATRIX(
-		m[0], m[1], m[2], m[3],
-		m[4], m[5], m[6], m[7],
-		m[8], m[9], m[10], m[11],
-		m[12], m[13], m[14], m[15]);
-}
-
 XMMATRIX GtaToEngineMat()
 {
 	return XMMATRIX(
@@ -93,6 +81,7 @@ bool Vehicle::Init(Model* model, ColModel* col, CollisionWorld* world, IMG* img,
 	m_rayVehicle = nullptr;
 	m_childShapes.clear();
 	m_wheelMeshes.clear();
+	m_wireframe = false;
 
 	m_posX = m_posY = m_posZ = 0.0f;
 	m_velX = m_velY = m_velZ = 0.0f;
@@ -740,7 +729,6 @@ void Vehicle::Render(DXRender* render, MeshRenderContext& ctx)
 		return;
 
 	float qx = 0.0f, qy = 0.0f, qz = 0.0f, qw = 1.0f;
-	XMMATRIX chassisXm = XMMatrixRotationY(m_heading) * XMMatrixTranslation(m_posX, m_posY, m_posZ);
 
 	if (m_chassisBody) {
 		btTransform t;
@@ -748,20 +736,24 @@ void Vehicle::Render(DXRender* render, MeshRenderContext& ctx)
 			m_motionState->getWorldTransform(t);
 		else
 			t = m_chassisBody->getWorldTransform();
-		chassisXm = BtTransformToXm(t);
 		btQuaternion q = t.getRotation();
-		qx = q.x();
-		qy = q.y();
-		qz = q.z();
-		qw = q.w();
+		qx = (float)q.x();
+		qy = (float)q.y();
+		qz = (float)q.z();
+		qw = (float)q.w();
 	} else {
 		float half = m_heading * 0.5f;
 		qy = sinf(half);
 		qw = cosf(half);
 	}
 
-	/* Double-sided: vehicle strips fight CULL_FRONT after Y/Z remap. */
-	render->SetCullNone();
+	/* Same chassis matrix as Model::SetPosition — keep wheels glued to the body. */
+	XMMATRIX chassisXm =
+		XMMatrixRotationQuaternion(XMVectorSet(qx, qy, qz, qw)) *
+		XMMatrixTranslation(m_posX, m_posY, m_posZ);
+
+	/* Vehicle body + wheels: follow global F1 wireframe (and per-vehicle flag). */
+	render->SetVehicleRasterizer(m_wireframe || render->IsWireframe());
 
 	m_model->SetPosition(
 		m_posX, m_posY, m_posZ,
@@ -770,30 +762,30 @@ void Vehicle::Render(DXRender* render, MeshRenderContext& ctx)
 	m_model->Render(render, ctx);
 
 	if (!m_wheelMeshes.empty()) {
+		/*
+		 * Visual wheels stay in chassis-local space (re3 PreRender style).
+		 * Bullet getWheelTransformWS uses a different axle/steer basis and
+		 * drifted from the body when composed via OpenGL→XM conversion.
+		 */
 		for (int i = 0; i < WHEEL_COUNT; i++) {
-			XMMATRIX world;
-			if (m_rayVehicle && i < m_rayVehicle->getNumWheels()) {
-				m_rayVehicle->updateWheelTransform(i, true);
-				world = BtTransformToXm(m_rayVehicle->getWheelTransformWS(i));
-				/* Visual scale for wheel_sport IDE scale. */
-				world = XMMatrixScaling(m_wheelScale, m_wheelScale, m_wheelScale) * world;
-			} else {
-				float spin = m_wheelRotation[i];
-				float steerZ = m_wheelIsFront[i] ? m_steerAngle : 0.0f;
-				if (m_wheelIsLeft[i]) {
-					spin = -spin;
-					steerZ = (float)M_PI + steerZ;
-				}
-				float compress = (1.0f - m_springRatio[i]) * m_springLength;
-				ColVec3 pos = m_wheelLocal[i];
-				pos.y = m_wheelRestY[i] + compress;
-				XMMATRIX local =
-					XMMatrixRotationX(spin) *
-					XMMatrixRotationY(steerZ) *
-					XMMatrixScaling(m_wheelScale, m_wheelScale, m_wheelScale) *
-					XMMatrixTranslation(pos.x, pos.y, pos.z);
-				world = XMMatrixMultiply(local, chassisXm);
+			float spin = m_wheelRotation[i];
+			float steerZ = m_wheelIsFront[i] ? m_steerAngle : 0.0f;
+			if (m_wheelIsLeft[i]) {
+				spin = -spin;
+				steerZ = (float)M_PI + steerZ;
 			}
+
+			float compress = (1.0f - m_springRatio[i]) * m_springLength;
+			ColVec3 pos = m_wheelLocal[i];
+			pos.y = m_wheelRestY[i] + compress;
+
+			XMMATRIX local =
+				XMMatrixRotationX(spin) *
+				XMMatrixRotationY(steerZ) *
+				XMMatrixScaling(m_wheelScale, m_wheelScale, m_wheelScale) *
+				XMMatrixTranslation(pos.x, pos.y, pos.z);
+
+			XMMATRIX world = XMMatrixMultiply(local, chassisXm);
 
 			for (size_t m = 0; m < m_wheelMeshes.size(); m++) {
 				m_wheelMeshes[m]->SetWorld(world);

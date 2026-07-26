@@ -55,6 +55,8 @@ public:
 	bool PlaceOnGround();
 
 	bool IsReady() const { return m_model != nullptr; }
+	void SetWireframe(bool enabled) { m_wireframe = enabled; }
+	bool IsWireframe() const { return m_wireframe; }
 
 private:
 	void ProcessControlInputs(float throttle, float steer, bool handbrake);
@@ -114,4 +116,6 @@ private:
 
 	/* Shared wheel_sport meshes (cloned visually at each dummy). */
 	std::vector<Mesh*> m_wheelMeshes;
+
+	bool m_wireframe;
 };

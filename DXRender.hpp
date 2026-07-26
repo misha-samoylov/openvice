@@ -37,6 +37,10 @@ public:
 	/* Vehicles: RW winding vs Y/Z remap fights CULL_FRONT — draw both sides. */
 	void SetCullNone();
 	void SetCullFront();
+	/* Solid or wireframe, both sides — for vehicle debug (F1). */
+	void SetVehicleRasterizer(bool wireframe);
+
+	bool IsWireframe() const { return m_pRasterizerState == m_pRSWireframe; }
 
 	UINT GetBackBufferWidth() const { return m_width; }
 	UINT GetBackBufferHeight() const { return m_height; }

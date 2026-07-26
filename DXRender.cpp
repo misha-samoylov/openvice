@@ -54,12 +54,24 @@ HRESULT DXRender::ChangeRasterizerStateToSolid()
 
 void DXRender::SetCullNone()
 {
-	m_pDeviceContext->RSSetState(m_pRSCullNone);
+	/* Keep F1 wireframe when vehicle temporarily requests cull-none. */
+	if (m_pRasterizerState == m_pRSWireframe)
+		m_pDeviceContext->RSSetState(m_pRSWireframe);
+	else
+		m_pDeviceContext->RSSetState(m_pRSCullNone);
 }
 
 void DXRender::SetCullFront()
 {
-	m_pDeviceContext->RSSetState(m_pRSCullFront);
+	if (m_pRasterizerState == m_pRSWireframe)
+		m_pDeviceContext->RSSetState(m_pRSWireframe);
+	else
+		m_pDeviceContext->RSSetState(m_pRSCullFront);
+}
+
+void DXRender::SetVehicleRasterizer(bool wireframe)
+{
+	m_pDeviceContext->RSSetState(wireframe ? m_pRSWireframe : m_pRSCullNone);
 }
 
 void DXRender::ApplyRasterizerState()
