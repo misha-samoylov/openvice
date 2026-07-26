@@ -96,6 +96,9 @@
     <ClCompile Include="Water.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="Clouds.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="loaders\IFP.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -218,6 +221,12 @@
       <Filter>Source Files\shaders</Filter>
     </FxCompile>
     <FxCompile Include="shaders\water_vs.hlsl">
+      <Filter>Source Files\shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="shaders\cloud_vs.hlsl">
+      <Filter>Source Files\shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="shaders\cloud_ps.hlsl">
       <Filter>Source Files\shaders</Filter>
     </FxCompile>
     <FxCompile Include="shaders\skinned_vs.hlsl">

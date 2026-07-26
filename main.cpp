@@ -21,6 +21,7 @@
 #include "Frustum.h"
 #include "Model.h"
 #include "Water.h"
+#include "Clouds.h"
 #include "Player.h"
 #include "Vehicle.h"
 #include "loaders/IFP.h"
@@ -80,6 +81,7 @@ struct SceneInstance {
 std::vector<SceneInstance> g_opaqueInstances;
 std::vector<SceneInstance> g_alphaInstances;
 Water* g_water = nullptr;
+Clouds* g_clouds = nullptr;
 Player* g_player = nullptr;
 Vehicle* g_vehicle = nullptr;
 COL* g_col = nullptr;
@@ -920,6 +922,15 @@ void RenderScene(DXRender *render, Camera *camera)
 	ctx.shadowSRV = g_shadowMap ? g_shadowMap->GetSRV() : nullptr;
 	ctx.shadowSampler = g_shadowMap ? g_shadowMap->GetCmpSampler() : nullptr;
 
+	/* re3: sky clear → clouds → world. Depth off; world overwrites. */
+	if (g_clouds)
+		g_clouds->Render(render, camera);
+	/* Clouds change D3D bindings — reset mesh cache but keep shadow map. */
+	ctx.ClearBindings();
+	ctx.shadowSRV = g_shadowMap ? g_shadowMap->GetSRV() : nullptr;
+	ctx.shadowSampler = g_shadowMap ? g_shadowMap->GetCmpSampler() : nullptr;
+	ctx.receiveShadows = g_shadowMap ? 1.0f : 0.0f;
+
 	/* Opaque geometry (and opaque submeshes of alpha models). */
 	render->SetOpaqueState();
 	render->ApplyRasterizerState();
@@ -1197,6 +1208,17 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 		printf("[Warn] Water failed to init, continuing without water\n");
 		delete g_water;
 		g_water = nullptr;
+	}
+
+	g_clouds = new Clouds();
+	if (!g_clouds->Init(
+		render,
+		"C:/Games/Grand Theft Auto Vice City/models/particle.txd"
+	)) {
+		printf("[Warn] Clouds failed to init, continuing without clouds\n");
+		g_clouds->Cleanup();
+		delete g_clouds;
+		g_clouds = nullptr;
 	}
 
 	IFP* ifp = new IFP();
@@ -1539,6 +1561,8 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 
 			if (g_water)
 				g_water->Update((float)frameTime);
+			if (g_clouds)
+				g_clouds->Update((float)frameTime, camera);
 
 			RenderScene(render, camera);
 		}
@@ -1572,6 +1596,11 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 		g_col = nullptr;
 	}
 
+	if (g_clouds) {
+		g_clouds->Cleanup();
+		delete g_clouds;
+		g_clouds = nullptr;
+	}
 	if (g_water) {
 		g_water->Cleanup();
 		delete g_water;
