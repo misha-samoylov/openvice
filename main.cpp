@@ -217,6 +217,34 @@ static void EnsureDayNightModelTimes()
 		printf("[Info] Assigned day/night hours to %d untimed _dy/_nt models\n", assigned);
 }
 
+/*
+ * Map clumps (lamp posts, etc.) pack intact + damaged / lower-LOD atomics
+ * as *_L0 / *_L1 / *_L2. Engine always draws every geometry → double poles.
+ * Keep only the intact hi-detail atomic (*_L0 or no _Ln suffix).
+ */
+static bool ShouldSkipMapAtomic(const char* name)
+{
+	if (!name || !name[0])
+		return true;
+	if (strstr(name, "_dam") != NULL)
+		return true;
+	if (strstr(name, "_vlo") != NULL)
+		return true;
+
+	for (const char* p = name; *p; p++) {
+		if (p[0] != '_')
+			continue;
+		if ((p[1] != 'L' && p[1] != 'l') || p[2] < '0' || p[2] > '9')
+			continue;
+		int lod = 0;
+		for (const char* d = p + 2; *d >= '0' && *d <= '9'; d++)
+			lod = lod * 10 + (*d - '0');
+		if (lod != 0)
+			return true;
+	}
+	return false;
+}
+
 int LoadFileDFFWithName(IMG* pImgLoader, DXRender* render, char *name, int modelId)
 {
 	/* Skip LOD models — they occupy the same space as HD and cause z-fighting. */
@@ -242,7 +270,34 @@ int LoadFileDFFWithName(IMG* pImgLoader, DXRender* render, char *name, int model
 	model->SetName(name);
 	model->SetAlpha(false);
 
+	/*
+	 * Prefer atomic/frame filtering so damaged lamp (_L1) meshes are dropped.
+	 * If the clump has no usable atomics, fall back to loading every geometry.
+	 */
+	std::vector<char> loadGeom(clump->m_numGeometries, 0);
+	bool haveAtomicFilter = false;
+	FrameList* frames = clump->GetFrameList();
+	AtomicList* atomics = clump->GetAtomicList();
+	if (frames && atomics && atomics->GetNumAtomic() > 0) {
+		for (uint32_t ai = 0; ai < atomics->GetNumAtomic(); ai++) {
+			Atomic* atomic = atomics->GetAtomic((int)ai);
+			int frameIndex = atomic->GetFrameIndex();
+			int geomIndex = atomic->GetGeometryIndex();
+			if (frameIndex < 0 || frameIndex >= frames->GetNumFrames())
+				continue;
+			if (geomIndex < 0 || (uint32_t)geomIndex >= clump->m_numGeometries)
+				continue;
+			const char* frameName = frames->GetFrame(frameIndex)->GetName();
+			if (ShouldSkipMapAtomic(frameName))
+				continue;
+			loadGeom[(size_t)geomIndex] = 1;
+			haveAtomicFilter = true;
+		}
+	}
+
 	for (uint32_t index = 0; index < clump->m_numGeometries; index++) {
+		if (haveAtomicFilter && !loadGeom[index])
+			continue;
 
 		Geometry* geometry = clump->GetGeometryList()[index];
 		std::vector<ModelMaterial> materIndex;
