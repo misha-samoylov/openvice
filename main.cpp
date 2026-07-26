@@ -1379,7 +1379,7 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 
 			if (!freeCamera && g_controllingVehicle && g_vehicle) {
 				float throttle = moveBackForward;
-				float steer = -moveLeftRight;
+				float steer = moveLeftRight;
 				bool handbrake = input->IsKey(DIK_SPACE);
 				g_vehicle->Update((float)frameTime, throttle, steer, handbrake);
 				if (g_player)
