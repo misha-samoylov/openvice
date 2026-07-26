@@ -9,6 +9,7 @@
 PhysicsDebugDraw::PhysicsDebugDraw()
 	: m_enabled(false)
 	, m_debugMode(DBG_NoDebug)
+	, m_overlayMode(0)
 	, m_cullX(0), m_cullY(0), m_cullZ(0), m_cullRadiusSq(0)
 	, m_cullEnabled(false)
 	, m_vs(nullptr)
@@ -125,17 +126,32 @@ void PhysicsDebugDraw::Cleanup()
 
 void PhysicsDebugDraw::SetEnabled(bool enabled)
 {
-	m_enabled = enabled;
-	if (enabled) {
+	SetOverlayMode(enabled ? 1 : 0);
+}
+
+void PhysicsDebugDraw::SetOverlayMode(int mode)
+{
+	if (mode < 0)
+		mode = 0;
+	if (mode > 3)
+		mode = 3;
+	m_overlayMode = mode;
+	m_enabled = (mode != 0);
+	if (!m_enabled) {
+		m_debugMode = DBG_NoDebug;
+		m_lines.clear();
+		return;
+	}
+
+	/* Compound / boundBox modes: shapes only — no AABB clutter. */
+	if (mode == 1) {
 		m_debugMode =
 			DBG_DrawWireframe |
-			DBG_DrawAabb |
 			DBG_DrawContactPoints |
 			DBG_DrawConstraints |
 			DBG_DrawConstraintLimits;
 	} else {
-		m_debugMode = DBG_NoDebug;
-		m_lines.clear();
+		m_debugMode = DBG_DrawWireframe;
 	}
 }
 

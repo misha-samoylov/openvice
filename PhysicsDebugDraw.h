@@ -29,6 +29,10 @@ public:
 	void SetEnabled(bool enabled);
 	bool IsEnabled() const { return m_enabled; }
 
+	/* 0=off wire+aabb+contacts; prefer SetOverlayMode for F3 cycling. */
+	void SetOverlayMode(int mode);
+	int GetOverlayMode() const { return m_overlayMode; }
+
 	virtual void drawLine(const btVector3& from, const btVector3& to, const btVector3& color) override;
 	virtual void drawContactPoint(
 		const btVector3& PointOnB, const btVector3& normalOnB,
@@ -48,6 +52,7 @@ private:
 
 	bool m_enabled;
 	int m_debugMode;
+	int m_overlayMode; /* 0 off, 1 all, 2 compound, 3 boundBox-only */
 	std::vector<Vertex> m_lines;
 
 	float m_cullX, m_cullY, m_cullZ, m_cullRadiusSq;

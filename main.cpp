@@ -88,6 +88,7 @@ ShadowMap* g_shadowMap = nullptr;
 PhysicsDebugDraw* g_physicsDebugDraw = nullptr;
 bool g_controllingVehicle = false;
 bool g_physicsDebugVisible = false;
+int g_physicsDebugFilter = COL_DEBUG_ALL; /* used when overlay on */
 
 template <typename T>
 void remove_duplicates(std::vector<T>& vec)
@@ -903,7 +904,7 @@ void RenderScene(DXRender *render, Camera *camera)
 		g_physicsDebugDraw->SetViewProjection(ctx.viewProj);
 		g_physicsDebugDraw->SetCullSphere(
 			XMVectorGetX(camPos), XMVectorGetY(camPos), XMVectorGetZ(camPos), 120.0f);
-		g_collisionWorld->DebugDrawWorld();
+		g_collisionWorld->DebugDrawWorld(g_physicsDebugFilter);
 		render->SetOpaqueState();
 		g_physicsDebugDraw->Render(render);
 	}
@@ -1269,16 +1270,33 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 			{
 				static bool f3WasDown = false;
 				bool f3Down = input->IsKey(DIK_F3);
-				if (f3Down && !f3WasDown) {
-					g_physicsDebugVisible = !g_physicsDebugVisible;
-					if (g_physicsDebugDraw) {
-						g_physicsDebugDraw->SetEnabled(g_physicsDebugVisible);
-						if (g_collisionWorld)
-							g_collisionWorld->SetDebugDrawer(
-								g_physicsDebugVisible ? g_physicsDebugDraw : nullptr);
+				if (f3Down && !f3WasDown && g_physicsDebugDraw) {
+					/*
+					 * Cycle: OFF → all wire → compound+boundBox → boundBox only → OFF.
+					 * Magenta = boundBox fallback, cyan = COL spheres/boxes.
+					 */
+					int next = g_physicsDebugDraw->GetOverlayMode() + 1;
+					if (next > 3)
+						next = 0;
+					g_physicsDebugDraw->SetOverlayMode(next);
+					g_physicsDebugVisible = (next != 0);
+					if (next == 1)
+						g_physicsDebugFilter = COL_DEBUG_ALL;
+					else if (next == 2)
+						g_physicsDebugFilter = COL_DEBUG_COMPOUND;
+					else if (next == 3)
+						g_physicsDebugFilter = COL_DEBUG_BOUNDBOX_ONLY;
+
+					if (g_collisionWorld) {
+						g_collisionWorld->SetDebugDrawer(
+							g_physicsDebugVisible ? g_physicsDebugDraw : nullptr);
 					}
-					printf("[Info] Bullet physics debug %s\n",
-						g_physicsDebugVisible ? "ON (F3)" : "OFF (F3)");
+
+					const char* label = "OFF";
+					if (next == 1) label = "ALL wireframes";
+					else if (next == 2) label = "compound prims only (cyan)";
+					else if (next == 3) label = "empty COL (none — skipped)";
+					printf("[Info] Physics debug: %s (F3)\n", label);
 				}
 				f3WasDown = f3Down;
 			}

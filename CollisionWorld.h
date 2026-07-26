@@ -25,6 +25,20 @@ struct ColInstancePlacement {
 	float rotation[4]; /* xyzw quaternion in engine space */
 };
 
+/* How a ColModel became a Bullet shape — used by F3 debug filter. */
+enum ColShapeKind {
+	COL_SHAPE_MESH = 0,       /* BVH triangle mesh */
+	COL_SHAPE_COMPOUND = 1,   /* COL spheres / boxes */
+	COL_SHAPE_BOUNDBOX = 2    /* empty COL (no body; bound only in file header) */
+};
+
+/* F3 physics overlay filter for static world bodies. */
+enum ColDebugFilter {
+	COL_DEBUG_ALL = 0,
+	COL_DEBUG_COMPOUND = 1,     /* compound prims + boundBox fallback */
+	COL_DEBUG_BOUNDBOX_ONLY = 2 /* only boundBox fallback bodies */
+};
+
 /* World collision + dynamics via Bullet Physics 2.89 (Y-up). */
 class CollisionWorld
 {
@@ -41,7 +55,8 @@ public:
 	btDiscreteDynamicsWorld* GetDynamicsWorld() const { return m_dynamicsWorld; }
 
 	void SetDebugDrawer(class btIDebugDraw* drawer);
-	void DebugDrawWorld();
+	/* filter: COL_DEBUG_* — hides mesh (or non-boundBox) statics via visualize flag. */
+	void DebugDrawWorld(int filter = COL_DEBUG_ALL);
 
 	/* re3 CWorld::FindGroundZFor3DCoord analogue — engine Y is up. */
 	bool FindGroundY(float x, float y, float z, float* outY) const;
@@ -73,7 +88,10 @@ private:
 		btCollisionShape* shape;
 		btTriangleMesh* triangleMesh; /* owns vertex/index copy for BVH mesh */
 		std::vector<btCollisionShape*> ownedChildren;
+		int kind; /* ColShapeKind */
 	};
+
+	int FindShapeKind(ColModel* model) const;
 
 	btCollisionShape* GetOrCreateShape(ColModel* model);
 	btCollisionShape* CreateMeshShape(ColModel* model, ShapeEntry& entry);

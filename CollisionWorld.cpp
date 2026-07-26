@@ -215,26 +215,18 @@ btCollisionShape* CollisionWorld::CreateCompoundShape(ColModel* model, ShapeEntr
 		compound->addChildShape(local, box);
 	}
 
+	/*
+	 * Empty COL (header AABB only): original VC does not collide with these.
+	 * Do NOT invent a solid boundBox — that made huge invisible walls
+	 * (gf_treesfw*, gf_flagstees*, water stubs, etc.).
+	 */
 	if (compound->getNumChildShapes() == 0) {
-		const ColBox& b = model->boundBox;
-		btVector3 half(
-			(b.max.x - b.min.x) * 0.5f,
-			(b.max.y - b.min.y) * 0.5f,
-			(b.max.z - b.min.z) * 0.5f);
-		if (half.x() < 0.05f) half.setX(0.05f);
-		if (half.y() < 0.05f) half.setY(0.05f);
-		if (half.z() < 0.05f) half.setZ(0.05f);
-		btBoxShape* box = new btBoxShape(half);
-		entry.ownedChildren.push_back(box);
-		btTransform local;
-		local.setIdentity();
-		local.setOrigin(btVector3(
-			(b.min.x + b.max.x) * 0.5f,
-			(b.min.y + b.max.y) * 0.5f,
-			(b.min.z + b.max.z) * 0.5f));
-		compound->addChildShape(local, box);
+		delete compound;
+		entry.kind = COL_SHAPE_BOUNDBOX; /* marked skipped-empty for stats */
+		return nullptr;
 	}
 
+	entry.kind = COL_SHAPE_COMPOUND;
 	return compound;
 }
 
@@ -252,19 +244,27 @@ btCollisionShape* CollisionWorld::GetOrCreateShape(ColModel* model)
 	entry.model = model;
 	entry.shape = nullptr;
 	entry.triangleMesh = nullptr;
+	entry.kind = COL_SHAPE_MESH;
 
-	if (!model->triangles.empty() && !model->vertices.empty())
+	if (!model->triangles.empty() && !model->vertices.empty()) {
+		entry.kind = COL_SHAPE_MESH;
 		entry.shape = CreateMeshShape(model, entry);
-	else
+	} else {
 		entry.shape = CreateCompoundShape(model, entry);
-
-	if (!entry.shape) {
-		DestroyShapeEntry(entry);
-		return nullptr;
 	}
 
+	/* Cache even when shape is null (empty COL) so we don't rebuild every instance. */
 	m_shapes.push_back(std::move(entry));
 	return m_shapes.back().shape;
+}
+
+int CollisionWorld::FindShapeKind(ColModel* model) const
+{
+	for (size_t i = 0; i < m_shapes.size(); i++) {
+		if (m_shapes[i].model == model)
+			return m_shapes[i].kind;
+	}
+	return COL_SHAPE_MESH;
 }
 
 void CollisionWorld::Build(COL* colStore, const std::vector<ColInstancePlacement>& placements)
@@ -287,8 +287,7 @@ void CollisionWorld::Build(COL* colStore, const std::vector<ColInstancePlacement
 			baseShape = it->second;
 		} else {
 			baseShape = GetOrCreateShape(p.model);
-			if (baseShape)
-				shapeCache[p.model] = baseShape;
+			shapeCache[p.model] = baseShape; /* may be null for empty COL */
 		}
 		if (!baseShape)
 			continue;
@@ -356,6 +355,15 @@ void CollisionWorld::Build(COL* colStore, const std::vector<ColInstancePlacement
 		body->setRestitution(0.0f);
 		body->setCollisionFlags(body->getCollisionFlags() | btCollisionObject::CF_STATIC_OBJECT);
 
+		int kind = FindShapeKind(p.model);
+		body->setUserIndex(kind);
+		if (kind == COL_SHAPE_BOUNDBOX)
+			body->setCustomDebugColor(btVector3(1.0f, 0.15f, 1.0f)); /* magenta */
+		else if (kind == COL_SHAPE_COMPOUND)
+			body->setCustomDebugColor(btVector3(0.15f, 1.0f, 1.0f)); /* cyan */
+		else
+			body->removeCustomDebugColor();
+
 		/* Keep scaled wrappers alive until Clear(). */
 		if (scaledWrapper) {
 			m_instanceShapes.push_back(scaledWrapper);
@@ -370,8 +378,14 @@ void CollisionWorld::Build(COL* colStore, const std::vector<ColInstancePlacement
 		matched++;
 	}
 
-	printf("[Info] Bullet CollisionWorld: %d static bodies, %d unique shapes\n",
-		matched, (int)m_shapes.size());
+	int nMesh = 0, nComp = 0, nEmpty = 0;
+	for (size_t i = 0; i < m_shapes.size(); i++) {
+		if (m_shapes[i].kind == COL_SHAPE_MESH && m_shapes[i].shape) nMesh++;
+		else if (m_shapes[i].kind == COL_SHAPE_COMPOUND) nComp++;
+		else if (m_shapes[i].kind == COL_SHAPE_BOUNDBOX || !m_shapes[i].shape) nEmpty++;
+	}
+	printf("[Info] Bullet CollisionWorld: %d static bodies, shapes mesh=%d compound=%d emptySkipped=%d\n",
+		matched, nMesh, nComp, nEmpty);
 }
 
 void CollisionWorld::Step(float dt)
@@ -391,10 +405,42 @@ void CollisionWorld::SetDebugDrawer(btIDebugDraw* drawer)
 		m_dynamicsWorld->setDebugDrawer(drawer);
 }
 
-void CollisionWorld::DebugDrawWorld()
+void CollisionWorld::DebugDrawWorld(int filter)
 {
-	if (m_dynamicsWorld)
-		m_dynamicsWorld->debugDrawWorld();
+	if (!m_dynamicsWorld)
+		return;
+
+	const btCollisionObjectArray& objs = m_dynamicsWorld->getCollisionObjectArray();
+	for (int i = 0; i < objs.size(); i++) {
+		btCollisionObject* obj = objs[i];
+		if (!obj)
+			continue;
+
+		bool show = true;
+		if (filter == COL_DEBUG_ALL) {
+			show = true;
+		} else {
+			/* Only static world prims / boundBoxes; hide mesh statics + dynamics. */
+			if (!(obj->getCollisionFlags() & btCollisionObject::CF_STATIC_OBJECT)) {
+				show = false;
+			} else {
+				int kind = obj->getUserIndex();
+				if (filter == COL_DEBUG_COMPOUND)
+					show = (kind == COL_SHAPE_COMPOUND || kind == COL_SHAPE_BOUNDBOX);
+				else if (filter == COL_DEBUG_BOUNDBOX_ONLY)
+					show = (kind == COL_SHAPE_BOUNDBOX);
+			}
+		}
+
+		int flags = obj->getCollisionFlags();
+		if (show)
+			flags &= ~btCollisionObject::CF_DISABLE_VISUALIZE_OBJECT;
+		else
+			flags |= btCollisionObject::CF_DISABLE_VISUALIZE_OBJECT;
+		obj->setCollisionFlags(flags);
+	}
+
+	m_dynamicsWorld->debugDrawWorld();
 }
 
 bool CollisionWorld::RayTestClosest(
