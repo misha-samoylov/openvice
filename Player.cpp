@@ -13,11 +13,21 @@
 #include "loaders/Clump.h"
 #include "renderware.h"
 
+#define __BT_DISABLE_SSE__
+#include "btBulletDynamicsCommon.h"
+#include "BulletCollision/CollisionDispatch/btGhostObject.h"
+#include "BulletDynamics/Character/btKinematicCharacterController.h"
+
 #pragma comment(lib, "d3dcompiler.lib")
 
 using namespace DirectX;
 
 namespace {
+
+/* Capsule total height ≈ 2 * PED_FEET_OFFSET so origin matches re3 feet offset. */
+const float kPedCapsuleRadius = PED_SPHERE_RADIUS;
+const float kPedCapsuleCylinder = (PED_FEET_OFFSET * 2.0f) - (kPedCapsuleRadius * 2.0f);
+const float kFixedTimeStep = 1.0f / 60.0f;
 
 /* GTA (x,y,z) -> engine (x,z,y) — same as map meshes, applied only on world. */
 XMMATRIX GtaToEngine()
@@ -65,6 +75,9 @@ bool Player::Init(IMG* img, DXRender* render, IFP* ifp)
 	m_isStanding = false;
 	m_wasStanding = false;
 	m_world = nullptr;
+	m_ghost = nullptr;
+	m_capsule = nullptr;
+	m_character = nullptr;
 	m_animTime = 0.0f;
 	m_animBlend = 1.0f;
 	m_wasMoving = false;
@@ -707,6 +720,114 @@ void Player::UpdateBoneMatrices()
 		XMStoreFloat4x4(&m_skinPalette[i], XMMatrixIdentity());
 }
 
+void Player::SetCollisionWorld(CollisionWorld* world)
+{
+	if (m_world == world)
+		return;
+	DestroyCharacterController();
+	m_world = world;
+	if (m_world)
+		CreateCharacterController();
+}
+
+void Player::CreateCharacterController()
+{
+	DestroyCharacterController();
+	if (!m_world || !m_world->GetDynamicsWorld())
+		return;
+
+	btDiscreteDynamicsWorld* dyn = m_world->GetDynamicsWorld();
+
+	float cyl = kPedCapsuleCylinder;
+	if (cyl < 0.2f)
+		cyl = 0.2f;
+
+	m_capsule = new btCapsuleShape(kPedCapsuleRadius, cyl);
+	m_ghost = new btPairCachingGhostObject();
+	btTransform start;
+	start.setIdentity();
+	start.setOrigin(btVector3(m_posX, m_posY, m_posZ));
+	m_ghost->setWorldTransform(start);
+	m_ghost->setCollisionShape(m_capsule);
+	m_ghost->setCollisionFlags(btCollisionObject::CF_CHARACTER_OBJECT);
+
+	m_character = new btKinematicCharacterController(
+		m_ghost, m_capsule, 0.35f, btVector3(0.0f, 1.0f, 0.0f));
+	m_character->setGravity(btVector3(0.0f, -PED_GRAVITY, 0.0f));
+	m_character->setFallSpeed(50.0f);
+	m_character->setJumpSpeed(PED_JUMP_SPEED);
+	m_character->setMaxSlope(btRadians(50.0f));
+
+	dyn->addCollisionObject(
+		m_ghost,
+		btBroadphaseProxy::CharacterFilter,
+		btBroadphaseProxy::StaticFilter | btBroadphaseProxy::DefaultFilter | btBroadphaseProxy::DebrisFilter);
+	dyn->addAction(m_character);
+
+	WarpCharacter(m_posX, m_posY, m_posZ);
+	printf("[Info] Player: Bullet character controller ready\n");
+}
+
+void Player::DestroyCharacterController()
+{
+	if (m_world && m_world->GetDynamicsWorld()) {
+		btDiscreteDynamicsWorld* dyn = m_world->GetDynamicsWorld();
+		if (m_character)
+			dyn->removeAction(m_character);
+		if (m_ghost)
+			dyn->removeCollisionObject(m_ghost);
+	}
+	if (m_character) {
+		delete m_character;
+		m_character = nullptr;
+	}
+	if (m_ghost) {
+		delete m_ghost;
+		m_ghost = nullptr;
+	}
+	if (m_capsule) {
+		delete m_capsule;
+		m_capsule = nullptr;
+	}
+}
+
+void Player::WarpCharacter(float x, float y, float z)
+{
+	m_posX = x;
+	m_posY = y;
+	m_posZ = z;
+	m_velX = m_velY = m_velZ = 0.0f;
+	if (m_character)
+		m_character->warp(btVector3(x, y, z));
+	else if (m_ghost) {
+		btTransform t = m_ghost->getWorldTransform();
+		t.setOrigin(btVector3(x, y, z));
+		m_ghost->setWorldTransform(t);
+	}
+}
+
+void Player::SyncFromBullet()
+{
+	if (!m_ghost)
+		return;
+	const btVector3& p = m_ghost->getWorldTransform().getOrigin();
+	m_posX = p.x();
+	m_posY = p.y();
+	m_posZ = p.z();
+	if (m_character) {
+		btVector3 lv = m_character->getLinearVelocity();
+		m_velX = lv.x();
+		m_velY = lv.y();
+		m_velZ = lv.z();
+		m_isStanding = m_character->onGround();
+	}
+}
+
+void Player::SyncPhysics()
+{
+	SyncFromBullet();
+}
+
 void Player::Update(float dt, float moveX, float moveZ, bool moving, bool walking, bool sprinting, bool jump)
 {
 	if (dt < 0.0f)
@@ -714,22 +835,12 @@ void Player::Update(float dt, float moveX, float moveZ, bool moving, bool walkin
 	if (dt > 0.1f)
 		dt = 0.1f;
 
-	/*
-	 * Movement mirrors re3 ped flow:
-	 *  1) desired horizontal velocity from input (anim drives presentation)
-	 *  2) jump impulse like CPed::FinishLaunchCB ApplyMoveForce(0,0,8.5)
-	 *  3) gravity via CPhysical::ApplyGravity
-	 *  4) integrate
-	 *  5) foot vertical probe (CPed::ProcessEntityCollision)
-	 *  6) sphere wall response (ProcessColModels / bPedPhysics)
-	 *
-	 * Move speeds follow re3 PlayerPed seek ratios (WALK=1.0, RUN=1.8, SPRINT=2.5),
-	 * normalized so default run == m_moveSpeed.
-	 */
+	SyncFromBullet();
+	m_wasStanding = m_isStanding;
+
 	float desiredVX = 0.0f;
 	float desiredVZ = 0.0f;
 
-	/* Shift (sprint) wins over Alt (walk), same priority as pad GetSprint in re3. */
 	bool wantSprint = moving && sprinting;
 	bool wantWalk = moving && walking && !wantSprint;
 
@@ -739,7 +850,6 @@ void Player::Update(float dt, float moveX, float moveZ, bool moving, bool walkin
 			moveX /= len;
 			moveZ /= len;
 			m_heading = atan2f(-moveX, moveZ);
-			/* re3: WALK 0.6 / RUN 3.0 / SPRINT 5.4 */
 			float speedMul = 3.0f;
 			if (wantSprint)
 				speedMul = 5.4f;
@@ -752,72 +862,27 @@ void Player::Update(float dt, float moveX, float moveZ, bool moving, bool walkin
 	}
 
 	m_wasMoving = moving;
+	m_velX = desiredVX;
+	m_velZ = desiredVZ;
 
-	/* Space / jump — only from standing, like pad0->JumpJustDown() → SetJump. */
-	if (jump && m_isStanding && !m_isJumping) {
-		m_velY = PED_JUMP_SPEED;
-		m_isStanding = false;
-		m_wasStanding = false;
-		m_isJumping = true;
-		m_landAnimTimer = 0.0f;
-		if (m_animJumpLaunch)
-			SetAnim(m_animJumpLaunch);
-		else if (m_animJumpGlide)
-			SetAnim(m_animJumpGlide);
-	}
+	if (m_character) {
+		/* Walk direction is displacement per internal sim step (fixed 1/60). */
+		m_character->setWalkDirection(
+			btVector3(desiredVX, 0.0f, desiredVZ) * kFixedTimeStep);
 
-	if (m_isStanding) {
-		m_velX = desiredVX;
-		m_velZ = desiredVZ;
-		m_velY = 0.0f;
-	} else {
-		m_velX = desiredVX;
-		m_velZ = desiredVZ;
-		m_velY -= PED_GRAVITY * dt;
-		if (m_velY < -50.0f)
-			m_velY = -50.0f;
-	}
-
-	m_posX += m_velX * dt;
-	m_posY += m_velY * dt;
-	m_posZ += m_velZ * dt;
-
-	m_wasStanding = m_isStanding;
-	m_isStanding = false;
-
-	bool ascending = (m_velY > 0.05f);
-
-	if (m_world) {
-		float groundPedY = m_posY;
-		if (!ascending && m_world->ProbeFeet(m_posX, m_posY, m_posZ, m_wasStanding, &groundPedY)) {
-			if (m_wasStanding || groundPedY <= m_posY + 0.05f) {
-				bool landed = m_isJumping || !m_wasStanding;
-				m_posY = groundPedY;
-				m_velY = 0.0f;
-				m_isStanding = true;
-				if (landed && m_isJumping) {
-					m_isJumping = false;
-					m_landAnimTimer = 0.35f;
-					if (m_animJumpLand)
-						SetAnim(m_animJumpLand);
-				}
-			}
-		}
-
-		m_world->ResolvePedSpheres(&m_posX, &m_posY, &m_posZ);
-
-		/* Re-snap after wall push so we stay glued to ground while walking. */
-		if (!ascending && (m_isStanding || m_wasStanding)) {
-			if (m_world->ProbeFeet(m_posX, m_posY, m_posZ, true, &groundPedY)) {
-				m_posY = groundPedY;
-				m_velY = 0.0f;
-				m_isStanding = true;
-			}
+		if (jump && m_character->canJump() && !m_isJumping) {
+			m_character->jump(btVector3(0.0f, PED_JUMP_SPEED, 0.0f));
+			m_isStanding = false;
+			m_isJumping = true;
+			m_landAnimTimer = 0.0f;
+			if (m_animJumpLaunch)
+				SetAnim(m_animJumpLaunch);
+			else if (m_animJumpGlide)
+				SetAnim(m_animJumpGlide);
 		}
 	}
 
 	auto pickMoveAnim = [&]() -> IfpAnim* {
-		/* re3 SetRealMoveAnim: PEDMOVE_SPRINT→RUNFAST, RUN→RUN, WALK→WALK */
 		if (wantSprint && m_animSprint)
 			return m_animSprint;
 		if (wantSprint && m_animRun)
@@ -829,7 +894,13 @@ void Player::Update(float dt, float moveX, float moveZ, bool moving, bool walkin
 		return m_animWalk;
 	};
 
-	/* Animation selection. */
+	if (m_isJumping && m_isStanding) {
+		m_isJumping = false;
+		m_landAnimTimer = 0.35f;
+		if (m_animJumpLand)
+			SetAnim(m_animJumpLand);
+	}
+
 	if (m_landAnimTimer > 0.0f) {
 		m_landAnimTimer -= dt;
 		if (m_landAnimTimer <= 0.0f && m_isStanding) {
@@ -859,7 +930,6 @@ void Player::Update(float dt, float moveX, float moveZ, bool moving, bool walkin
 	if (m_currentAnim) {
 		m_animTime += dt;
 		if (m_currentAnim->totalLength > 0.0f) {
-			/* Launch/land play once; walk/run/sprint/idle/glide loop. */
 			bool oneshot = (m_currentAnim == m_animJumpLaunch || m_currentAnim == m_animJumpLand);
 			if (oneshot) {
 				if (m_animTime > m_currentAnim->totalLength)
@@ -874,12 +944,12 @@ void Player::Update(float dt, float moveX, float moveZ, bool moving, bool walkin
 		UpdateBoneMatrices();
 	}
 
-	/* Respawn if fallen deep under the map. */
 	if (m_posY < FALL_THROUGH_Y) {
 		m_posY = 1000.0f;
 		m_velY = 0.0f;
+		WarpCharacter(m_posX, m_posY, m_posZ);
 		if (!PlaceOnGround()) {
-			m_posY = 5.0f;
+			WarpCharacter(m_posX, 5.0f, m_posZ);
 			m_isStanding = false;
 		}
 	}
@@ -892,13 +962,11 @@ bool Player::PlaceOnGround()
 
 	float groundY = 0.0f;
 	if (!m_world->FindGroundY(m_posX, m_posY + 5.0f, m_posZ, &groundY)) {
-		/* High probe like CWorld::FindGroundZForCoord. */
 		if (!m_world->FindGroundY(m_posX, 1000.0f, m_posZ, &groundY))
 			return false;
 	}
 
-	m_posY = groundY + PED_FEET_OFFSET;
-	m_velX = m_velY = m_velZ = 0.0f;
+	WarpCharacter(m_posX, groundY + PED_FEET_OFFSET, m_posZ);
 	m_isStanding = true;
 	m_wasStanding = true;
 	m_isJumping = false;
@@ -1002,10 +1070,7 @@ XMVECTOR Player::GetPosition() const
 
 void Player::SetPosition(float x, float y, float z)
 {
-	m_posX = x;
-	m_posY = y;
-	m_posZ = z;
-	m_velX = m_velY = m_velZ = 0.0f;
+	WarpCharacter(x, y, z);
 	m_isStanding = false;
 	m_wasStanding = false;
 	m_isJumping = false;
@@ -1014,6 +1079,9 @@ void Player::SetPosition(float x, float y, float z)
 
 void Player::Cleanup()
 {
+	DestroyCharacterController();
+	m_world = nullptr;
+
 	for (size_t i = 0; i < m_meshes.size(); i++) {
 		if (m_meshes[i].vb) m_meshes[i].vb->Release();
 		if (m_meshes[i].ib) m_meshes[i].ib->Release();
@@ -1029,7 +1097,7 @@ void Player::Cleanup()
 	if (m_boneCB) { m_boneCB->Release(); m_boneCB = nullptr; }
 	if (m_sampler) { m_sampler->Release(); m_sampler = nullptr; }
 	if (m_layout) { m_layout->Release(); m_layout = nullptr; }
-	if (m_vs) { m_vs->Release(); m_vs = nullptr; }
-	if (m_ps) { m_ps->Release(); m_ps = nullptr; }
 	if (m_shadowPS) { m_shadowPS->Release(); m_shadowPS = nullptr; }
+	if (m_ps) { m_ps->Release(); m_ps = nullptr; }
+	if (m_vs) { m_vs->Release(); m_vs = nullptr; }
 }

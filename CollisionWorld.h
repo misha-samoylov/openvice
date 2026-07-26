@@ -6,6 +6,16 @@
 #include "collision/ColTypes.h"
 #include "loaders/COL.hpp"
 
+class btDefaultCollisionConfiguration;
+class btCollisionDispatcher;
+class btBroadphaseInterface;
+class btSequentialImpulseConstraintSolver;
+class btDiscreteDynamicsWorld;
+class btCollisionShape;
+class btRigidBody;
+class btTriangleMesh;
+class btGhostPairCallback;
+
 using namespace DirectX;
 
 struct ColInstancePlacement {
@@ -15,11 +25,23 @@ struct ColInstancePlacement {
 	float rotation[4]; /* xyzw quaternion in engine space */
 };
 
+/* World collision + dynamics via Bullet Physics 2.89 (Y-up). */
 class CollisionWorld
 {
 public:
+	CollisionWorld();
+	~CollisionWorld();
+
 	void Clear();
 	void Build(COL* colStore, const std::vector<ColInstancePlacement>& placements);
+
+	/* Advance Bullet simulation (call once per frame after entity inputs). */
+	void Step(float dt);
+
+	btDiscreteDynamicsWorld* GetDynamicsWorld() const { return m_dynamicsWorld; }
+
+	void SetDebugDrawer(class btIDebugDraw* drawer);
+	void DebugDrawWorld();
 
 	/* re3 CWorld::FindGroundZFor3DCoord analogue — engine Y is up. */
 	bool FindGroundY(float x, float y, float z, float* outY) const;
@@ -34,72 +56,44 @@ public:
 	bool CastDownLine(float x, float z, float startY, float endY, float* hitY, ColVec3* hitNormal = nullptr) const;
 
 	/*
-	 * Sphere vs world like CCollision::ProcessColModels for ped spheres.
-	 * Resolves penetration by pushing position along contact normals (horizontal bias).
+	 * Legacy sphere resolve — no-ops under Bullet (character/vehicle own contacts).
+	 * Kept so older call sites still compile during migration.
 	 */
 	void ResolvePedSpheres(float* x, float* y, float* z) const;
-
-	/* General sphere resolve for vehicles (uses provided spheres in world space). */
 	void ResolveSpheres(
 		const ColSphere* spheres, int count,
 		float* x, float* y, float* z,
 		float* vx = nullptr, float* vy = nullptr, float* vz = nullptr) const;
 
-	size_t GetInstanceCount() const { return m_instances.size(); }
+	size_t GetInstanceCount() const { return m_staticBodies.size(); }
 
 private:
-	struct Instance {
+	struct ShapeEntry {
 		ColModel* model;
-		XMMATRIX world;
-		XMMATRIX invWorld;
-		ColVec3 worldCenter;
-		float worldRadius;
-		float minX, maxX, minZ, maxZ;
+		btCollisionShape* shape;
+		btTriangleMesh* triangleMesh; /* owns vertex/index copy for BVH mesh */
+		std::vector<btCollisionShape*> ownedChildren;
 	};
 
-	struct Cell {
-		std::vector<int> indices;
-	};
+	btCollisionShape* GetOrCreateShape(ColModel* model);
+	btCollisionShape* CreateMeshShape(ColModel* model, ShapeEntry& entry);
+	btCollisionShape* CreateCompoundShape(ColModel* model, ShapeEntry& entry);
+	void DestroyShapeEntry(ShapeEntry& entry);
 
-	void RebuildGrid();
-	void QueryCells(float x, float z, float radius, std::vector<int>& out) const;
+	bool RayTestClosest(
+		float x0, float y0, float z0,
+		float x1, float y1, float z1,
+		float* hitX, float* hitY, float* hitZ,
+		ColVec3* hitNormal) const;
 
-	bool ProcessVerticalLineInstance(
-		const Instance& inst,
-		const ColVec3& p0, const ColVec3& p1,
-		ColPoint& best, float& mindist) const;
+	btDefaultCollisionConfiguration* m_collisionConfig;
+	btCollisionDispatcher* m_dispatcher;
+	btBroadphaseInterface* m_broadphase;
+	btSequentialImpulseConstraintSolver* m_solver;
+	btDiscreteDynamicsWorld* m_dynamicsWorld;
+	btGhostPairCallback* m_ghostPairCallback;
 
-	bool ProcessSphereInstance(
-		const Instance& inst,
-		const ColSphere& sphere,
-		ColPoint& best, float& mindistsq) const;
-
-	static ColVec3 TransformPoint(const XMMATRIX& m, const ColVec3& v);
-	static ColVec3 TransformNormal(const XMMATRIX& m, const ColVec3& v);
-	static ColVec3 TransformPointInv(const XMMATRIX& inv, const ColVec3& v);
-
-	static bool TestLineBox(const ColVec3& p0, const ColVec3& p1, const ColBox& box);
-	static bool ProcessLineSphere(const ColVec3& p0, const ColVec3& p1, const ColSphere& sph, ColPoint& point, float& mindist);
-	static bool ProcessLineBox(const ColVec3& p0, const ColVec3& p1, const ColBox& box, ColPoint& point, float& mindist);
-	static bool ProcessLineTriangle(
-		const ColVec3& p0, const ColVec3& p1,
-		const ColVec3& va, const ColVec3& vb, const ColVec3& vc,
-		const ColTrianglePlane& plane,
-		ColPoint& point, float& mindist);
-	static bool ProcessSphereBox(const ColSphere& sph, const ColBox& box, ColPoint& point, float& mindistsq);
-	static bool ProcessSphereSphere(const ColSphere& a, const ColSphere& b, ColPoint& point, float& mindistsq);
-	static bool ProcessSphereTriangle(
-		const ColSphere& sph,
-		const ColVec3& va, const ColVec3& vb, const ColVec3& vc,
-		const ColTrianglePlane& plane,
-		ColPoint& point, float& mindistsq);
-	static float DistToSegment(const ColVec3& a, const ColVec3& b, const ColVec3& p, ColVec3& closest);
-
-	std::vector<Instance> m_instances;
-	std::vector<Cell> m_cells;
-	int m_gridW;
-	int m_gridH;
-	float m_originX;
-	float m_originZ;
-	float m_cellSize;
+	std::vector<ShapeEntry> m_shapes;
+	std::vector<btCollisionShape*> m_instanceShapes; /* per-placement scaled wrappers */
+	std::vector<btRigidBody*> m_staticBodies;
 };

@@ -10,6 +10,9 @@
 #include "loaders/IFP.h"
 
 class CollisionWorld;
+class btPairCachingGhostObject;
+class btCapsuleShape;
+class btKinematicCharacterController;
 
 using namespace DirectX;
 
@@ -19,11 +22,14 @@ public:
 	bool Init(IMG* img, DXRender* render, IFP* ifp);
 	void Cleanup();
 
-	void SetCollisionWorld(CollisionWorld* world) { m_world = world; }
+	void SetCollisionWorld(CollisionWorld* world);
 
-	/* Move mode mirrors re3 PEDMOVE_WALK / RUN / SPRINT. Default when moving is run. */
+	/* Move mode mirrors re3 PEDMOVE_WALK / RUN / SPRINT. Default when moving is run.
+	 * Applies Bullet character input; call CollisionWorld::Step after Update. */
 	void Update(float dt, float moveX, float moveZ, bool moving,
 		bool walking = false, bool sprinting = false, bool jump = false);
+	/* Call after CollisionWorld::Step to refresh pose for camera/render. */
+	void SyncPhysics();
 	void Render(DXRender* render, MeshRenderContext& ctx);
 
 	XMVECTOR GetPosition() const;
@@ -78,6 +84,11 @@ private:
 	void SetAnim(IfpAnim* anim);
 	int FindTexIndex(const char* name) const;
 
+	void CreateCharacterController();
+	void DestroyCharacterController();
+	void SyncFromBullet();
+	void WarpCharacter(float x, float y, float z);
+
 	float m_posX, m_posY, m_posZ;
 	float m_velX, m_velY, m_velZ;
 	float m_heading;
@@ -85,6 +96,10 @@ private:
 	bool m_isStanding;
 	bool m_wasStanding;
 	CollisionWorld* m_world;
+
+	btPairCachingGhostObject* m_ghost;
+	btCapsuleShape* m_capsule;
+	btKinematicCharacterController* m_character;
 
 	IFP* m_ifp;
 	IfpAnim* m_animIdle;

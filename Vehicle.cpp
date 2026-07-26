@@ -10,6 +10,10 @@
 #include <algorithm>
 #include <float.h>
 
+#define __BT_DISABLE_SSE__
+#include "btBulletDynamicsCommon.h"
+#include "BulletDynamics/Vehicle/btRaycastVehicle.h"
+
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
 #endif
@@ -18,6 +22,18 @@ namespace {
 
 float Minf(float a, float b) { return a < b ? a : b; }
 float Clampf(float v, float lo, float hi) { return v < lo ? lo : (v > hi ? hi : v); }
+
+XMMATRIX BtTransformToXm(const btTransform& t)
+{
+	btScalar m[16];
+	t.getOpenGLMatrix(m);
+	/* Bullet OpenGL matrix is column-major; XMMatrix is row-major. */
+	return XMMATRIX(
+		m[0], m[1], m[2], m[3],
+		m[4], m[5], m[6], m[7],
+		m[8], m[9], m[10], m[11],
+		m[12], m[13], m[14], m[15]);
+}
 
 XMMATRIX GtaToEngineMat()
 {
@@ -70,6 +86,12 @@ bool Vehicle::Init(Model* model, ColModel* col, CollisionWorld* world, IMG* img,
 	m_model = model;
 	m_col = col;
 	m_world = world;
+	m_chassisBody = nullptr;
+	m_chassisShape = nullptr;
+	m_motionState = nullptr;
+	m_vehicleRaycaster = nullptr;
+	m_rayVehicle = nullptr;
+	m_childShapes.clear();
 	m_wheelMeshes.clear();
 
 	m_posX = m_posY = m_posZ = 0.0f;
@@ -131,8 +153,11 @@ bool Vehicle::Init(Model* model, ColModel* col, CollisionWorld* world, IMG* img,
 			printf("[Warn] Vehicle: wheel_sport meshes failed — driving without visible wheels\n");
 	}
 
-	printf("[Info] Vehicle Cheetah ready (MI=%d) wheels=%d scale=%.2f\n",
-		MI_CHEETAH, (int)m_wheelMeshes.size(), m_wheelScale);
+	CreateBulletVehicle();
+
+	printf("[Info] Vehicle Cheetah ready (MI=%d) wheels=%d scale=%.2f bullet=%s\n",
+		MI_CHEETAH, (int)m_wheelMeshes.size(), m_wheelScale,
+		m_rayVehicle ? "yes" : "no");
 	return true;
 }
 
@@ -411,6 +436,7 @@ bool Vehicle::LoadWheelMeshes(IMG* img, DXRender* render)
 
 void Vehicle::Cleanup()
 {
+	DestroyBulletVehicle();
 	for (size_t i = 0; i < m_wheelMeshes.size(); i++) {
 		m_wheelMeshes[i]->Cleanup();
 		delete m_wheelMeshes[i];
@@ -419,6 +445,156 @@ void Vehicle::Cleanup()
 	m_model = nullptr;
 	m_col = nullptr;
 	m_world = nullptr;
+}
+
+void Vehicle::SetCollisionWorld(CollisionWorld* world)
+{
+	if (m_world == world)
+		return;
+	DestroyBulletVehicle();
+	m_world = world;
+	if (m_world)
+		CreateBulletVehicle();
+}
+
+void Vehicle::DestroyBulletVehicle()
+{
+	if (m_world && m_world->GetDynamicsWorld()) {
+		btDiscreteDynamicsWorld* dyn = m_world->GetDynamicsWorld();
+		if (m_rayVehicle)
+			dyn->removeAction(m_rayVehicle);
+		if (m_chassisBody)
+			dyn->removeRigidBody(m_chassisBody);
+	}
+
+	if (m_rayVehicle) {
+		delete m_rayVehicle;
+		m_rayVehicle = nullptr;
+	}
+	if (m_vehicleRaycaster) {
+		delete m_vehicleRaycaster;
+		m_vehicleRaycaster = nullptr;
+	}
+	if (m_chassisBody) {
+		delete m_chassisBody;
+		m_chassisBody = nullptr;
+	}
+	if (m_motionState) {
+		delete m_motionState;
+		m_motionState = nullptr;
+	}
+	if (m_chassisShape) {
+		delete m_chassisShape;
+		m_chassisShape = nullptr;
+	}
+	for (size_t i = 0; i < m_childShapes.size(); i++)
+		delete m_childShapes[i];
+	m_childShapes.clear();
+}
+
+void Vehicle::CreateBulletVehicle()
+{
+	DestroyBulletVehicle();
+	if (!m_world || !m_world->GetDynamicsWorld())
+		return;
+
+	btDiscreteDynamicsWorld* dyn = m_world->GetDynamicsWorld();
+	m_chassisShape = new btCompoundShape();
+
+	if (m_col && !m_col->spheres.empty()) {
+		size_t n = m_col->spheres.size();
+		if (n > 16) n = 16;
+		for (size_t i = 0; i < n; i++) {
+			const ColSphere& s = m_col->spheres[i];
+			btSphereShape* sphere = new btSphereShape(s.radius);
+			m_childShapes.push_back(sphere);
+			btTransform local;
+			local.setIdentity();
+			local.setOrigin(btVector3(s.center.x, s.center.y, s.center.z));
+			m_chassisShape->addChildShape(local, sphere);
+		}
+	} else if (m_col) {
+		const ColBox& b = m_col->boundBox;
+		btVector3 half(
+			(b.max.x - b.min.x) * 0.5f,
+			(b.max.y - b.min.y) * 0.5f,
+			(b.max.z - b.min.z) * 0.5f);
+		if (half.x() < 0.2f) half.setX(0.2f);
+		if (half.y() < 0.2f) half.setY(0.2f);
+		if (half.z() < 0.2f) half.setZ(0.2f);
+		btBoxShape* box = new btBoxShape(half);
+		m_childShapes.push_back(box);
+		btTransform local;
+		local.setIdentity();
+		local.setOrigin(btVector3(
+			(b.min.x + b.max.x) * 0.5f,
+			(b.min.y + b.max.y) * 0.5f,
+			(b.min.z + b.max.z) * 0.5f));
+		m_chassisShape->addChildShape(local, box);
+	} else {
+		btBoxShape* box = new btBoxShape(btVector3(1.0f, 0.4f, 2.2f));
+		m_childShapes.push_back(box);
+		btTransform local;
+		local.setIdentity();
+		m_chassisShape->addChildShape(local, box);
+	}
+
+	btTransform start;
+	start.setIdentity();
+	start.setOrigin(btVector3(m_posX, m_posY, m_posZ));
+	start.setRotation(btQuaternion(btVector3(0, 1, 0), m_heading));
+
+	btVector3 inertia(0, 0, 0);
+	m_chassisShape->calculateLocalInertia(m_mass, inertia);
+	m_motionState = new btDefaultMotionState(start);
+	btRigidBody::btRigidBodyConstructionInfo info(m_mass, m_motionState, m_chassisShape, inertia);
+	m_chassisBody = new btRigidBody(info);
+	m_chassisBody->setActivationState(DISABLE_DEACTIVATION);
+	m_chassisBody->setDamping(0.05f, 0.4f);
+	m_chassisBody->setFriction(0.8f);
+
+	dyn->addRigidBody(m_chassisBody);
+
+	m_vehicleRaycaster = new btDefaultVehicleRaycaster(dyn);
+	btRaycastVehicle::btVehicleTuning tuning;
+	tuning.m_suspensionStiffness = 20.0f + m_suspForce * 25.0f;
+	tuning.m_suspensionCompression = 4.4f;
+	tuning.m_suspensionDamping = 2.3f + m_suspDamp * 10.0f;
+	tuning.m_maxSuspensionTravelCm = m_springLength * 100.0f;
+	tuning.m_frictionSlip = 8.5f + m_traction * 2.0f;
+	tuning.m_maxSuspensionForce = 6000.0f;
+
+	m_rayVehicle = new btRaycastVehicle(tuning, m_chassisBody, m_vehicleRaycaster);
+	m_rayVehicle->setCoordinateSystem(0, 1, 2); /* X right, Y up, Z forward */
+	dyn->addAction(m_rayVehicle);
+
+	btVector3 wheelDir(0, -1, 0);
+	btVector3 wheelAxle(-1, 0, 0);
+	float restLen = m_springLength;
+	if (restLen < 0.08f)
+		restLen = 0.08f;
+
+	for (int i = 0; i < WHEEL_COUNT; i++) {
+		btVector3 connection(
+			m_wheelLocal[i].x,
+			m_wheelLocal[i].y + m_suspUpper,
+			m_wheelLocal[i].z);
+		m_rayVehicle->addWheel(
+			connection, wheelDir, wheelAxle,
+			restLen, m_wheelRadius, tuning, m_wheelIsFront[i]);
+	}
+
+	for (int i = 0; i < m_rayVehicle->getNumWheels(); i++) {
+		btWheelInfo& wi = m_rayVehicle->getWheelInfo(i);
+		wi.m_suspensionStiffness = tuning.m_suspensionStiffness;
+		wi.m_wheelsDampingRelaxation = tuning.m_suspensionDamping;
+		wi.m_wheelsDampingCompression = tuning.m_suspensionCompression;
+		wi.m_frictionSlip = tuning.m_frictionSlip;
+		wi.m_rollInfluence = 0.1f;
+	}
+
+	printf("[Info] Vehicle: Bullet raycast vehicle created (wheels=%d)\n",
+		m_rayVehicle->getNumWheels());
 }
 
 void Vehicle::ProcessControlInputs(float throttle, float steer, bool handbrake)
@@ -445,209 +621,73 @@ void Vehicle::ProcessControlInputs(float throttle, float steer, bool handbrake)
 		m_brakePedal = 1.0f;
 }
 
-void Vehicle::ProcessSuspension(float dt)
+void Vehicle::SyncFromBullet()
 {
+	if (!m_chassisBody)
+		return;
+
+	btTransform t;
+	if (m_motionState)
+		m_motionState->getWorldTransform(t);
+	else
+		t = m_chassisBody->getWorldTransform();
+
+	const btVector3& p = t.getOrigin();
+	m_posX = p.x();
+	m_posY = p.y();
+	m_posZ = p.z();
+
+	btVector3 fwd = m_rayVehicle ? m_rayVehicle->getForwardVector() : t.getBasis().getColumn(2);
+	m_heading = atan2f(-fwd.x(), fwd.z());
+
+	btVector3 lv = m_chassisBody->getLinearVelocity();
+	m_velX = lv.x();
+	m_velY = lv.y();
+	m_velZ = lv.z();
+
 	m_wheelsOnGround = 0;
-	if (!m_world)
-		return;
-
-	float c = cosf(m_heading);
-	float s = sinf(m_heading);
-	m_velY -= PED_GRAVITY * dt;
-
-	float avgSupport = 0.0f;
-	int supportCount = 0;
-
-	for (int i = 0; i < WHEEL_COUNT; i++) {
-		float lx = m_wheelLocal[i].x;
-		float lz = m_wheelLocal[i].z;
-		float wx = m_posX + (lx * c + lz * s);
-		float wz = m_posZ + (-lx * s + lz * c);
-		float topY = m_posY + m_suspUpper;
-		float botY = m_posY - m_lineLength;
-
-		float hitY = botY;
-		ColVec3 normal(0, 1, 0);
-		m_springRatio[i] = 1.0f;
-
-		if (m_world->CastDownLine(wx, wz, topY, botY, &hitY, &normal)) {
-			float lineSpan = topY - botY;
-			if (lineSpan < 0.01f) lineSpan = 0.01f;
-			float t = (topY - hitY) / lineSpan;
-			if (t < 0.0f) t = 0.0f;
-			if (t > 1.0f) t = 1.0f;
-			m_springRatio[i] = t;
-
-			if (t < 1.0f) {
+	if (m_rayVehicle) {
+		for (int i = 0; i < m_rayVehicle->getNumWheels(); i++) {
+			m_rayVehicle->updateWheelTransform(i, true);
+			const btWheelInfo& wi = m_rayVehicle->getWheelInfo(i);
+			m_wheelRotation[i] = wi.m_rotation;
+			float travel = wi.m_raycastInfo.m_suspensionLength;
+			float maxTravel = m_springLength > 0.01f ? m_springLength : 0.14f;
+			m_springRatio[i] = Clampf(travel / maxTravel, 0.0f, 1.0f);
+			if (wi.m_raycastInfo.m_isInContact)
 				m_wheelsOnGround++;
-				float compression = 1.0f - t;
-				if (compression > 0.0f) {
-					if (normal.y < 0.0f)
-						normal = normal * -1.0f;
-					float impulse = PED_GRAVITY * m_mass * dt * m_suspForce * compression * 2.0f;
-					float invMass = 1.0f / m_mass;
-					m_velX += normal.x * impulse * invMass;
-					m_velY += normal.y * impulse * invMass;
-					m_velZ += normal.z * impulse * invMass;
-
-					float vn = m_velX * normal.x + m_velY * normal.y + m_velZ * normal.z;
-					float dampImp = -m_suspDamp * vn * m_mass * dt * 0.53f;
-					m_velX += normal.x * dampImp * invMass;
-					m_velY += normal.y * dampImp * invMass;
-					m_velZ += normal.z * dampImp * invMass;
-
-					avgSupport += hitY + m_heightAboveRoad;
-					supportCount++;
-				}
-			}
 		}
 	}
-
-	if (supportCount > 0) {
-		float targetY = avgSupport / (float)supportCount;
-		float err = targetY - m_posY;
-		m_posY += err * Minf(1.0f, 8.0f * dt);
-		if (m_velY < 0.0f && err > -0.05f)
-			m_velY *= 0.3f;
-	}
 }
 
-void Vehicle::ProcessDrive(float dt)
+void Vehicle::WarpChassis(float x, float y, float z)
 {
-	float c = cosf(m_heading);
-	float s = sinf(m_heading);
-	float fx = -s;
-	float fz = c;
-	float rx = c;
-	float rz = s;
+	m_posX = x;
+	m_posY = y;
+	m_posZ = z;
+	m_velX = m_velY = m_velZ = 0.0f;
+	m_yawRate = 0.0f;
 
-	float fwdSpeed = m_velX * fx + m_velZ * fz;
-	float rightSpeed = m_velX * rx + m_velZ * rz;
-
-	if (m_wheelsOnGround > 0) {
-		float thrust = 0.0f;
-		if (fabsf(m_gasPedal) > 0.01f)
-			thrust = m_gasPedal * m_engineAccel;
-		if (m_brakePedal > 0.01f) {
-			float br = m_brakePedal * m_brakeDecel;
-			if (fwdSpeed > 0.1f) thrust -= br;
-			else if (fwdSpeed < -0.1f) thrust += br;
-			else {
-				m_velX *= 0.85f;
-				m_velZ *= 0.85f;
-				thrust = 0.0f;
-			}
-		}
-
-		m_velX += fx * thrust * dt;
-		m_velZ += fz * thrust * dt;
-
-		float grip = m_traction * 12.0f * dt;
-		if (grip > 1.0f) grip = 1.0f;
-		m_velX -= rx * rightSpeed * grip;
-		m_velZ -= rz * rightSpeed * grip;
-
-		float steerEff = m_steerAngle * Clampf(fabsf(fwdSpeed) / 12.0f, 0.0f, 1.0f);
-		float turnSign = (fwdSpeed >= 0.0f) ? 1.0f : -1.0f;
-		m_yawRate = steerEff * turnSign * 2.2f;
-		if (m_brakePedal > 0.9f && fabsf(fwdSpeed) > 5.0f)
-			m_yawRate *= 1.4f;
-
-		m_velX -= fx * fwdSpeed * 0.4f * dt;
-		m_velZ -= fz * fwdSpeed * 0.4f * dt;
-	} else {
-		m_yawRate *= 0.95f;
-	}
-
-	m_heading += m_yawRate * dt;
-
-	float speed = sqrtf(m_velX * m_velX + m_velZ * m_velZ);
-	if (speed > 0.01f) {
-		float drag = 0.5f * speed * speed * (2.0f * 1.4f) / m_mass;
-		float factor = 1.0f / (1.0f + drag * dt);
-		m_velX *= factor;
-		m_velZ *= factor;
-	}
-
-	fwdSpeed = m_velX * fx + m_velZ * fz;
-	if (fabsf(fwdSpeed) > m_maxSpeed) {
-		float scale = m_maxSpeed / fabsf(fwdSpeed);
-		m_velX *= scale;
-		m_velZ *= scale;
-	}
-}
-
-void Vehicle::UpdateWheelRotation(float dt)
-{
-	/* re3 CVehicle::ProcessWheelRotation: ω = -dot(fwd, speed) / radius */
-	float radius = m_wheelRadius;
-	if (radius < 0.05f)
-		radius = 0.35f;
-
-	float hc = cosf(m_heading);
-	float hs = sinf(m_heading);
-
-	for (int i = 0; i < WHEEL_COUNT; i++) {
-		float steer = m_wheelIsFront[i] ? m_steerAngle : 0.0f;
-		/* Car-local forward after steer (GTA: -sin, cos on XY), engine XZ. */
-		float lfx = -sinf(steer);
-		float lfz = cosf(steer);
-		float fx = lfx * hc + lfz * hs;
-		float fz = -lfx * hs + lfz * hc;
-
-		float contact = m_velX * fx + m_velZ * fz;
-		float omega = -contact / radius;
-		m_wheelRotation[i] += omega * dt;
-	}
-}
-
-void Vehicle::BuildWorldSpheres(std::vector<ColSphere>& out) const
-{
-	out.clear();
-	if (!m_col)
+	if (!m_chassisBody)
 		return;
 
-	float c = cosf(m_heading);
-	float s = sinf(m_heading);
-	size_t n = m_col->spheres.size();
-	if (n > 16) n = 16;
-	out.reserve(n);
-	for (size_t i = 0; i < n; i++) {
-		const ColSphere& ls = m_col->spheres[i];
-		ColSphere ws;
-		float lx = ls.center.x;
-		float ly = ls.center.y;
-		float lz = ls.center.z;
-		ws.center.x = m_posX + (lx * c + lz * s);
-		ws.center.y = m_posY + ly;
-		ws.center.z = m_posZ + (-lx * s + lz * c);
-		ws.radius = ls.radius;
-		ws.surface = ls.surface;
-		ws.piece = ls.piece;
-		out.push_back(ws);
-	}
+	btTransform t;
+	t.setIdentity();
+	t.setOrigin(btVector3(x, y, z));
+	t.setRotation(btQuaternion(btVector3(0, 1, 0), m_heading));
+	m_chassisBody->setWorldTransform(t);
+	if (m_motionState)
+		m_motionState->setWorldTransform(t);
+	m_chassisBody->setLinearVelocity(btVector3(0, 0, 0));
+	m_chassisBody->setAngularVelocity(btVector3(0, 0, 0));
+	m_chassisBody->clearForces();
+	if (m_rayVehicle)
+		m_rayVehicle->resetSuspension();
 }
 
-void Vehicle::ProcessBodyCollision()
+void Vehicle::SyncPhysics()
 {
-	if (!m_world)
-		return;
-
-	std::vector<ColSphere> spheres;
-	BuildWorldSpheres(spheres);
-	if (spheres.empty()) {
-		ColSphere s;
-		s.radius = 1.0f;
-		s.surface = 0;
-		s.piece = 0;
-		s.center = ColVec3(m_posX, m_posY + 0.5f, m_posZ);
-		spheres.push_back(s);
-	}
-
-	m_world->ResolveSpheres(
-		spheres.data(), (int)spheres.size(),
-		&m_posX, &m_posY, &m_posZ,
-		&m_velX, &m_velY, &m_velZ);
+	SyncFromBullet();
 }
 
 void Vehicle::Update(float dt, float throttle, float steer, bool handbrake)
@@ -655,22 +695,42 @@ void Vehicle::Update(float dt, float throttle, float steer, bool handbrake)
 	if (dt < 0.0f) dt = 0.0f;
 	if (dt > 0.05f) dt = 0.05f;
 
+	SyncFromBullet();
 	ProcessControlInputs(throttle, steer, handbrake);
-	ProcessSuspension(dt);
-	ProcessDrive(dt);
-	UpdateWheelRotation(dt);
 
-	m_posX += m_velX * dt;
-	m_posY += m_velY * dt;
-	m_posZ += m_velZ * dt;
+	if (m_rayVehicle) {
+		float engineForce = m_gasPedal * m_engineAccel * m_mass * 0.55f;
+		float brakeForce = m_brakePedal * m_brakeDecel * m_mass * 0.35f;
 
-	ProcessBodyCollision();
+		/* Cheetah is RWD. */
+		m_rayVehicle->applyEngineForce(engineForce, WHEEL_RL);
+		m_rayVehicle->applyEngineForce(engineForce, WHEEL_RR);
+		m_rayVehicle->applyEngineForce(0.0f, WHEEL_FL);
+		m_rayVehicle->applyEngineForce(0.0f, WHEEL_FR);
+
+		m_rayVehicle->setSteeringValue(m_steerAngle, WHEEL_FL);
+		m_rayVehicle->setSteeringValue(m_steerAngle, WHEEL_FR);
+
+		m_rayVehicle->setBrake(brakeForce * 0.4f, WHEEL_FL);
+		m_rayVehicle->setBrake(brakeForce * 0.4f, WHEEL_FR);
+		m_rayVehicle->setBrake(brakeForce, WHEEL_RL);
+		m_rayVehicle->setBrake(brakeForce, WHEEL_RR);
+
+		/* Soft speed cap. */
+		float speed = sqrtf(m_velX * m_velX + m_velZ * m_velZ);
+		if (speed > m_maxSpeed && m_chassisBody) {
+			float scale = m_maxSpeed / speed;
+			btVector3 lv = m_chassisBody->getLinearVelocity();
+			lv.setX(lv.x() * scale);
+			lv.setZ(lv.z() * scale);
+			m_chassisBody->setLinearVelocity(lv);
+		}
+	}
 
 	if (m_posY < FALL_THROUGH_Y) {
-		m_posY = 1000.0f;
-		m_velY = 0.0f;
+		WarpChassis(m_posX, 1000.0f, m_posZ);
 		if (!PlaceOnGround())
-			m_posY = 5.0f + m_heightAboveRoad;
+			WarpChassis(m_posX, 5.0f + m_heightAboveRoad, m_posZ);
 	}
 }
 
@@ -679,9 +739,26 @@ void Vehicle::Render(DXRender* render, MeshRenderContext& ctx)
 	if (!m_model)
 		return;
 
-	float half = m_heading * 0.5f;
-	float qy = sinf(half);
-	float qw = cosf(half);
+	float qx = 0.0f, qy = 0.0f, qz = 0.0f, qw = 1.0f;
+	XMMATRIX chassisXm = XMMatrixRotationY(m_heading) * XMMatrixTranslation(m_posX, m_posY, m_posZ);
+
+	if (m_chassisBody) {
+		btTransform t;
+		if (m_motionState)
+			m_motionState->getWorldTransform(t);
+		else
+			t = m_chassisBody->getWorldTransform();
+		chassisXm = BtTransformToXm(t);
+		btQuaternion q = t.getRotation();
+		qx = q.x();
+		qy = q.y();
+		qz = q.z();
+		qw = q.w();
+	} else {
+		float half = m_heading * 0.5f;
+		qy = sinf(half);
+		qw = cosf(half);
+	}
 
 	/* Double-sided: vehicle strips fight CULL_FRONT after Y/Z remap. */
 	render->SetCullNone();
@@ -689,39 +766,34 @@ void Vehicle::Render(DXRender* render, MeshRenderContext& ctx)
 	m_model->SetPosition(
 		m_posX, m_posY, m_posZ,
 		1.0f, 1.0f, 1.0f,
-		0.0f, qy, 0.0f, qw);
+		qx, qy, qz, qw);
 	m_model->Render(render, ctx);
 
 	if (!m_wheelMeshes.empty()) {
-		/*
-		 * re3 CAutomobile::PreRender (engine-space remapped):
-		 *   SetRotate(spin, 0, steer) on GTA XYZ → RotateX(spin)*RotateY(steer) here
-		 *   Left wheels: -spin, PI+steer
-		 *   Then Scale(wheelScale) and Translate(dummy pos with suspension Y)
-		 */
-		XMMATRIX chassis =
-			XMMatrixRotationY(m_heading) *
-			XMMatrixTranslation(m_posX, m_posY, m_posZ);
-
 		for (int i = 0; i < WHEEL_COUNT; i++) {
-			float spin = m_wheelRotation[i];
-			float steerZ = m_wheelIsFront[i] ? m_steerAngle : 0.0f;
-			if (m_wheelIsLeft[i]) {
-				spin = -spin;
-				steerZ = (float)M_PI + steerZ;
+			XMMATRIX world;
+			if (m_rayVehicle && i < m_rayVehicle->getNumWheels()) {
+				m_rayVehicle->updateWheelTransform(i, true);
+				world = BtTransformToXm(m_rayVehicle->getWheelTransformWS(i));
+				/* Visual scale for wheel_sport IDE scale. */
+				world = XMMatrixScaling(m_wheelScale, m_wheelScale, m_wheelScale) * world;
+			} else {
+				float spin = m_wheelRotation[i];
+				float steerZ = m_wheelIsFront[i] ? m_steerAngle : 0.0f;
+				if (m_wheelIsLeft[i]) {
+					spin = -spin;
+					steerZ = (float)M_PI + steerZ;
+				}
+				float compress = (1.0f - m_springRatio[i]) * m_springLength;
+				ColVec3 pos = m_wheelLocal[i];
+				pos.y = m_wheelRestY[i] + compress;
+				XMMATRIX local =
+					XMMatrixRotationX(spin) *
+					XMMatrixRotationY(steerZ) *
+					XMMatrixScaling(m_wheelScale, m_wheelScale, m_wheelScale) *
+					XMMatrixTranslation(pos.x, pos.y, pos.z);
+				world = XMMatrixMultiply(local, chassisXm);
 			}
-
-			float compress = (1.0f - m_springRatio[i]) * m_springLength;
-			ColVec3 pos = m_wheelLocal[i];
-			pos.y = m_wheelRestY[i] + compress;
-
-			XMMATRIX local =
-				XMMatrixRotationX(spin) *
-				XMMatrixRotationY(steerZ) *
-				XMMatrixScaling(m_wheelScale, m_wheelScale, m_wheelScale) *
-				XMMatrixTranslation(pos.x, pos.y, pos.z);
-
-			XMMATRIX world = XMMatrixMultiply(local, chassis);
 
 			for (size_t m = 0; m < m_wheelMeshes.size(); m++) {
 				m_wheelMeshes[m]->SetWorld(world);
@@ -740,11 +812,13 @@ XMVECTOR Vehicle::GetPosition() const
 
 void Vehicle::SetPosition(float x, float y, float z)
 {
-	m_posX = x;
-	m_posY = y;
-	m_posZ = z;
-	m_velX = m_velY = m_velZ = 0.0f;
-	m_yawRate = 0.0f;
+	WarpChassis(x, y, z);
+}
+
+void Vehicle::SetHeading(float heading)
+{
+	m_heading = heading;
+	WarpChassis(m_posX, m_posY, m_posZ);
 }
 
 bool Vehicle::PlaceOnGround()
@@ -756,7 +830,6 @@ bool Vehicle::PlaceOnGround()
 		if (!m_world->FindGroundY(m_posX, 1000.0f, m_posZ, &groundY))
 			return false;
 	}
-	m_posY = groundY + m_heightAboveRoad + 0.4f;
-	m_velX = m_velY = m_velZ = 0.0f;
+	WarpChassis(m_posX, groundY + m_heightAboveRoad + 0.4f, m_posZ);
 	return true;
 }

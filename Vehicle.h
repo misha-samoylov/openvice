@@ -11,6 +11,12 @@
 #include "collision/ColTypes.h"
 
 class CollisionWorld;
+class btRigidBody;
+class btCompoundShape;
+class btCollisionShape;
+class btRaycastVehicle;
+class btVehicleRaycaster;
+class btMotionState;
 
 using namespace DirectX;
 
@@ -33,33 +39,42 @@ public:
 	bool Init(Model* model, ColModel* col, CollisionWorld* world, IMG* img, DXRender* render);
 	void Cleanup();
 
-	void SetCollisionWorld(CollisionWorld* world) { m_world = world; }
+	void SetCollisionWorld(CollisionWorld* world);
 
-	/* throttle: -1..1 (S/W), steer: -1..1 (A/D), handbrake: Space. */
+	/* throttle: -1..1 (S/W), steer: -1..1 (A/D), handbrake: Space.
+	 * Applies Bullet vehicle input; call CollisionWorld::Step after Update. */
 	void Update(float dt, float throttle, float steer, bool handbrake);
+	/* Call after CollisionWorld::Step to refresh pose for camera/render. */
+	void SyncPhysics();
 	void Render(DXRender* render, MeshRenderContext& ctx);
 
 	XMVECTOR GetPosition() const;
 	float GetHeading() const { return m_heading; }
 	void SetPosition(float x, float y, float z);
-	void SetHeading(float heading) { m_heading = heading; }
+	void SetHeading(float heading);
 	bool PlaceOnGround();
 
 	bool IsReady() const { return m_model != nullptr; }
 
 private:
 	void ProcessControlInputs(float throttle, float steer, bool handbrake);
-	void ProcessSuspension(float dt);
-	void ProcessDrive(float dt);
-	void ProcessBodyCollision();
-	void BuildWorldSpheres(std::vector<ColSphere>& out) const;
-	void UpdateWheelRotation(float dt);
+	void CreateBulletVehicle();
+	void DestroyBulletVehicle();
+	void SyncFromBullet();
+	void WarpChassis(float x, float y, float z);
 	bool LoadWheelMeshes(IMG* img, DXRender* render);
 	bool LoadWheelDummies(IMG* img);
 
 	Model* m_model;
 	ColModel* m_col;
 	CollisionWorld* m_world;
+
+	btRigidBody* m_chassisBody;
+	btCompoundShape* m_chassisShape;
+	btMotionState* m_motionState;
+	btVehicleRaycaster* m_vehicleRaycaster;
+	btRaycastVehicle* m_rayVehicle;
+	std::vector<btCollisionShape*> m_childShapes;
 
 	float m_posX, m_posY, m_posZ;
 	float m_velX, m_velY, m_velZ;

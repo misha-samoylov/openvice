@@ -27,6 +27,7 @@
 #include "loaders/COL.hpp"
 #include "CollisionWorld.h"
 #include "ShadowMap.h"
+#include "PhysicsDebugDraw.h"
 
 #define PROJECT_NAME "openvice"
 #define WINDOW_WIDTH 3840
@@ -84,7 +85,9 @@ Vehicle* g_vehicle = nullptr;
 COL* g_col = nullptr;
 CollisionWorld* g_collisionWorld = nullptr;
 ShadowMap* g_shadowMap = nullptr;
+PhysicsDebugDraw* g_physicsDebugDraw = nullptr;
 bool g_controllingVehicle = false;
+bool g_physicsDebugVisible = false;
 
 template <typename T>
 void remove_duplicates(std::vector<T>& vec)
@@ -803,6 +806,8 @@ void BuildCollisionWorld()
 
 	g_collisionWorld = new CollisionWorld();
 	g_collisionWorld->Build(g_col, placements);
+	if (g_physicsDebugDraw)
+		g_collisionWorld->SetDebugDrawer(g_physicsDebugDraw);
 }
 
 void RenderScene(DXRender *render, Camera *camera)
@@ -888,6 +893,18 @@ void RenderScene(DXRender *render, Camera *camera)
 	render->SetSoftAlphaState();
 	DrawInstances(render, ctx, g_alphaInstances, 2);
 
+	/* Bullet physics debug lines (F3). Drawn last so they stay visible. */
+	if (g_physicsDebugVisible && g_physicsDebugDraw && g_collisionWorld) {
+		XMVECTOR camPos = camera->GetPosition();
+		g_physicsDebugDraw->BeginFrame();
+		g_physicsDebugDraw->SetViewProjection(ctx.viewProj);
+		g_physicsDebugDraw->SetCullSphere(
+			XMVectorGetX(camPos), XMVectorGetY(camPos), XMVectorGetZ(camPos), 120.0f);
+		g_collisionWorld->DebugDrawWorld();
+		render->SetOpaqueState();
+		g_physicsDebugDraw->Render(render);
+	}
+
 	/* Unbind shadow SRV before Present. */
 	if (g_shadowMap) {
 		ID3D11ShaderResourceView* nullSRV = nullptr;
@@ -917,6 +934,14 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 
 	DXRender* render = new DXRender();
 	render->Init(window->GetHandleWindow(), vsync);
+
+	g_physicsDebugDraw = new PhysicsDebugDraw();
+	if (!g_physicsDebugDraw->Init(render)) {
+		printf("[Warn] PhysicsDebugDraw init failed — F3 debug lines disabled\n");
+		g_physicsDebugDraw->Cleanup();
+		delete g_physicsDebugDraw;
+		g_physicsDebugDraw = nullptr;
+	}
 
 	g_shadowMap = new ShadowMap();
 	if (FAILED(g_shadowMap->Init(render))) {
@@ -1221,6 +1246,23 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 			}
 
 			{
+				static bool f3WasDown = false;
+				bool f3Down = input->IsKey(DIK_F3);
+				if (f3Down && !f3WasDown) {
+					g_physicsDebugVisible = !g_physicsDebugVisible;
+					if (g_physicsDebugDraw) {
+						g_physicsDebugDraw->SetEnabled(g_physicsDebugVisible);
+						if (g_collisionWorld)
+							g_collisionWorld->SetDebugDrawer(
+								g_physicsDebugVisible ? g_physicsDebugDraw : nullptr);
+					}
+					printf("[Info] Bullet physics debug %s\n",
+						g_physicsDebugVisible ? "ON (F3)" : "OFF (F3)");
+				}
+				f3WasDown = f3Down;
+			}
+
+			{
 				bool np1 = input->IsKey(DIK_NUMPAD1);
 				bool np0 = input->IsKey(DIK_NUMPAD0);
 				bool np2 = input->IsKey(DIK_NUMPAD2);
@@ -1340,6 +1382,14 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 				float steer = -moveLeftRight;
 				bool handbrake = input->IsKey(DIK_SPACE);
 				g_vehicle->Update((float)frameTime, throttle, steer, handbrake);
+				if (g_player)
+					g_player->Update((float)frameTime, 0.0f, 0.0f, false, false, false, false);
+
+				if (g_collisionWorld)
+					g_collisionWorld->Step((float)frameTime);
+				g_vehicle->SyncPhysics();
+				if (g_player)
+					g_player->SyncPhysics();
 
 				XMVECTOR p = g_vehicle->GetPosition();
 				camera->Follow(
@@ -1361,6 +1411,14 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 				spaceWasDown = spaceDown;
 
 				g_player->Update((float)frameTime, mx, mz, moving, walking, sprinting, jump);
+				if (g_vehicle)
+					g_vehicle->Update((float)frameTime, 0.0f, 0.0f, false);
+
+				if (g_collisionWorld)
+					g_collisionWorld->Step((float)frameTime);
+				g_player->SyncPhysics();
+				if (g_vehicle)
+					g_vehicle->SyncPhysics();
 
 				XMVECTOR p = g_player->GetPosition();
 				camera->Follow(
@@ -1368,10 +1426,16 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 					camYaw, camPitch, camDistance, 0.95f
 				);
 			} else {
-				if (g_controllingVehicle && g_vehicle)
+				if (g_vehicle)
 					g_vehicle->Update((float)frameTime, 0.0f, 0.0f, false);
-				else if (g_player)
+				if (g_player)
 					g_player->Update((float)frameTime, 0.0f, 0.0f, false, false, false, false);
+				if (g_collisionWorld)
+					g_collisionWorld->Step((float)frameTime);
+				if (g_vehicle)
+					g_vehicle->SyncPhysics();
+				if (g_player)
+					g_player->SyncPhysics();
 				camera->Update(camPitch, camYaw, moveLeftRight * speed, moveBackForward * speed);
 			}
 
@@ -1399,6 +1463,7 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 	}
 
 	if (g_collisionWorld) {
+		g_collisionWorld->SetDebugDrawer(nullptr);
 		g_collisionWorld->Clear();
 		delete g_collisionWorld;
 		g_collisionWorld = nullptr;
@@ -1419,6 +1484,12 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 		g_shadowMap->Cleanup();
 		delete g_shadowMap;
 		g_shadowMap = nullptr;
+	}
+
+	if (g_physicsDebugDraw) {
+		g_physicsDebugDraw->Cleanup();
+		delete g_physicsDebugDraw;
+		g_physicsDebugDraw = nullptr;
 	}
 
 	render->Cleanup();

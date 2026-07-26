@@ -2,846 +2,473 @@
 
 #include <stdio.h>
 #include <string.h>
-#include <algorithm>
 #include <cmath>
 #include <float.h>
+#include <map>
+
+#define __BT_DISABLE_SSE__
+#include "btBulletDynamicsCommon.h"
+#include "BulletCollision/CollisionDispatch/btGhostObject.h"
 
 using namespace DirectX;
 
 namespace {
 
-float Cross2D(float ax, float ay, float bx, float by)
+const float kFixedTimeStep = 1.0f / 60.0f;
+
+btVector3 ToBt(const ColVec3& v)
 {
-	return ax * by - ay * bx;
+	return btVector3(v.x, v.y, v.z);
 }
 
 } // namespace
 
+CollisionWorld::CollisionWorld()
+	: m_collisionConfig(nullptr)
+	, m_dispatcher(nullptr)
+	, m_broadphase(nullptr)
+	, m_solver(nullptr)
+	, m_dynamicsWorld(nullptr)
+	, m_ghostPairCallback(nullptr)
+{
+	m_collisionConfig = new btDefaultCollisionConfiguration();
+	m_dispatcher = new btCollisionDispatcher(m_collisionConfig);
+	m_broadphase = new btDbvtBroadphase();
+	m_solver = new btSequentialImpulseConstraintSolver();
+	m_dynamicsWorld = new btDiscreteDynamicsWorld(
+		m_dispatcher, m_broadphase, m_solver, m_collisionConfig);
+
+	m_dynamicsWorld->setGravity(btVector3(0.0f, -PED_GRAVITY, 0.0f));
+
+	m_ghostPairCallback = new btGhostPairCallback();
+	m_broadphase->getOverlappingPairCache()->setInternalGhostPairCallback(m_ghostPairCallback);
+}
+
+CollisionWorld::~CollisionWorld()
+{
+	Clear();
+
+	if (m_dynamicsWorld) {
+		delete m_dynamicsWorld;
+		m_dynamicsWorld = nullptr;
+	}
+	if (m_solver) {
+		delete m_solver;
+		m_solver = nullptr;
+	}
+	if (m_broadphase) {
+		delete m_broadphase;
+		m_broadphase = nullptr;
+	}
+	if (m_dispatcher) {
+		delete m_dispatcher;
+		m_dispatcher = nullptr;
+	}
+	if (m_collisionConfig) {
+		delete m_collisionConfig;
+		m_collisionConfig = nullptr;
+	}
+	if (m_ghostPairCallback) {
+		delete m_ghostPairCallback;
+		m_ghostPairCallback = nullptr;
+	}
+}
+
+void CollisionWorld::DestroyShapeEntry(ShapeEntry& entry)
+{
+	if (entry.shape) {
+		delete entry.shape;
+		entry.shape = nullptr;
+	}
+	if (entry.triangleMesh) {
+		delete entry.triangleMesh;
+		entry.triangleMesh = nullptr;
+	}
+	for (size_t i = 0; i < entry.ownedChildren.size(); i++)
+		delete entry.ownedChildren[i];
+	entry.ownedChildren.clear();
+	entry.model = nullptr;
+}
+
 void CollisionWorld::Clear()
 {
-	m_instances.clear();
-	m_cells.clear();
-	m_gridW = 0;
-	m_gridH = 0;
-	m_originX = 0;
-	m_originZ = 0;
-	m_cellSize = 50.0f;
+	if (m_dynamicsWorld) {
+		for (size_t i = 0; i < m_staticBodies.size(); i++) {
+			btRigidBody* body = m_staticBodies[i];
+			if (!body)
+				continue;
+			m_dynamicsWorld->removeRigidBody(body);
+			if (body->getUserPointer()) {
+				/* Scaled wrappers are owned by m_instanceShapes. */
+				body->setUserPointer(nullptr);
+			}
+			if (body->getMotionState())
+				delete body->getMotionState();
+			delete body;
+		}
+	}
+	m_staticBodies.clear();
+
+	for (size_t i = 0; i < m_instanceShapes.size(); i++) {
+		btCollisionShape* s = m_instanceShapes[i];
+		if (!s)
+			continue;
+		if (s->isCompound()) {
+			btCompoundShape* compound = (btCompoundShape*)s;
+			for (int ci = 0; ci < compound->getNumChildShapes(); ci++) {
+				btCollisionShape* child = compound->getChildShape(ci);
+				/* Children newly allocated for scale bake are not in m_shapes. */
+				bool shared = false;
+				for (size_t si = 0; si < m_shapes.size() && !shared; si++) {
+					if (m_shapes[si].shape == child)
+						shared = true;
+					for (size_t oi = 0; oi < m_shapes[si].ownedChildren.size(); oi++) {
+						if (m_shapes[si].ownedChildren[oi] == child) {
+							shared = true;
+							break;
+						}
+					}
+				}
+				if (!shared)
+					delete child;
+			}
+		}
+		delete s;
+	}
+	m_instanceShapes.clear();
+
+	for (size_t i = 0; i < m_shapes.size(); i++)
+		DestroyShapeEntry(m_shapes[i]);
+	m_shapes.clear();
 }
 
-ColVec3 CollisionWorld::TransformPoint(const XMMATRIX& m, const ColVec3& v)
+btCollisionShape* CollisionWorld::CreateMeshShape(ColModel* model, ShapeEntry& entry)
 {
-	XMVECTOR r = XMVector3TransformCoord(XMVectorSet(v.x, v.y, v.z, 1.0f), m);
-	return ColVec3(XMVectorGetX(r), XMVectorGetY(r), XMVectorGetZ(r));
+	const size_t vertCount = model->vertices.size();
+	const size_t triCount = model->triangles.size();
+	if (vertCount == 0 || triCount == 0)
+		return nullptr;
+
+	/*
+	 * btTriangleMesh owns a copy of the triangles. Do NOT point Bullet at
+	 * std::vector::data() — ShapeEntry is later push_back'd into m_shapes,
+	 * which copies/moves vectors and leaves dangling graphicsbase pointers.
+	 */
+	btTriangleMesh* mesh = new btTriangleMesh(true, false);
+	mesh->preallocateVertices((int)vertCount);
+	mesh->preallocateIndices((int)(triCount * 3));
+
+	for (size_t i = 0; i < triCount; i++) {
+		const ColTriangle& t = model->triangles[i];
+		if (t.a >= vertCount || t.b >= vertCount || t.c >= vertCount)
+			continue;
+		const ColVec3& va = model->vertices[t.a];
+		const ColVec3& vb = model->vertices[t.b];
+		const ColVec3& vc = model->vertices[t.c];
+		mesh->addTriangle(
+			btVector3(va.x, va.y, va.z),
+			btVector3(vb.x, vb.y, vb.z),
+			btVector3(vc.x, vc.y, vc.z),
+			true);
+	}
+
+	if (mesh->getNumTriangles() <= 0) {
+		delete mesh;
+		return nullptr;
+	}
+
+	entry.triangleMesh = mesh;
+	return new btBvhTriangleMeshShape(mesh, true, true);
 }
 
-ColVec3 CollisionWorld::TransformNormal(const XMMATRIX& m, const ColVec3& v)
+btCollisionShape* CollisionWorld::CreateCompoundShape(ColModel* model, ShapeEntry& entry)
 {
-	XMVECTOR r = XMVector3TransformNormal(XMVectorSet(v.x, v.y, v.z, 0.0f), m);
-	ColVec3 n(XMVectorGetX(r), XMVectorGetY(r), XMVectorGetZ(r));
-	return n.Normalized();
+	btCompoundShape* compound = new btCompoundShape();
+
+	for (size_t i = 0; i < model->spheres.size(); i++) {
+		const ColSphere& s = model->spheres[i];
+		btSphereShape* sphere = new btSphereShape(s.radius);
+		entry.ownedChildren.push_back(sphere);
+		btTransform local;
+		local.setIdentity();
+		local.setOrigin(ToBt(s.center));
+		compound->addChildShape(local, sphere);
+	}
+
+	for (size_t i = 0; i < model->boxes.size(); i++) {
+		const ColBox& b = model->boxes[i];
+		btVector3 half(
+			(b.max.x - b.min.x) * 0.5f,
+			(b.max.y - b.min.y) * 0.5f,
+			(b.max.z - b.min.z) * 0.5f);
+		if (half.x() < 0.01f) half.setX(0.01f);
+		if (half.y() < 0.01f) half.setY(0.01f);
+		if (half.z() < 0.01f) half.setZ(0.01f);
+		btBoxShape* box = new btBoxShape(half);
+		entry.ownedChildren.push_back(box);
+		btTransform local;
+		local.setIdentity();
+		local.setOrigin(btVector3(
+			(b.min.x + b.max.x) * 0.5f,
+			(b.min.y + b.max.y) * 0.5f,
+			(b.min.z + b.max.z) * 0.5f));
+		compound->addChildShape(local, box);
+	}
+
+	if (compound->getNumChildShapes() == 0) {
+		const ColBox& b = model->boundBox;
+		btVector3 half(
+			(b.max.x - b.min.x) * 0.5f,
+			(b.max.y - b.min.y) * 0.5f,
+			(b.max.z - b.min.z) * 0.5f);
+		if (half.x() < 0.05f) half.setX(0.05f);
+		if (half.y() < 0.05f) half.setY(0.05f);
+		if (half.z() < 0.05f) half.setZ(0.05f);
+		btBoxShape* box = new btBoxShape(half);
+		entry.ownedChildren.push_back(box);
+		btTransform local;
+		local.setIdentity();
+		local.setOrigin(btVector3(
+			(b.min.x + b.max.x) * 0.5f,
+			(b.min.y + b.max.y) * 0.5f,
+			(b.min.z + b.max.z) * 0.5f));
+		compound->addChildShape(local, box);
+	}
+
+	return compound;
 }
 
-ColVec3 CollisionWorld::TransformPointInv(const XMMATRIX& inv, const ColVec3& v)
+btCollisionShape* CollisionWorld::GetOrCreateShape(ColModel* model)
 {
-	return TransformPoint(inv, v);
+	if (!model)
+		return nullptr;
+
+	for (size_t i = 0; i < m_shapes.size(); i++) {
+		if (m_shapes[i].model == model)
+			return m_shapes[i].shape;
+	}
+
+	ShapeEntry entry;
+	entry.model = model;
+	entry.shape = nullptr;
+	entry.triangleMesh = nullptr;
+
+	if (!model->triangles.empty() && !model->vertices.empty())
+		entry.shape = CreateMeshShape(model, entry);
+	else
+		entry.shape = CreateCompoundShape(model, entry);
+
+	if (!entry.shape) {
+		DestroyShapeEntry(entry);
+		return nullptr;
+	}
+
+	m_shapes.push_back(std::move(entry));
+	return m_shapes.back().shape;
 }
 
 void CollisionWorld::Build(COL* colStore, const std::vector<ColInstancePlacement>& placements)
 {
 	Clear();
-	if (!colStore)
+	if (!colStore || !m_dynamicsWorld)
 		return;
 
-	m_instances.reserve(placements.size());
 	int matched = 0;
+	std::map<ColModel*, btCollisionShape*> shapeCache;
 
 	for (size_t i = 0; i < placements.size(); i++) {
 		const ColInstancePlacement& p = placements[i];
 		if (!p.model)
 			continue;
 
-		Instance inst;
-		inst.model = p.model;
-		inst.world =
-			XMMatrixRotationQuaternion(XMVectorSet(p.rotation[0], p.rotation[1], p.rotation[2], p.rotation[3])) *
-			XMMatrixScaling(p.scale[0], p.scale[1], p.scale[2]) *
-			XMMatrixTranslation(p.x, p.y, p.z);
+		btCollisionShape* baseShape = nullptr;
+		std::map<ColModel*, btCollisionShape*>::iterator it = shapeCache.find(p.model);
+		if (it != shapeCache.end()) {
+			baseShape = it->second;
+		} else {
+			baseShape = GetOrCreateShape(p.model);
+			if (baseShape)
+				shapeCache[p.model] = baseShape;
+		}
+		if (!baseShape)
+			continue;
 
-		XMVECTOR det;
-		inst.invWorld = XMMatrixInverse(&det, inst.world);
+		btCollisionShape* useShape = baseShape;
+		const bool scaled =
+			fabsf(p.scale[0] - 1.0f) > 0.001f ||
+			fabsf(p.scale[1] - 1.0f) > 0.001f ||
+			fabsf(p.scale[2] - 1.0f) > 0.001f;
 
-		ColVec3 localCenter = p.model->boundSphere.center;
-		inst.worldCenter = TransformPoint(inst.world, localCenter);
-
-		float maxScale = fabsf(p.scale[0]);
-		if (fabsf(p.scale[1]) > maxScale) maxScale = fabsf(p.scale[1]);
-		if (fabsf(p.scale[2]) > maxScale) maxScale = fabsf(p.scale[2]);
-		if (maxScale < 0.0001f) maxScale = 1.0f;
-		inst.worldRadius = p.model->boundSphere.radius * maxScale;
-
-		/* Conservative world AABB from 8 corners of local bound box. */
-		const ColBox& lb = p.model->boundBox;
-		ColVec3 corners[8] = {
-			ColVec3(lb.min.x, lb.min.y, lb.min.z),
-			ColVec3(lb.max.x, lb.min.y, lb.min.z),
-			ColVec3(lb.min.x, lb.max.y, lb.min.z),
-			ColVec3(lb.max.x, lb.max.y, lb.min.z),
-			ColVec3(lb.min.x, lb.min.y, lb.max.z),
-			ColVec3(lb.max.x, lb.min.y, lb.max.z),
-			ColVec3(lb.min.x, lb.max.y, lb.max.z),
-			ColVec3(lb.max.x, lb.max.y, lb.max.z)
-		};
-		inst.minX = FLT_MAX; inst.maxX = -FLT_MAX;
-		inst.minZ = FLT_MAX; inst.maxZ = -FLT_MAX;
-		for (int c = 0; c < 8; c++) {
-			ColVec3 w = TransformPoint(inst.world, corners[c]);
-			if (w.x < inst.minX) inst.minX = w.x;
-			if (w.x > inst.maxX) inst.maxX = w.x;
-			if (w.z < inst.minZ) inst.minZ = w.z;
-			if (w.z > inst.maxZ) inst.maxZ = w.z;
+		/* Never mutate shared shapes — wrap or clone when scaled. */
+		btCollisionShape* scaledWrapper = nullptr;
+		if (scaled) {
+			btVector3 localScale(p.scale[0], p.scale[1], p.scale[2]);
+			if (baseShape->getShapeType() == TRIANGLE_MESH_SHAPE_PROXYTYPE ||
+				baseShape->getShapeType() == SCALED_TRIANGLE_MESH_SHAPE_PROXYTYPE) {
+				scaledWrapper = new btScaledBvhTriangleMeshShape(
+					(btBvhTriangleMeshShape*)baseShape, localScale);
+				useShape = scaledWrapper;
+			} else {
+				/* Per-instance compound with baked scale via child transforms. */
+				btCompoundShape* src = (btCompoundShape*)baseShape;
+				btCompoundShape* copy = new btCompoundShape();
+				for (int ci = 0; ci < src->getNumChildShapes(); ci++) {
+					btTransform child = src->getChildTransform(ci);
+					btVector3 o = child.getOrigin();
+					o = btVector3(o.x() * localScale.x(), o.y() * localScale.y(), o.z() * localScale.z());
+					child.setOrigin(o);
+					btCollisionShape* childShape = src->getChildShape(ci);
+					int type = childShape->getShapeType();
+					btCollisionShape* scaledChild = nullptr;
+					if (type == SPHERE_SHAPE_PROXYTYPE) {
+						float r = ((btSphereShape*)childShape)->getRadius();
+						float s = (localScale.x() + localScale.y() + localScale.z()) / 3.0f;
+						scaledChild = new btSphereShape(r * s);
+					} else if (type == BOX_SHAPE_PROXYTYPE) {
+						btVector3 h = ((btBoxShape*)childShape)->getHalfExtentsWithMargin();
+						scaledChild = new btBoxShape(btVector3(
+							h.x() * localScale.x(), h.y() * localScale.y(), h.z() * localScale.z()));
+					} else {
+						scaledChild = childShape;
+					}
+					if (scaledChild != childShape) {
+						/* Track via user pointer list on wrapper body later — store on compound user. */
+						copy->addChildShape(child, scaledChild);
+					} else {
+						copy->addChildShape(child, childShape);
+					}
+				}
+				scaledWrapper = copy;
+				useShape = scaledWrapper;
+			}
 		}
 
-		m_instances.push_back(inst);
+		btTransform worldTrans;
+		worldTrans.setIdentity();
+		worldTrans.setOrigin(btVector3(p.x, p.y, p.z));
+		worldTrans.setRotation(btQuaternion(
+			p.rotation[0], p.rotation[1], p.rotation[2], p.rotation[3]));
+
+		btDefaultMotionState* motion = new btDefaultMotionState(worldTrans);
+		btRigidBody::btRigidBodyConstructionInfo info(0.0f, motion, useShape, btVector3(0, 0, 0));
+		btRigidBody* body = new btRigidBody(info);
+		body->setFriction(0.9f);
+		body->setRestitution(0.0f);
+		body->setCollisionFlags(body->getCollisionFlags() | btCollisionObject::CF_STATIC_OBJECT);
+
+		/* Keep scaled wrappers alive until Clear(). */
+		if (scaledWrapper) {
+			m_instanceShapes.push_back(scaledWrapper);
+			body->setUserPointer(scaledWrapper);
+		}
+
+		m_dynamicsWorld->addRigidBody(
+			body,
+			btBroadphaseProxy::StaticFilter,
+			btBroadphaseProxy::AllFilter ^ btBroadphaseProxy::StaticFilter);
+		m_staticBodies.push_back(body);
 		matched++;
 	}
 
-	RebuildGrid();
-	printf("[Info] CollisionWorld: %d instances, grid %dx%d\n",
-		matched, m_gridW, m_gridH);
+	printf("[Info] Bullet CollisionWorld: %d static bodies, %d unique shapes\n",
+		matched, (int)m_shapes.size());
 }
 
-void CollisionWorld::RebuildGrid()
+void CollisionWorld::Step(float dt)
 {
-	m_cells.clear();
-	m_gridW = 0;
-	m_gridH = 0;
-	if (m_instances.empty())
+	if (!m_dynamicsWorld)
 		return;
-
-	float minX = FLT_MAX, maxX = -FLT_MAX, minZ = FLT_MAX, maxZ = -FLT_MAX;
-	for (size_t i = 0; i < m_instances.size(); i++) {
-		if (m_instances[i].minX < minX) minX = m_instances[i].minX;
-		if (m_instances[i].maxX > maxX) maxX = m_instances[i].maxX;
-		if (m_instances[i].minZ < minZ) minZ = m_instances[i].minZ;
-		if (m_instances[i].maxZ > maxZ) maxZ = m_instances[i].maxZ;
-	}
-
-	m_cellSize = 50.0f;
-	m_originX = minX - m_cellSize;
-	m_originZ = minZ - m_cellSize;
-	m_gridW = (int)ceilf((maxX - m_originX) / m_cellSize) + 1;
-	m_gridH = (int)ceilf((maxZ - m_originZ) / m_cellSize) + 1;
-	if (m_gridW < 1) m_gridW = 1;
-	if (m_gridH < 1) m_gridH = 1;
-
-	m_cells.resize((size_t)m_gridW * (size_t)m_gridH);
-
-	for (size_t i = 0; i < m_instances.size(); i++) {
-		const Instance& inst = m_instances[i];
-		int x0 = (int)floorf((inst.minX - m_originX) / m_cellSize);
-		int x1 = (int)floorf((inst.maxX - m_originX) / m_cellSize);
-		int z0 = (int)floorf((inst.minZ - m_originZ) / m_cellSize);
-		int z1 = (int)floorf((inst.maxZ - m_originZ) / m_cellSize);
-		if (x0 < 0) x0 = 0;
-		if (z0 < 0) z0 = 0;
-		if (x1 >= m_gridW) x1 = m_gridW - 1;
-		if (z1 >= m_gridH) z1 = m_gridH - 1;
-		for (int z = z0; z <= z1; z++) {
-			for (int x = x0; x <= x1; x++)
-				m_cells[(size_t)z * (size_t)m_gridW + (size_t)x].indices.push_back((int)i);
-		}
-	}
+	if (dt < 0.0f)
+		dt = 0.0f;
+	if (dt > 0.1f)
+		dt = 0.1f;
+	m_dynamicsWorld->stepSimulation(dt, 7, kFixedTimeStep);
 }
 
-void CollisionWorld::QueryCells(float x, float z, float radius, std::vector<int>& out) const
+void CollisionWorld::SetDebugDrawer(btIDebugDraw* drawer)
 {
-	out.clear();
-	if (m_cells.empty())
-		return;
-
-	int x0 = (int)floorf((x - radius - m_originX) / m_cellSize);
-	int x1 = (int)floorf((x + radius - m_originX) / m_cellSize);
-	int z0 = (int)floorf((z - radius - m_originZ) / m_cellSize);
-	int z1 = (int)floorf((z + radius - m_originZ) / m_cellSize);
-	if (x0 < 0) x0 = 0;
-	if (z0 < 0) z0 = 0;
-	if (x1 >= m_gridW) x1 = m_gridW - 1;
-	if (z1 >= m_gridH) z1 = m_gridH - 1;
-
-	static thread_local std::vector<uint8_t> seen;
-	if (seen.size() < m_instances.size())
-		seen.assign(m_instances.size(), 0);
-	else
-		memset(seen.data(), 0, m_instances.size());
-
-	for (int cz = z0; cz <= z1; cz++) {
-		for (int cx = x0; cx <= x1; cx++) {
-			const Cell& cell = m_cells[(size_t)cz * (size_t)m_gridW + (size_t)cx];
-			for (size_t i = 0; i < cell.indices.size(); i++) {
-				int idx = cell.indices[i];
-				if (seen[(size_t)idx])
-					continue;
-				seen[(size_t)idx] = 1;
-				out.push_back(idx);
-			}
-		}
-	}
+	if (m_dynamicsWorld)
+		m_dynamicsWorld->setDebugDrawer(drawer);
 }
 
-bool CollisionWorld::TestLineBox(const ColVec3& p0, const ColVec3& p1, const ColBox& box)
+void CollisionWorld::DebugDrawWorld()
 {
-	if (p0.x > box.min.x && p0.x < box.max.x &&
-		p0.y > box.min.y && p0.y < box.max.y &&
-		p0.z > box.min.z && p0.z < box.max.z)
-		return true;
-	if (p1.x > box.min.x && p1.x < box.max.x &&
-		p1.y > box.min.y && p1.y < box.max.y &&
-		p1.z > box.min.z && p1.z < box.max.z)
-		return true;
-
-	float t, x, y, z;
-	if ((box.min.x - p1.x) * (box.min.x - p0.x) < 0.0f) {
-		t = (box.min.x - p0.x) / (p1.x - p0.x);
-		y = p0.y + (p1.y - p0.y) * t;
-		z = p0.z + (p1.z - p0.z) * t;
-		if (y > box.min.y && y < box.max.y && z > box.min.z && z < box.max.z)
-			return true;
-	}
-	if ((p1.x - box.max.x) * (p0.x - box.max.x) < 0.0f) {
-		t = (p0.x - box.max.x) / (p0.x - p1.x);
-		y = p0.y + (p1.y - p0.y) * t;
-		z = p0.z + (p1.z - p0.z) * t;
-		if (y > box.min.y && y < box.max.y && z > box.min.z && z < box.max.z)
-			return true;
-	}
-	if ((box.min.y - p0.y) * (box.min.y - p1.y) < 0.0f) {
-		t = (box.min.y - p0.y) / (p1.y - p0.y);
-		x = p0.x + (p1.x - p0.x) * t;
-		z = p0.z + (p1.z - p0.z) * t;
-		if (x > box.min.x && x < box.max.x && z > box.min.z && z < box.max.z)
-			return true;
-	}
-	if ((p0.y - box.max.y) * (p1.y - box.max.y) < 0.0f) {
-		t = (p0.y - box.max.y) / (p0.y - p1.y);
-		x = p0.x + (p1.x - p0.x) * t;
-		z = p0.z + (p1.z - p0.z) * t;
-		if (x > box.min.x && x < box.max.x && z > box.min.z && z < box.max.z)
-			return true;
-	}
-	if ((box.min.z - p0.z) * (box.min.z - p1.z) < 0.0f) {
-		t = (box.min.z - p0.z) / (p1.z - p0.z);
-		x = p0.x + (p1.x - p0.x) * t;
-		y = p0.y + (p1.y - p0.y) * t;
-		if (x > box.min.x && x < box.max.x && y > box.min.y && y < box.max.y)
-			return true;
-	}
-	if ((p0.z - box.max.z) * (p1.z - box.max.z) < 0.0f) {
-		t = (p0.z - box.max.z) / (p0.z - p1.z);
-		x = p0.x + (p1.x - p0.x) * t;
-		y = p0.y + (p1.y - p0.y) * t;
-		if (x > box.min.x && x < box.max.x && y > box.min.y && y < box.max.y)
-			return true;
-	}
-	return false;
+	if (m_dynamicsWorld)
+		m_dynamicsWorld->debugDrawWorld();
 }
 
-bool CollisionWorld::ProcessLineSphere(
-	const ColVec3& p0, const ColVec3& p1, const ColSphere& sphere, ColPoint& point, float& mindist)
+bool CollisionWorld::RayTestClosest(
+	float x0, float y0, float z0,
+	float x1, float y1, float z1,
+	float* hitX, float* hitY, float* hitZ,
+	ColVec3* hitNormal) const
 {
-	ColVec3 v01 = p1 - p0;
-	ColVec3 v0c = sphere.center - p0;
-	float linesq = v01.LengthSq();
-	if (linesq < 1e-12f)
+	if (!m_dynamicsWorld)
 		return false;
-	float projline = v01.Dot(v0c);
-	float tansq = (v0c.LengthSq() - sphere.radius * sphere.radius) * linesq;
-	float diffsq = projline * projline - tansq;
-	if (diffsq < 0.0f)
+
+	btVector3 from(x0, y0, z0);
+	btVector3 to(x1, y1, z1);
+	btCollisionWorld::ClosestRayResultCallback cb(from, to);
+	cb.m_collisionFilterMask = btBroadphaseProxy::StaticFilter | btBroadphaseProxy::DefaultFilter;
+	m_dynamicsWorld->rayTest(from, to, cb);
+	if (!cb.hasHit())
 		return false;
-	float t = (projline - sqrtf(diffsq)) / linesq;
-	if (t < 0.0f || t > 1.0f || t >= mindist)
-		return false;
-	point.point = p0 + v01 * t;
-	point.normal = (point.point - sphere.center).Normalized();
-	point.depth = 0.0f;
-	point.surfaceB = sphere.surface;
-	mindist = t;
+
+	if (hitX) *hitX = cb.m_hitPointWorld.x();
+	if (hitY) *hitY = cb.m_hitPointWorld.y();
+	if (hitZ) *hitZ = cb.m_hitPointWorld.z();
+	if (hitNormal) {
+		hitNormal->x = cb.m_hitNormalWorld.x();
+		hitNormal->y = cb.m_hitNormalWorld.y();
+		hitNormal->z = cb.m_hitNormalWorld.z();
+	}
 	return true;
 }
 
-bool CollisionWorld::ProcessLineBox(
-	const ColVec3& p0, const ColVec3& p1, const ColBox& box, ColPoint& point, float& mindist)
+bool CollisionWorld::FindGroundY(float x, float y, float z, float* outY) const
 {
-	float mint = 1.0f;
-	ColVec3 normal;
-	ColVec3 p;
-	float t, x, y, z;
-
-	if ((box.min.x - p1.x) * (box.min.x - p0.x) < 0.0f) {
-		t = (box.min.x - p0.x) / (p1.x - p0.x);
-		y = p0.y + (p1.y - p0.y) * t;
-		z = p0.z + (p1.z - p0.z) * t;
-		if (y > box.min.y && y < box.max.y && z > box.min.z && z < box.max.z && t < mint) {
-			mint = t; p = ColVec3(box.min.x, y, z); normal = ColVec3(-1, 0, 0);
-		}
-	}
-	if ((p1.x - box.max.x) * (p0.x - box.max.x) < 0.0f) {
-		t = (p0.x - box.max.x) / (p0.x - p1.x);
-		y = p0.y + (p1.y - p0.y) * t;
-		z = p0.z + (p1.z - p0.z) * t;
-		if (y > box.min.y && y < box.max.y && z > box.min.z && z < box.max.z && t < mint) {
-			mint = t; p = ColVec3(box.max.x, y, z); normal = ColVec3(1, 0, 0);
-		}
-	}
-	if ((box.min.y - p0.y) * (box.min.y - p1.y) < 0.0f) {
-		t = (box.min.y - p0.y) / (p1.y - p0.y);
-		x = p0.x + (p1.x - p0.x) * t;
-		z = p0.z + (p1.z - p0.z) * t;
-		if (x > box.min.x && x < box.max.x && z > box.min.z && z < box.max.z && t < mint) {
-			mint = t; p = ColVec3(x, box.min.y, z); normal = ColVec3(0, -1, 0);
-		}
-	}
-	if ((p0.y - box.max.y) * (p1.y - box.max.y) < 0.0f) {
-		t = (p0.y - box.max.y) / (p0.y - p1.y);
-		x = p0.x + (p1.x - p0.x) * t;
-		z = p0.z + (p1.z - p0.z) * t;
-		if (x > box.min.x && x < box.max.x && z > box.min.z && z < box.max.z && t < mint) {
-			mint = t; p = ColVec3(x, box.max.y, z); normal = ColVec3(0, 1, 0);
-		}
-	}
-	if ((box.min.z - p0.z) * (box.min.z - p1.z) < 0.0f) {
-		t = (box.min.z - p0.z) / (p1.z - p0.z);
-		x = p0.x + (p1.x - p0.x) * t;
-		y = p0.y + (p1.y - p0.y) * t;
-		if (x > box.min.x && x < box.max.x && y > box.min.y && y < box.max.y && t < mint) {
-			mint = t; p = ColVec3(x, y, box.min.z); normal = ColVec3(0, 0, -1);
-		}
-	}
-	if ((p0.z - box.max.z) * (p1.z - box.max.z) < 0.0f) {
-		t = (p0.z - box.max.z) / (p0.z - p1.z);
-		x = p0.x + (p1.x - p0.x) * t;
-		y = p0.y + (p1.y - p0.y) * t;
-		if (x > box.min.x && x < box.max.x && y > box.min.y && y < box.max.y && t < mint) {
-			mint = t; p = ColVec3(x, y, box.max.z); normal = ColVec3(0, 0, 1);
-		}
-	}
-
-	if (mint >= mindist)
+	float hitY = 0.0f;
+	if (!RayTestClosest(x, y, z, x, y - 2000.0f, z, nullptr, &hitY, nullptr, nullptr))
 		return false;
-	point.point = p;
-	point.normal = normal;
-	point.depth = 0.0f;
-	point.surfaceB = box.surface;
-	mindist = mint;
+	if (outY)
+		*outY = hitY;
 	return true;
 }
 
-bool CollisionWorld::ProcessLineTriangle(
-	const ColVec3& p0, const ColVec3& p1,
-	const ColVec3& va, const ColVec3& vb, const ColVec3& vc,
-	const ColTrianglePlane& plane,
-	ColPoint& point, float& mindist)
+bool CollisionWorld::ProbeFeet(float x, float y, float z, bool wasStanding, float* outPedY) const
 {
-	float d0 = plane.CalcPoint(p0);
-	float d1 = plane.CalcPoint(p1);
-	if (d0 * d1 > 0.0f)
+	float startY = y + (wasStanding ? 0.25f : 0.05f);
+	float endY = y - (wasStanding ? 1.25f : 0.55f);
+	float hitY = 0.0f;
+	if (!RayTestClosest(x, startY, z, x, endY, z, nullptr, &hitY, nullptr, nullptr))
 		return false;
-
-	ColVec3 dir = p1 - p0;
-	float denom = dir.Dot(plane.normal);
-	if (fabsf(denom) < 1e-12f)
-		return false;
-
-	float t = -d0 / denom;
-	if (t < 0.0f || t >= mindist)
-		return false;
-
-	ColVec3 p = p0 + dir * t;
-
-	ColVec3 normal = plane.normal;
-	float u0, u1, u2, v0, v1, v2, pu, pv;
-	switch (plane.dir) {
-	case COL_DIR_X_POS:
-		u0 = va.y; v0 = va.z; u1 = vc.y; v1 = vc.z; u2 = vb.y; v2 = vb.z; pu = p.y; pv = p.z;
-		break;
-	case COL_DIR_X_NEG:
-		u0 = va.y; v0 = va.z; u1 = vb.y; v1 = vb.z; u2 = vc.y; v2 = vc.z; pu = p.y; pv = p.z;
-		break;
-	case COL_DIR_Y_POS:
-		u0 = va.z; v0 = va.x; u1 = vc.z; v1 = vc.x; u2 = vb.z; v2 = vb.x; pu = p.z; pv = p.x;
-		break;
-	case COL_DIR_Y_NEG:
-		u0 = va.z; v0 = va.x; u1 = vb.z; v1 = vb.x; u2 = vc.z; v2 = vc.x; pu = p.z; pv = p.x;
-		break;
-	case COL_DIR_Z_POS:
-		u0 = va.x; v0 = va.y; u1 = vc.x; v1 = vc.y; u2 = vb.x; v2 = vb.y; pu = p.x; pv = p.y;
-		break;
-	default:
-		u0 = va.x; v0 = va.y; u1 = vb.x; v1 = vb.y; u2 = vc.x; v2 = vc.y; pu = p.x; pv = p.y;
-		break;
-	}
-
-	if (Cross2D(u1 - u0, v1 - v0, pu - u0, pv - v0) < 0.0f) return false;
-	if (Cross2D(u2 - u0, v2 - v0, pu - u0, pv - v0) > 0.0f) return false;
-	if (Cross2D(u2 - u1, v2 - v1, pu - u1, pv - v1) < 0.0f) return false;
-
-	point.point = p;
-	point.normal = normal;
-	point.depth = 0.0f;
-	mindist = t;
-	return true;
-}
-
-bool CollisionWorld::ProcessVerticalLineInstance(
-	const Instance& inst,
-	const ColVec3& p0, const ColVec3& p1,
-	ColPoint& best, float& mindist) const
-{
-	ColVec3 lp0 = TransformPointInv(inst.invWorld, p0);
-	ColVec3 lp1 = TransformPointInv(inst.invWorld, p1);
-
-	if (!TestLineBox(lp0, lp1, inst.model->boundBox))
-		return false;
-
-	bool hit = false;
-	float coldist = mindist;
-	ColPoint localHit;
-
-	for (size_t i = 0; i < inst.model->spheres.size(); i++) {
-		if (ProcessLineSphere(lp0, lp1, inst.model->spheres[i], localHit, coldist))
-			hit = true;
-	}
-	for (size_t i = 0; i < inst.model->boxes.size(); i++) {
-		if (ProcessLineBox(lp0, lp1, inst.model->boxes[i], localHit, coldist))
-			hit = true;
-	}
-	for (size_t i = 0; i < inst.model->triangles.size(); i++) {
-		const ColTriangle& tri = inst.model->triangles[i];
-		if (ProcessLineTriangle(
-			lp0, lp1,
-			inst.model->vertices[tri.a],
-			inst.model->vertices[tri.b],
-			inst.model->vertices[tri.c],
-			inst.model->planes[i],
-			localHit, coldist)) {
-			localHit.surfaceB = tri.surface;
-			hit = true;
-		}
-	}
-
-	if (!hit || coldist >= mindist)
-		return false;
-
-	best.point = TransformPoint(inst.world, localHit.point);
-	best.normal = TransformNormal(inst.world, localHit.normal);
-	best.depth = localHit.depth;
-	best.surfaceB = localHit.surfaceB;
-	mindist = coldist;
+	if (outPedY)
+		*outPedY = hitY + PED_FEET_OFFSET;
 	return true;
 }
 
 bool CollisionWorld::CastDownLine(float x, float z, float startY, float endY, float* hitY, ColVec3* hitNormal) const
 {
-	ColVec3 p0(x, startY, z);
-	ColVec3 p1(x, endY, z);
-	float mindist = 1.0f;
-	ColPoint best;
-	bool found = false;
-
-	float radius = fabsf(startY - endY) + 2.0f;
-	std::vector<int> candidates;
-	QueryCells(x, z, radius, candidates);
-
-	for (size_t i = 0; i < candidates.size(); i++) {
-		const Instance& inst = m_instances[(size_t)candidates[i]];
-		float dx = x - inst.worldCenter.x;
-		float dz = z - inst.worldCenter.z;
-		float r = inst.worldRadius + 4.0f;
-		if (dx * dx + dz * dz > r * r)
-			continue;
-		if (ProcessVerticalLineInstance(inst, p0, p1, best, mindist))
-			found = true;
-	}
-
-	if (found) {
-		if (hitY) *hitY = best.point.y;
-		if (hitNormal) *hitNormal = best.normal;
-	}
-	return found;
-}
-
-bool CollisionWorld::FindGroundY(float x, float y, float z, float* outY) const
-{
-	ColVec3 p0(x, y, z);
-	ColVec3 p1(x, -1000.0f, z);
-	float mindist = 1.0f;
-	ColPoint best;
-	bool found = false;
-
-	std::vector<int> candidates;
-	QueryCells(x, z, 80.0f, candidates);
-
-	for (size_t i = 0; i < candidates.size(); i++) {
-		const Instance& inst = m_instances[(size_t)candidates[i]];
-		float dx = x - inst.worldCenter.x;
-		float dz = z - inst.worldCenter.z;
-		float r = inst.worldRadius + 2.0f;
-		if (dx * dx + dz * dz > r * r)
-			continue;
-		if (ProcessVerticalLineInstance(inst, p0, p1, best, mindist))
-			found = true;
-	}
-
-	if (found && outY)
-		*outY = best.point.y;
-	return found;
-}
-
-bool CollisionWorld::ProbeFeet(float x, float y, float z, bool wasStanding, float* outPedY) const
-{
-	/* re3: line from ped pos down by FEET_OFFSET (+ gravity sink while standing). */
-	float gravityEffect = wasStanding ? -0.15f : 0.0f;
-	ColVec3 p0(x, y + (wasStanding ? -0.25f : 0.0f), z);
-	ColVec3 p1(x, y - PED_FEET_OFFSET + gravityEffect, z);
-
-	float mindist = 1.0f;
-	ColPoint best;
-	bool found = false;
-
-	std::vector<int> candidates;
-	QueryCells(x, z, 8.0f, candidates);
-
-	for (size_t i = 0; i < candidates.size(); i++) {
-		const Instance& inst = m_instances[(size_t)candidates[i]];
-		float dx = x - inst.worldCenter.x;
-		float dy = (y - 0.52f) - inst.worldCenter.y;
-		float dz = z - inst.worldCenter.z;
-		float r = inst.worldRadius + 0.52f - gravityEffect;
-		if (dx * dx + dy * dy + dz * dz > r * r)
-			continue;
-		if (ProcessVerticalLineInstance(inst, p0, p1, best, mindist))
-			found = true;
-	}
-
-	if (found && outPedY)
-		*outPedY = best.point.y + PED_FEET_OFFSET;
-	return found;
-}
-
-float CollisionWorld::DistToSegment(const ColVec3& a, const ColVec3& b, const ColVec3& p, ColVec3& closest)
-{
-	ColVec3 ab = b - a;
-	float abLenSq = ab.LengthSq();
-	if (abLenSq < 1e-12f) {
-		closest = a;
-		return (p - a).Length();
-	}
-	float t = (p - a).Dot(ab) / abLenSq;
-	if (t < 0.0f) t = 0.0f;
-	if (t > 1.0f) t = 1.0f;
-	closest = a + ab * t;
-	return (p - closest).Length();
-}
-
-bool CollisionWorld::ProcessSphereSphere(
-	const ColSphere& a, const ColSphere& b, ColPoint& point, float& mindistsq)
-{
-	ColVec3 d = a.center - b.center;
-	float distSq = d.LengthSq();
-	float rad = a.radius + b.radius;
-	if (distSq >= rad * rad || distSq >= mindistsq)
+	float hy = 0.0f;
+	ColVec3 n(0, 1, 0);
+	if (!RayTestClosest(x, startY, z, x, endY, z, nullptr, &hy, nullptr, &n))
 		return false;
-	float dist = sqrtf(distSq);
-	if (dist < 1e-6f) {
-		point.normal = ColVec3(0, 1, 0);
-		point.point = b.center;
-		point.depth = a.radius;
-	} else {
-		point.normal = d * (1.0f / dist);
-		point.point = b.center + point.normal * b.radius;
-		point.depth = rad - dist;
-	}
-	point.surfaceB = b.surface;
-	mindistsq = distSq;
+	if (hitY)
+		*hitY = hy;
+	if (hitNormal)
+		*hitNormal = n;
 	return true;
 }
 
-bool CollisionWorld::ProcessSphereBox(
-	const ColSphere& sph, const ColBox& box, ColPoint& point, float& mindistsq)
+void CollisionWorld::ResolvePedSpheres(float*, float*, float*) const
 {
-	if (sph.center.x + sph.radius < box.min.x) return false;
-	if (sph.center.x - sph.radius > box.max.x) return false;
-	if (sph.center.y + sph.radius < box.min.y) return false;
-	if (sph.center.y - sph.radius > box.max.y) return false;
-	if (sph.center.z + sph.radius < box.min.z) return false;
-	if (sph.center.z - sph.radius > box.max.z) return false;
-
-	int xpos = sph.center.x < box.min.x ? 1 : sph.center.x > box.max.x ? 2 : 0;
-	int ypos = sph.center.y < box.min.y ? 1 : sph.center.y > box.max.y ? 2 : 0;
-	int zpos = sph.center.z < box.min.z ? 1 : sph.center.z > box.max.z ? 2 : 0;
-
-	ColVec3 p, dist;
-	if (xpos == 0 && ypos == 0 && zpos == 0) {
-		p = (box.min + box.max) * 0.5f;
-		dist = sph.center - p;
-		float lensq = dist.LengthSq();
-		if (lensq < 1e-12f)
-			return false;
-		if (lensq < mindistsq) {
-			point.normal = dist * (1.0f / sqrtf(lensq));
-			point.point = sph.center - point.normal;
-			float dx = dist.x > 0.0f ? box.max.x - sph.center.x : sph.center.x - box.min.x;
-			float dy = dist.y > 0.0f ? box.max.y - sph.center.y : sph.center.y - box.min.y;
-			float dz = dist.z > 0.0f ? box.max.z - sph.center.z : sph.center.z - box.min.z;
-			point.depth = (dx > dy && dx > dz) ? dx : (dy > dz ? dy : dz);
-			point.surfaceB = box.surface;
-			mindistsq = lensq;
-			return true;
-		}
-	} else {
-		p.x = xpos == 1 ? box.min.x : xpos == 2 ? box.max.x : sph.center.x;
-		p.y = ypos == 1 ? box.min.y : ypos == 2 ? box.max.y : sph.center.y;
-		p.z = zpos == 1 ? box.min.z : zpos == 2 ? box.max.z : sph.center.z;
-		dist = sph.center - p;
-		float lensq = dist.LengthSq();
-		if (lensq < mindistsq) {
-			float len = sqrtf(lensq);
-			if (len < 1e-6f)
-				return false;
-			point.point = p;
-			point.normal = dist * (1.0f / len);
-			point.depth = sph.radius - len;
-			point.surfaceB = box.surface;
-			mindistsq = lensq;
-			return true;
-		}
-	}
-	return false;
-}
-
-bool CollisionWorld::ProcessSphereTriangle(
-	const ColSphere& sph,
-	const ColVec3& va, const ColVec3& vb, const ColVec3& vc,
-	const ColTrianglePlane& plane,
-	ColPoint& point, float& mindistsq)
-{
-	float planedist = plane.CalcPoint(sph.center);
-	float distsq = planedist * planedist;
-	if (fabsf(planedist) > sph.radius || distsq > mindistsq)
-		return false;
-
-	ColVec3 normal = plane.normal;
-	ColVec3 vec2 = vb - va;
-	float len = vec2.Length();
-	if (len < 1e-8f)
-		return false;
-	vec2 = vec2 * (1.0f / len);
-	ColVec3 vec1 = vec2.Cross(normal);
-
-	ColVec3 vac = vc - va;
-	ColVec3 vas = sph.center - va;
-	float b0 = 0.0f, b1 = len;
-	float c0 = vec1.Dot(vac), c1 = vec2.Dot(vac);
-	float s0 = vec1.Dot(vas), s1 = vec2.Dot(vas);
-
-	int insideAB = Cross2D(s0, s1, b0, b1) >= 0.0f;
-	int insideAC = Cross2D(c0, c1, s0, s1) >= 0.0f;
-	int insideBC = Cross2D(s0 - b0, s1 - b1, c0 - b0, c1 - b1) >= 0.0f;
-	int testcase = insideAB + insideAC + insideBC;
-
-	float dist = 0.0f;
-	ColVec3 p;
-	switch (testcase) {
-	case 0:
-		return false;
-	case 1:
-		if (insideAB) p = vc;
-		else if (insideAC) p = vb;
-		else p = va;
-		dist = (sph.center - p).Length();
-		break;
-	case 2:
-		if (!insideAB) dist = DistToSegment(va, vb, sph.center, p);
-		else if (!insideAC) dist = DistToSegment(va, vc, sph.center, p);
-		else dist = DistToSegment(vb, vc, sph.center, p);
-		break;
-	default:
-		dist = fabsf(planedist);
-		p = sph.center - normal * planedist;
-		break;
-	}
-
-	if (dist >= sph.radius)
-		return false;
-	float dsq = dist * dist;
-	if (dsq >= mindistsq)
-		return false;
-
-	point.depth = sph.radius - dist;
-	if (dist < 1e-6f)
-		point.normal = normal;
-	else
-		point.normal = (sph.center - p).Normalized();
-	/* Prefer outward normal (away from triangle plane if ambiguous). */
-	if (point.normal.Dot(normal) < 0.0f)
-		point.normal = point.normal * -1.0f;
-	point.point = p;
-	mindistsq = dsq;
-	return true;
-}
-
-bool CollisionWorld::ProcessSphereInstance(
-	const Instance& inst,
-	const ColSphere& worldSphere,
-	ColPoint& best, float& mindistsq) const
-{
-	ColSphere local = worldSphere;
-	local.center = TransformPointInv(inst.invWorld, worldSphere.center);
-	/* Approximate uniform scale for radius. */
-	XMVECTOR axisX = inst.world.r[0];
-	float sx = XMVectorGetX(XMVector3Length(axisX));
-	if (sx < 0.0001f) sx = 1.0f;
-	local.radius = worldSphere.radius / sx;
-
-	ColBox inflated = inst.model->boundBox;
-	inflated.min = inflated.min - ColVec3(local.radius, local.radius, local.radius);
-	inflated.max = inflated.max + ColVec3(local.radius, local.radius, local.radius);
-	if (local.center.x < inflated.min.x || local.center.x > inflated.max.x ||
-		local.center.y < inflated.min.y || local.center.y > inflated.max.y ||
-		local.center.z < inflated.min.z || local.center.z > inflated.max.z)
-		return false;
-
-	bool hit = false;
-	ColPoint localHit;
-	float localMindistsq = mindistsq;
-
-	for (size_t i = 0; i < inst.model->spheres.size(); i++) {
-		if (ProcessSphereSphere(local, inst.model->spheres[i], localHit, localMindistsq))
-			hit = true;
-	}
-	for (size_t i = 0; i < inst.model->boxes.size(); i++) {
-		if (ProcessSphereBox(local, inst.model->boxes[i], localHit, localMindistsq))
-			hit = true;
-	}
-	for (size_t i = 0; i < inst.model->triangles.size(); i++) {
-		const ColTriangle& tri = inst.model->triangles[i];
-		if (ProcessSphereTriangle(
-			local,
-			inst.model->vertices[tri.a],
-			inst.model->vertices[tri.b],
-			inst.model->vertices[tri.c],
-			inst.model->planes[i],
-			localHit, localMindistsq)) {
-			localHit.surfaceB = tri.surface;
-			hit = true;
-		}
-	}
-
-	if (!hit)
-		return false;
-
-	best.point = TransformPoint(inst.world, localHit.point);
-	best.normal = TransformNormal(inst.world, localHit.normal);
-	best.depth = localHit.depth * sx;
-	best.surfaceB = localHit.surfaceB;
-	mindistsq = localMindistsq;
-	return true;
-}
-
-void CollisionWorld::ResolvePedSpheres(float* x, float* y, float* z) const
-{
-	/* re3 TempColModels ped spheres (engine Y-up). */
-	static const float offsets[3] = { -0.25f, 0.15f, 0.55f };
-	ColSphere spheres[3];
-	for (int s = 0; s < 3; s++) {
-		spheres[s].center = ColVec3(*x, *y + offsets[s], *z);
-		spheres[s].radius = PED_SPHERE_RADIUS;
-		spheres[s].surface = 0;
-		spheres[s].piece = 0;
-	}
-	ResolveSpheres(spheres, 3, x, y, z, nullptr, nullptr, nullptr);
+	/* Contacts handled by btKinematicCharacterController. */
 }
 
 void CollisionWorld::ResolveSpheres(
-	const ColSphere* spheres, int count,
-	float* x, float* y, float* z,
-	float* vx, float* vy, float* vz) const
+	const ColSphere*, int,
+	float*, float*, float*,
+	float*, float*, float*) const
 {
-	if (!spheres || count <= 0)
-		return;
-
-	/* Capture offsets from the caller's origin so multi-pass stays consistent. */
-	std::vector<ColVec3> local(count);
-	std::vector<float> radii(count);
-	float queryR = 0.0f;
-	for (int s = 0; s < count; s++) {
-		local[s] = ColVec3(
-			spheres[s].center.x - *x,
-			spheres[s].center.y - *y,
-			spheres[s].center.z - *z);
-		radii[s] = spheres[s].radius;
-		if (radii[s] > queryR)
-			queryR = radii[s];
-	}
-	queryR += 4.0f;
-
-	std::vector<int> candidates;
-	QueryCells(*x, *z, queryR, candidates);
-	if (candidates.empty())
-		return;
-
-	for (int pass = 0; pass < 3; pass++) {
-		for (int s = 0; s < count; s++) {
-			ColSphere sph;
-			sph.center = ColVec3(*x + local[s].x, *y + local[s].y, *z + local[s].z);
-			sph.radius = radii[s];
-			sph.surface = 0;
-			sph.piece = 0;
-
-			ColPoint best;
-			best.depth = 0.0f;
-			float mindistsq = (sph.radius + 8.0f) * (sph.radius + 8.0f);
-			bool any = false;
-
-			for (size_t i = 0; i < candidates.size(); i++) {
-				const Instance& inst = m_instances[(size_t)candidates[i]];
-				float dx = sph.center.x - inst.worldCenter.x;
-				float dy = sph.center.y - inst.worldCenter.y;
-				float dz = sph.center.z - inst.worldCenter.z;
-				float r = inst.worldRadius + sph.radius;
-				if (dx * dx + dy * dy + dz * dz > r * r)
-					continue;
-
-				ColPoint hit;
-				float dsq = mindistsq;
-				if (ProcessSphereInstance(inst, sph, hit, dsq)) {
-					if (hit.depth > best.depth) {
-						best = hit;
-						any = true;
-					}
-				}
-			}
-
-			if (!any || best.depth <= 0.0f)
-				continue;
-
-			ColVec3 n = best.normal;
-			if (fabsf(n.y) < 0.7f) {
-				n.y = 0.0f;
-				n = n.Normalized();
-			}
-			*x += n.x * best.depth;
-			*y += n.y * best.depth;
-			*z += n.z * best.depth;
-
-			if (vx && vy && vz) {
-				float vn = (*vx) * n.x + (*vy) * n.y + (*vz) * n.z;
-				if (vn < 0.0f) {
-					*vx -= n.x * vn;
-					*vy -= n.y * vn;
-					*vz -= n.z * vn;
-				}
-			}
-		}
-	}
+	/* Contacts handled by btRaycastVehicle / chassis rigid body. */
 }
