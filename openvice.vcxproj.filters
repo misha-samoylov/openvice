@@ -241,6 +241,9 @@
     <FxCompile Include="shaders\colourfilter_vc_ps.hlsl">
       <Filter>Source Files\shaders</Filter>
     </FxCompile>
+    <FxCompile Include="shaders\postfx_blit_ps.hlsl">
+      <Filter>Source Files\shaders</Filter>
+    </FxCompile>
     <FxCompile Include="shaders\vertex_shader.hlsl">
       <Filter>Source Files\shaders</Filter>
     </FxCompile>

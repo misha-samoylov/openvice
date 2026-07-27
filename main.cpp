@@ -94,7 +94,6 @@ bool g_shadowsEnabled = true;
 SSAO* g_ssao = nullptr;
 bool g_ssaoEnabled = true;
 PostFX* g_postFX = nullptr;
-bool g_postFXEnabled = true;
 PhysicsDebugDraw* g_physicsDebugDraw = nullptr;
 bool g_controllingVehicle = false;
 bool g_physicsDebugVisible = false;
@@ -996,8 +995,8 @@ void RenderScene(DXRender *render, Camera *camera)
 	if (g_ssao && g_ssaoEnabled)
 		g_ssao->Apply(render, camera);
 
-	/* re3 POSTFX_NORMAL colour filter (after SSAO). */
-	if (g_postFX && g_postFXEnabled)
+	/* re3 POSTFX — colour filter or motion blur (F9 cycles). */
+	if (g_postFX)
 		g_postFX->Apply(render);
 
 	render->RenderEnd();
@@ -1437,8 +1436,8 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 				static bool f9WasDown = false;
 				bool f9Down = input->IsKey(DIK_F9);
 				if (f9Down && !f9WasDown && g_postFX) {
-					g_postFXEnabled = !g_postFXEnabled;
-					printf("[Info] PostFX NORMAL %s (F9)\n", g_postFXEnabled ? "ON" : "OFF");
+					PostFX::Mode mode = g_postFX->CycleMode();
+					printf("[Info] PostFX %s (F9)\n", PostFX::ModeName(mode));
 				}
 				f9WasDown = f9Down;
 			}
