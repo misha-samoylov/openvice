@@ -88,6 +88,7 @@ Vehicle* g_vehicle = nullptr;
 COL* g_col = nullptr;
 CollisionWorld* g_collisionWorld = nullptr;
 ShadowMap* g_shadowMap = nullptr;
+bool g_shadowsEnabled = true;
 SSAO* g_ssao = nullptr;
 bool g_ssaoEnabled = true;
 PhysicsDebugDraw* g_physicsDebugDraw = nullptr;
@@ -890,8 +891,10 @@ void RenderScene(DXRender *render, Camera *camera)
 	ctx.shadowBias = 0.0008f;
 	ctx.receiveShadows = 1.0f;
 
+	const bool shadowsOn = g_shadowMap && g_shadowsEnabled;
+
 	/* ---- Shadow map pass (casters near focus) ---- */
-	if (g_shadowMap) {
+	if (shadowsOn) {
 		g_shadowMap->UpdateLight(focusX, focusY, focusZ);
 		g_shadowMap->Begin(render);
 
@@ -920,19 +923,19 @@ void RenderScene(DXRender *render, Camera *camera)
 
 	ctx.pass = MESH_PASS_COLOR;
 	ctx.viewProj = XMMatrixMultiply(view, proj);
-	ctx.lightViewProj = g_shadowMap ? g_shadowMap->GetLightViewProj() : XMMatrixIdentity();
-	ctx.receiveShadows = g_shadowMap ? 1.0f : 0.0f;
-	ctx.shadowSRV = g_shadowMap ? g_shadowMap->GetSRV() : nullptr;
-	ctx.shadowSampler = g_shadowMap ? g_shadowMap->GetCmpSampler() : nullptr;
+	ctx.lightViewProj = shadowsOn ? g_shadowMap->GetLightViewProj() : XMMatrixIdentity();
+	ctx.receiveShadows = shadowsOn ? 1.0f : 0.0f;
+	ctx.shadowSRV = shadowsOn ? g_shadowMap->GetSRV() : nullptr;
+	ctx.shadowSampler = shadowsOn ? g_shadowMap->GetCmpSampler() : nullptr;
 
 	/* re3: sky clear → clouds → world. Depth off; world overwrites. */
 	if (g_clouds)
 		g_clouds->Render(render, camera);
 	/* Clouds change D3D bindings — reset mesh cache but keep shadow map. */
 	ctx.ClearBindings();
-	ctx.shadowSRV = g_shadowMap ? g_shadowMap->GetSRV() : nullptr;
-	ctx.shadowSampler = g_shadowMap ? g_shadowMap->GetCmpSampler() : nullptr;
-	ctx.receiveShadows = g_shadowMap ? 1.0f : 0.0f;
+	ctx.shadowSRV = shadowsOn ? g_shadowMap->GetSRV() : nullptr;
+	ctx.shadowSampler = shadowsOn ? g_shadowMap->GetCmpSampler() : nullptr;
+	ctx.receiveShadows = shadowsOn ? 1.0f : 0.0f;
 
 	/* Opaque geometry (and opaque submeshes of alpha models). */
 	render->SetOpaqueState();
@@ -951,8 +954,9 @@ void RenderScene(DXRender *render, Camera *camera)
 	/* Water changes D3D bindings — reset cache before alpha pass. */
 	ctx.ClearBindings();
 	ctx.viewProj = XMMatrixMultiply(view, proj);
-	ctx.shadowSRV = g_shadowMap ? g_shadowMap->GetSRV() : nullptr;
-	ctx.shadowSampler = g_shadowMap ? g_shadowMap->GetCmpSampler() : nullptr;
+	ctx.shadowSRV = shadowsOn ? g_shadowMap->GetSRV() : nullptr;
+	ctx.shadowSampler = shadowsOn ? g_shadowMap->GetCmpSampler() : nullptr;
+	ctx.receiveShadows = shadowsOn ? 1.0f : 0.0f;
 
 	SortAlphaInstancesBackToFront(g_alphaInstances, camera);
 
@@ -1391,6 +1395,16 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 					printf("[Info] Physics debug: %s (F3)\n", label);
 				}
 				f3WasDown = f3Down;
+			}
+
+			{
+				static bool f7WasDown = false;
+				bool f7Down = input->IsKey(DIK_F7);
+				if (f7Down && !f7WasDown && g_shadowMap) {
+					g_shadowsEnabled = !g_shadowsEnabled;
+					printf("[Info] Shadows %s (F7)\n", g_shadowsEnabled ? "ON" : "OFF");
+				}
+				f7WasDown = f7Down;
 			}
 
 			{
