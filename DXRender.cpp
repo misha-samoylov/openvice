@@ -132,19 +132,20 @@ HRESULT DXRender::CreateBackBuffer()
 {
 	/* front buffer - RenderTargetOutput */
 	/* back buffer - RenderTargetView */
-	ID3D11Texture2D* pBackBuffer = NULL;
-	HRESULT hr = m_pSwapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), (LPVOID*)&pBackBuffer);
+	HRESULT hr = m_pSwapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), (LPVOID*)&m_pBackBuffer);
 
 	if (FAILED(hr)) {
 		printf("Error: cannot create backbuffer\n");
+		m_pBackBuffer = nullptr;
 		return hr;
 	}
 
-	hr = m_pDevice->CreateRenderTargetView(pBackBuffer, NULL, &m_pRenderTargetView);
-	pBackBuffer->Release(); /* now that's object does not needed */
+	hr = m_pDevice->CreateRenderTargetView(m_pBackBuffer, NULL, &m_pRenderTargetView);
 
 	if (FAILED(hr)) {
 		printf("Error: cannot create render target view\n");
+		m_pBackBuffer->Release();
+		m_pBackBuffer = nullptr;
 		return hr;
 	}
 
@@ -298,6 +299,7 @@ HRESULT DXRender::Init(HWND hWnd, bool vsync)
 	m_pDepthStencil = nullptr;
 	m_pDepthStencilView = nullptr;
 	m_pDepthSRV = nullptr;
+	m_pBackBuffer = nullptr;
 
 	RECT rc;
 	GetClientRect(hWnd, &rc);
@@ -410,8 +412,15 @@ void DXRender::Cleanup()
 		m_pDepthStencil = nullptr;
 	}
 
-	if (m_pRenderTargetView) 
+	if (m_pRenderTargetView) {
 		m_pRenderTargetView->Release();
+		m_pRenderTargetView = nullptr;
+	}
+
+	if (m_pBackBuffer) {
+		m_pBackBuffer->Release();
+		m_pBackBuffer = nullptr;
+	}
 
 	if (m_pSwapChain) 
 		m_pSwapChain->Release();

@@ -34,6 +34,8 @@ public:
 	/* Scene depth as shader resource (unbind DSV before sampling). */
 	ID3D11ShaderResourceView *GetDepthSRV() const { return m_pDepthSRV; }
 	ID3D11RenderTargetView *GetBackBufferRTV() const { return m_pRenderTargetView; }
+	/* Swap-chain color buffer — for CopyResource into post-process inputs. */
+	ID3D11Texture2D *GetBackBufferTexture() const { return m_pBackBuffer; }
 
 	HRESULT ChangeRasterizerStateToWireframe();
 	HRESULT ChangeRasterizerStateToSolid();
@@ -63,6 +65,7 @@ private:
 	ID3D11DeviceContext *m_pDeviceContext;
 
 	IDXGISwapChain *m_pSwapChain;
+	ID3D11Texture2D *m_pBackBuffer;
 	ID3D11RenderTargetView *m_pRenderTargetView;
 
 	ID3D11RasterizerState *m_pRasterizerState;

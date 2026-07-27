@@ -29,6 +29,7 @@
 #include "CollisionWorld.h"
 #include "ShadowMap.h"
 #include "SSAO.h"
+#include "PostFX.h"
 #include "PhysicsDebugDraw.h"
 
 #define PROJECT_NAME "openvice"
@@ -92,6 +93,8 @@ ShadowMap* g_shadowMap = nullptr;
 bool g_shadowsEnabled = true;
 SSAO* g_ssao = nullptr;
 bool g_ssaoEnabled = true;
+PostFX* g_postFX = nullptr;
+bool g_postFXEnabled = true;
 PhysicsDebugDraw* g_physicsDebugDraw = nullptr;
 bool g_controllingVehicle = false;
 bool g_physicsDebugVisible = false;
@@ -993,6 +996,10 @@ void RenderScene(DXRender *render, Camera *camera)
 	if (g_ssao && g_ssaoEnabled)
 		g_ssao->Apply(render, camera);
 
+	/* re3 POSTFX_NORMAL colour filter (after SSAO). */
+	if (g_postFX && g_postFXEnabled)
+		g_postFX->Apply(render);
+
 	render->RenderEnd();
 }
 
@@ -1039,6 +1046,14 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 		g_ssao->Cleanup();
 		delete g_ssao;
 		g_ssao = nullptr;
+	}
+
+	g_postFX = new PostFX();
+	if (FAILED(g_postFX->Init(render))) {
+		printf("[Error] PostFX init failed — continuing without colour filter\n");
+		g_postFX->Cleanup();
+		delete g_postFX;
+		g_postFX = nullptr;
 	}
 
 	TCHAR imgPath[] = L"C:/Games/Grand Theft Auto Vice City/models/gta3.img";
@@ -1419,6 +1434,16 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 			}
 
 			{
+				static bool f9WasDown = false;
+				bool f9Down = input->IsKey(DIK_F9);
+				if (f9Down && !f9WasDown && g_postFX) {
+					g_postFXEnabled = !g_postFXEnabled;
+					printf("[Info] PostFX NORMAL %s (F9)\n", g_postFXEnabled ? "ON" : "OFF");
+				}
+				f9WasDown = f9Down;
+			}
+
+			{
 				bool np1 = input->IsKey(DIK_NUMPAD1);
 				bool np0 = input->IsKey(DIK_NUMPAD0);
 				bool np2 = input->IsKey(DIK_NUMPAD2);
@@ -1657,6 +1682,12 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 		g_ssao->Cleanup();
 		delete g_ssao;
 		g_ssao = nullptr;
+	}
+
+	if (g_postFX) {
+		g_postFX->Cleanup();
+		delete g_postFX;
+		g_postFX = nullptr;
 	}
 
 	if (g_physicsDebugDraw) {

@@ -57,6 +57,9 @@
     <ClCompile Include="SSAO.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="PostFX.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="Mesh.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -141,6 +144,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="SSAO.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="PostFX.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Mesh.hpp">
@@ -230,6 +236,9 @@
       <Filter>Source Files\shaders</Filter>
     </FxCompile>
     <FxCompile Include="shaders\ssao_composite_ps.hlsl">
+      <Filter>Source Files\shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="shaders\colourfilter_vc_ps.hlsl">
       <Filter>Source Files\shaders</Filter>
     </FxCompile>
     <FxCompile Include="shaders\vertex_shader.hlsl">
