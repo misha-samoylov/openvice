@@ -869,9 +869,9 @@ void Player::Update(float dt, float moveX, float moveZ, bool moving, bool walkin
 			moveX /= len;
 			moveZ /= len;
 			m_heading = atan2f(-moveX, moveZ);
-			float speedMul = 3.0f;
+			float speedMul = 4.0f;
 			if (wantSprint)
-				speedMul = 5.4f;
+				speedMul = 6.0f;
 			else if (wantWalk)
 				speedMul = 0.6f;
 			float speed = m_moveSpeed * (speedMul / 1.8f);
