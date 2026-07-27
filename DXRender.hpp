@@ -17,10 +17,16 @@ public:
 	void RenderStart();
 	void RenderEnd();
 
-	/* Rebind color RTV + scene depth + main viewport (after shadow pass). */
+	/* Rebind scene color RTV + scene depth + main viewport (after shadow pass). */
 	void RestoreMainTargets();
-	/* Color RTV only (no depth) — for fullscreen post-process. */
+	/* Scene color RTV only (no depth) — SSAO composite onto MSAA target. */
 	void BindColorTargetOnly();
+	/* Swap-chain color only — PostFX after MSAA resolve. */
+	void BindBackBufferOnly();
+	/* Resolve MSAA scene color into the non-MSAA swap-chain back buffer. */
+	void ResolveMSAA();
+	/* Resolve MSAA depth (sample 0) into a single-sample SRV for SSAO. */
+	void ResolveDepthForSSAO();
 
 	/* Opaque: blending off, depth write on. */
 	void SetOpaqueState();
@@ -31,11 +37,12 @@ public:
 
 	ID3D11Device *GetDevice();
 	ID3D11DeviceContext *GetDeviceContext();
-	/* Scene depth as shader resource (unbind DSV before sampling). */
+	/* Scene depth as shader resource (unbind DSV before sampling). Single-sample. */
 	ID3D11ShaderResourceView *GetDepthSRV() const { return m_pDepthSRV; }
-	ID3D11RenderTargetView *GetBackBufferRTV() const { return m_pRenderTargetView; }
-	/* Swap-chain color buffer — for CopyResource into post-process inputs. */
+	ID3D11RenderTargetView *GetBackBufferRTV() const { return m_pBackBufferRTV; }
+	/* Non-MSAA swap-chain color — for PostFX CopyResource. */
 	ID3D11Texture2D *GetBackBufferTexture() const { return m_pBackBuffer; }
+	UINT GetMSAASampleCount() const { return m_msaaCount; }
 
 	HRESULT ChangeRasterizerStateToWireframe();
 	HRESULT ChangeRasterizerStateToSolid();
@@ -53,29 +60,46 @@ public:
 	UINT GetBackBufferHeight() const { return m_height; }
 
 private:
+	static constexpr UINT kDesiredMSAA = 4;
+
 	void InitViewport(HWND hWnd);
 	HRESULT CreateBackBuffer();
-	
+	HRESULT CreateMSAAColor();
 	HRESULT CreateDepthStencil(HWND hWnd);
+	HRESULT CreateDepthResolveResources();
 	HRESULT CreateBlendStates();
 	HRESULT CreateDepthStencilStates();
 	HRESULT CreateRasterizerStates();
+	UINT PickMSAACount(DXGI_FORMAT format);
 
 	ID3D11Device *m_pDevice;
 	ID3D11DeviceContext *m_pDeviceContext;
 
 	IDXGISwapChain *m_pSwapChain;
+	/* Non-MSAA swap-chain buffer (Present + PostFX). */
 	ID3D11Texture2D *m_pBackBuffer;
-	ID3D11RenderTargetView *m_pRenderTargetView;
+	ID3D11RenderTargetView *m_pBackBufferRTV;
+	/* MSAA scene color (or aliases back buffer when MSAA is off). */
+	ID3D11Texture2D *m_pSceneColor;
+	ID3D11RenderTargetView *m_pSceneRTV;
+	bool m_ownsSceneColor;
 
 	ID3D11RasterizerState *m_pRasterizerState;
 	ID3D11RasterizerState *m_pRSCullFront;
 	ID3D11RasterizerState *m_pRSCullNone;
 	ID3D11RasterizerState *m_pRSWireframe;
 
+	/* MSAA (or 1x) scene depth. */
 	ID3D11Texture2D* m_pDepthStencil;
 	ID3D11DepthStencilView* m_pDepthStencilView;
+	/* Single-sample depth for SSAO (resolved from MSAA, or same as scene at 1x). */
+	ID3D11Texture2D* m_pResolvedDepth;
+	ID3D11RenderTargetView* m_pResolvedDepthRTV;
 	ID3D11ShaderResourceView* m_pDepthSRV;
+	ID3D11ShaderResourceView* m_pDepthMSAA_SRV;
+	ID3D11VertexShader* m_pDepthResolveVS;
+	ID3D11PixelShader* m_pDepthResolvePS;
+	bool m_ownsResolvedDepth;
 
 	ID3D11BlendState* m_pBlendStateOpaque;
 	ID3D11BlendState* m_pBlendStateTransparency;
@@ -86,5 +110,7 @@ private:
 
 	UINT m_width;
 	UINT m_height;
+	UINT m_msaaCount;
+	UINT m_msaaQuality;
 	bool m_vsync;
 };

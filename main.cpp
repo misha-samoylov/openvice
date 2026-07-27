@@ -992,8 +992,13 @@ void RenderScene(DXRender *render, Camera *camera)
 	}
 
 	/* Screen-space ambient occlusion (multiplies onto color). */
-	if (g_ssao && g_ssaoEnabled)
+	if (g_ssao && g_ssaoEnabled) {
+		render->ResolveDepthForSSAO();
 		g_ssao->Apply(render, camera);
+	}
+
+	/* Resolve MSAA scene into swap-chain before PostFX / Present. */
+	render->ResolveMSAA();
 
 	/* re3 POSTFX — colour filter or motion blur (F9 cycles). */
 	if (g_postFX)

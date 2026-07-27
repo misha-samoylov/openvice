@@ -40,6 +40,8 @@ HRESULT PostFX::CreateTargets(DXRender* render)
 
 	D3D11_TEXTURE2D_DESC desc;
 	backBuf->GetDesc(&desc);
+	desc.SampleDesc.Count = 1;
+	desc.SampleDesc.Quality = 0;
 	desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
 	desc.MiscFlags = 0;
 	desc.CPUAccessFlags = 0;
@@ -302,7 +304,7 @@ void PostFX::ApplyColourFilter(DXRender* render, ID3D11Texture2D* backBuf)
 		30.0f / 255.0f);
 	ctx->UpdateSubresource(m_cbColour, 0, nullptr, &cb, 0, 0);
 
-	render->BindColorTargetOnly();
+	render->BindBackBufferOnly();
 	ctx->RSSetState(m_rasterizer);
 	ctx->OMSetDepthStencilState(m_depthDisabled, 0);
 	float blendFactor[4] = { 0, 0, 0, 0 };
@@ -333,7 +335,7 @@ void PostFX::ApplyMotionBlur(DXRender* render, ID3D11Texture2D* backBuf)
 	XMFLOAT2 offsetUV(2.0f / (float)m_width, 2.0f / (float)m_height);
 
 	if (!m_justInitialised) {
-		render->BindColorTargetOnly();
+		render->BindBackBufferOnly();
 		ctx->RSSetState(m_rasterizer);
 		ctx->OMSetDepthStencilState(m_depthDisabled, 0);
 		ctx->PSSetShader(m_psBlit, nullptr, 0);
