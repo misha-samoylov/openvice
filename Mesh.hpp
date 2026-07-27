@@ -68,8 +68,8 @@ struct MeshRenderContext
 
 	MeshRenderContext()
 		: fogColor(0.49804f, 0.78431f, 0.94510f, 1.0f)
-		, fogStart(800.0f)
-		, fogEnd(1450.0f)
+		, fogStart(600.0f)
+		, fogEnd(1230.0f)
 		, receiveShadows(0.0f)
 		, shadowBias(0.0015f)
 		, pass(MESH_PASS_COLOR)

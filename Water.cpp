@@ -491,8 +491,9 @@ void Water::BindPipeline(DXRender* render, Camera* camera, float drawDistance)
 	XMMATRIX wvp = camera->GetView() * camera->GetProjection();
 	cb.wvp = XMMatrixTranspose(wvp);
 	cb.uvScroll = XMFLOAT2(m_uvU, m_uvV);
-	cb.fogStart = drawDistance * 0.55f;
-	cb.fogEnd = drawDistance * 0.98f;
+	/* Match main.cpp: fully fogged before far clip hides the horizon seam. */
+	cb.fogStart = drawDistance * 0.40f;
+	cb.fogEnd = drawDistance * 0.82f;
 	cb.tint = XMFLOAT4(0.45f, 0.65f, 0.75f, 0.85f);
 	cb.fogColor = XMFLOAT4(0.49804f, 0.78431f, 0.94510f, 1.0f);
 

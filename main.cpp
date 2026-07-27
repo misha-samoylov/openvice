@@ -36,8 +36,9 @@
 #define WINDOW_HEIGHT 2160
 #define WINDOW_TITLE L"openvice"
 #define CAMERA_FAR_PLANE 1500.0f
-#define FOG_START_FACTOR 0.55f
-#define FOG_END_FACTOR 0.98f
+/* Fog must reach full sky before the far clip, or a hard pop-in line shows. */
+#define FOG_START_FACTOR 0.40f
+#define FOG_END_FACTOR 0.82f
 /* Daytime hour for tobj visibility (re3 CTimeModelInfo). Night lights are off. */
 #define WORLD_HOUR 12
 /* VC stadium interior IDs (gtamods.com/wiki/Interior). */
