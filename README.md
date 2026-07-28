@@ -17,6 +17,7 @@ Open `openvice.sln` solution in **Microsoft Visual Studio 2019** and click **Bui
 * `F8` - Enable/disable SSAO
 * `F9` - Change post effects mode to: Off, Post FX, Post FX with Motion blur
 * `WASD` - Controls character/vehicle/camera
+* `Space` - Vehicle brakes
 * `Mouse`
 * `Mouse wheel` - Change camera speed, change camera+-
 
