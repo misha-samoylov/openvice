@@ -66,10 +66,15 @@ private:
 	void WarpChassis(float x, float y, float z);
 	bool LoadWheelMeshes(IMG* img, DXRender* render);
 	bool LoadWheelDummies(IMG* img);
+	void CaptureDeformRestPose();
+	void ProcessCollisionDeform();
+	void ApplyDent(float localX, float localY, float localZ,
+		float dirX, float dirY, float dirZ, float strength);
 
 	Model* m_model;
 	ColModel* m_col;
 	CollisionWorld* m_world;
+	DXRender* m_render;
 
 	btRigidBody* m_chassisBody;
 	btCompoundShape* m_chassisShape;
@@ -77,6 +82,10 @@ private:
 	btVehicleRaycaster* m_vehicleRaycaster;
 	btRaycastVehicle* m_rayVehicle;
 	std::vector<btCollisionShape*> m_childShapes;
+
+	/* Per body-mesh rest pose (interleaved xyz+uv) for fake crumple. */
+	std::vector<std::vector<float>> m_deformRest;
+	bool m_deformDirty;
 
 	float m_posX, m_posY, m_posZ;
 	float m_velX, m_velY, m_velZ;

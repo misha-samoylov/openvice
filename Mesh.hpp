@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <vector>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -142,6 +143,12 @@ public:
 	void SetAlphaCutout(bool cutout) { m_alphaCutout = cutout; }
 	bool IsAlphaCutout() const { return m_alphaCutout; }
 
+	/* Interleaved xyz + uv (5 floats per vertex). Mutable for fake deformation. */
+	std::vector<float>& GetVertexData() { return m_vertexData; }
+	const std::vector<float>& GetVertexData() const { return m_vertexData; }
+	int GetVertexCount() const { return (int)m_vertexData.size() / 5; }
+	void UploadVertices(DXRender* pRender);
+
 	static void ReleaseSharedResources();
 
 private:
@@ -162,6 +169,7 @@ private:
 	struct objectConstBuffer m_objectConstBuffer;
 
 	XMMATRIX m_World;
+	std::vector<float> m_vertexData;
 
 	unsigned int m_countIndices;
 	D3D_PRIMITIVE_TOPOLOGY m_primitiveTopology;

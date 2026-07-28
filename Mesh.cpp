@@ -178,12 +178,21 @@ void Mesh::Cleanup()
 	m_pIndexBuffer = nullptr;
 	m_pObjectBuffer = nullptr;
 	m_pTexture = nullptr;
+	m_vertexData.clear();
 
 	if (s_sharedRefCount > 0) {
 		s_sharedRefCount--;
 		if (s_sharedRefCount == 0)
 			ReleaseSharedResources();
 	}
+}
+
+void Mesh::UploadVertices(DXRender* pRender)
+{
+	if (!pRender || !m_pVertexBuffer || m_vertexData.empty())
+		return;
+	pRender->GetDeviceContext()->UpdateSubresource(
+		m_pVertexBuffer, 0, NULL, m_vertexData.data(), 0, 0);
 }
 
 void Mesh::Render(DXRender* pRender, MeshRenderContext& ctx)
@@ -295,6 +304,8 @@ HRESULT Mesh::CreateDataBuffer(
 ) {
 	HRESULT hr;
 
+	m_vertexData.assign(pVertices, pVertices + verticesCount);
+
 	D3D11_BUFFER_DESC bdv;
 	ZeroMemory(&bdv, sizeof(bdv));
 	bdv.Usage = D3D11_USAGE_DEFAULT;
@@ -303,7 +314,7 @@ HRESULT Mesh::CreateDataBuffer(
 
 	D3D11_SUBRESOURCE_DATA datav;
 	ZeroMemory(&datav, sizeof(datav));
-	datav.pSysMem = pVertices;
+	datav.pSysMem = m_vertexData.data();
 
 	hr = pRender->GetDevice()->CreateBuffer(&bdv, &datav, &m_pVertexBuffer);
 	if (FAILED(hr)) {

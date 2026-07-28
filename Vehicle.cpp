@@ -60,6 +60,7 @@ bool Vehicle::Init(Model* model, ColModel* col, CollisionWorld* world, IMG* img,
 	m_model = model;
 	m_col = col;
 	m_world = world;
+	m_render = render;
 	m_chassisBody = nullptr;
 	m_chassisShape = nullptr;
 	m_motionState = nullptr;
@@ -67,6 +68,8 @@ bool Vehicle::Init(Model* model, ColModel* col, CollisionWorld* world, IMG* img,
 	m_rayVehicle = nullptr;
 	m_childShapes.clear();
 	m_wheelMeshes.clear();
+	m_deformRest.clear();
+	m_deformDirty = false;
 	m_wireframe = false;
 
 	m_posX = m_posY = m_posZ = 0.0f;
@@ -131,10 +134,11 @@ bool Vehicle::Init(Model* model, ColModel* col, CollisionWorld* world, IMG* img,
 	}
 
 	CreateBulletVehicle();
+	CaptureDeformRestPose();
 
-	printf("[Info] Vehicle Cheetah ready (MI=%d) wheels=%d scale=%.2f bullet=%s\n",
+	printf("[Info] Vehicle Cheetah ready (MI=%d) wheels=%d scale=%.2f bullet=%s deformMeshes=%d\n",
 		MI_CHEETAH, (int)m_wheelMeshes.size(), m_wheelScale,
-		m_rayVehicle ? "yes" : "no");
+		m_rayVehicle ? "yes" : "no", (int)m_deformRest.size());
 	return true;
 }
 
@@ -464,9 +468,12 @@ void Vehicle::Cleanup()
 		delete m_wheelMeshes[i];
 	}
 	m_wheelMeshes.clear();
+	m_deformRest.clear();
+	m_deformDirty = false;
 	m_model = nullptr;
 	m_col = nullptr;
 	m_world = nullptr;
+	m_render = nullptr;
 }
 
 void Vehicle::SetCollisionWorld(CollisionWorld* world)
@@ -743,6 +750,192 @@ void Vehicle::WarpChassis(float x, float y, float z)
 void Vehicle::SyncPhysics()
 {
 	SyncFromBullet();
+	ProcessCollisionDeform();
+}
+
+void Vehicle::CaptureDeformRestPose()
+{
+	m_deformRest.clear();
+	m_deformDirty = false;
+	if (!m_model)
+		return;
+
+	std::vector<Mesh*>& meshes = m_model->GetMeshes();
+	m_deformRest.resize(meshes.size());
+	for (size_t i = 0; i < meshes.size(); i++) {
+		if (meshes[i])
+			m_deformRest[i] = meshes[i]->GetVertexData();
+	}
+}
+
+void Vehicle::ApplyDent(
+	float localX, float localY, float localZ,
+	float dirX, float dirY, float dirZ, float strength)
+{
+	if (!m_model || m_deformRest.empty() || strength <= 0.0f)
+		return;
+
+	float dirLen = sqrtf(dirX * dirX + dirY * dirY + dirZ * dirZ);
+	if (dirLen < 1e-4f)
+		return;
+	dirX /= dirLen;
+	dirY /= dirLen;
+	dirZ /= dirLen;
+
+	/* Soft radius + max dent depth scale with impact strength. */
+	const float radius = 0.55f + strength * 0.35f;
+	const float radiusSq = radius * radius;
+	const float maxDent = 0.28f;
+	const float push = Minf(0.18f, strength * 0.09f);
+
+	std::vector<Mesh*>& meshes = m_model->GetMeshes();
+	const size_t meshCount = meshes.size() < m_deformRest.size()
+		? meshes.size() : m_deformRest.size();
+
+	for (size_t mi = 0; mi < meshCount; mi++) {
+		Mesh* mesh = meshes[mi];
+		if (!mesh)
+			continue;
+
+		std::vector<float>& verts = mesh->GetVertexData();
+		const std::vector<float>& rest = m_deformRest[mi];
+		if (verts.size() != rest.size() || verts.size() < 5)
+			continue;
+
+		const int vCount = (int)verts.size() / 5;
+		bool changed = false;
+		for (int v = 0; v < vCount; v++) {
+			const size_t o = (size_t)v * 5;
+			float x = verts[o + 0];
+			float y = verts[o + 1];
+			float z = verts[o + 2];
+
+			float dx = x - localX;
+			float dy = y - localY;
+			float dz = z - localZ;
+			float distSq = dx * dx + dy * dy + dz * dz;
+			if (distSq > radiusSq)
+				continue;
+
+			float dist = sqrtf(distSq);
+			float t = 1.0f - dist / radius;
+			float falloff = t * t;
+
+			/* Prefer crumple along impact; nudge toward body center slightly. */
+			float toCx = -x * 0.15f;
+			float toCy = -y * 0.05f;
+			float toCz = -z * 0.15f;
+			float px = (dirX + toCx) * push * falloff;
+			float py = (dirY + toCy) * push * falloff;
+			float pz = (dirZ + toCz) * push * falloff;
+
+			float nx = x + px;
+			float ny = y + py;
+			float nz = z + pz;
+
+			float ox = rest[o + 0];
+			float oy = rest[o + 1];
+			float oz = rest[o + 2];
+			float odx = nx - ox;
+			float ody = ny - oy;
+			float odz = nz - oz;
+			float od = sqrtf(odx * odx + ody * ody + odz * odz);
+			if (od > maxDent) {
+				float s = maxDent / od;
+				nx = ox + odx * s;
+				ny = oy + ody * s;
+				nz = oz + odz * s;
+			}
+
+			if (nx != x || ny != y || nz != z) {
+				verts[o + 0] = nx;
+				verts[o + 1] = ny;
+				verts[o + 2] = nz;
+				changed = true;
+			}
+		}
+
+		if (changed)
+			m_deformDirty = true;
+	}
+}
+
+void Vehicle::ProcessCollisionDeform()
+{
+	if (!m_chassisBody || !m_world || !m_world->GetDynamicsWorld() || !m_model)
+		return;
+	if (m_deformRest.empty())
+		return;
+
+	btDiscreteDynamicsWorld* dyn = m_world->GetDynamicsWorld();
+	btDispatcher* dispatcher = dyn->getDispatcher();
+	if (!dispatcher)
+		return;
+
+	btTransform chassisWorld;
+	if (m_motionState)
+		m_motionState->getWorldTransform(chassisWorld);
+	else
+		chassisWorld = m_chassisBody->getWorldTransform();
+	btTransform chassisInv = chassisWorld.inverse();
+
+	const float impulseThreshold = 180.0f;
+
+	const int numManifolds = dispatcher->getNumManifolds();
+	for (int i = 0; i < numManifolds; i++) {
+		btPersistentManifold* manifold = dispatcher->getManifoldByIndexInternal(i);
+		if (!manifold)
+			continue;
+
+		const btCollisionObject* obA = manifold->getBody0();
+		const btCollisionObject* obB = manifold->getBody1();
+		const bool aIsChassis = (obA == m_chassisBody);
+		const bool bIsChassis = (obB == m_chassisBody);
+		if (!aIsChassis && !bIsChassis)
+			continue;
+
+		const int nContacts = manifold->getNumContacts();
+		for (int c = 0; c < nContacts; c++) {
+			const btManifoldPoint& pt = manifold->getContactPoint(c);
+			float impulse = pt.getAppliedImpulse();
+			if (impulse < impulseThreshold)
+				continue;
+
+			/*
+			 * m_normalWorldOnB points from B toward A. Force on chassis:
+			 * chassis==A → +n, chassis==B → -n. Dent vertices along that push.
+			 */
+			btVector3 n = pt.m_normalWorldOnB;
+			if (bIsChassis)
+				n = -n;
+
+			/* Skip soft underside scrapes (mostly +Y push while grounded). */
+			if (n.y() > 0.75f && impulse < impulseThreshold * 2.5f)
+				continue;
+
+			btVector3 hitWorld = aIsChassis ? pt.getPositionWorldOnA() : pt.getPositionWorldOnB();
+			btVector3 hitLocal = chassisInv * hitWorld;
+			/* Visual mesh is drawn kComDrop above physics COM. */
+			hitLocal.setY(hitLocal.y() - kComDrop);
+
+			btVector3 dirLocal = chassisInv.getBasis() * n;
+
+			float strength = Clampf((impulse - impulseThreshold) / 900.0f, 0.15f, 1.6f);
+			ApplyDent(
+				hitLocal.x(), hitLocal.y(), hitLocal.z(),
+				dirLocal.x(), dirLocal.y(), dirLocal.z(),
+				strength);
+		}
+	}
+
+	if (m_deformDirty && m_render) {
+		std::vector<Mesh*>& meshes = m_model->GetMeshes();
+		for (size_t i = 0; i < meshes.size(); i++) {
+			if (meshes[i])
+				meshes[i]->UploadVertices(m_render);
+		}
+		m_deformDirty = false;
+	}
 }
 
 void Vehicle::Update(float dt, float throttle, float steer, bool handbrake)
