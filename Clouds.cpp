@@ -1,13 +1,9 @@
 #include "Clouds.h"
-#include "graphics/TextureFactory.h"
 #include "core/GameConfig.h"
 
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 #include <cmath>
-
-#include "renderware.h"
 
 enum { CLOUD_MAX_QUADS = 8 };
 
@@ -15,23 +11,6 @@ static void PixelToNdc(float sx, float sy, float screenW, float screenH, float* 
 {
 	*nx = (sx / screenW) * 2.0f - 1.0f;
 	*ny = 1.0f - (sy / screenH) * 2.0f;
-}
-
-static ID3D11ShaderResourceView* CreateSrvFromNative(DXRender* render, NativeTexture* tex)
-{
-	if (!tex || tex->texels.empty() || !tex->texels[0])
-		return nullptr;
-
-	ID3D11ShaderResourceView* srv = nullptr;
-	HRESULT hr = TextureFactory::CreateSrvFromDxt(
-		render,
-		tex->texels[0],
-		tex->dataSizes[0],
-		tex->width[0],
-		tex->height[0],
-		tex->dxtCompression,
-		&srv);
-	return SUCCEEDED(hr) ? srv : nullptr;
 }
 
 struct CloudVert {
@@ -75,54 +54,6 @@ static void EmitDimQuad(CloudVert* out, int* vertCount,
 		v.r = r; v.g = g; v.b = b; v.a = a;
 	}
 	*vertCount = base + 6;
-}
-
-bool Clouds::LoadSunTexture(DXRender* render, const char* particleTxdPath)
-{
-	FILE* f = fopen(particleTxdPath, "rb");
-	if (!f) {
-		printf("[Error] Clouds: cannot open %s\n", particleTxdPath);
-		return false;
-	}
-
-	fseek(f, 0, SEEK_END);
-	long fileSize = ftell(f);
-	fseek(f, 0, SEEK_SET);
-
-	char* buffer = (char*)malloc(fileSize);
-	if (!buffer) {
-		fclose(f);
-		return false;
-	}
-	fread(buffer, 1, fileSize, f);
-	fclose(f);
-
-	size_t offset = 0;
-	TextureDictionary txd;
-	txd.read(buffer, &offset);
-
-	NativeTexture* found = nullptr;
-	for (size_t t = 0; t < txd.texList.size(); t++) {
-		if (_stricmp(txd.texList[t].name, "coronastar") == 0) {
-			found = &txd.texList[t];
-			break;
-		}
-	}
-	if (!found) {
-		printf("[Error] Clouds: texture 'coronastar' not in particle.txd\n");
-		free(buffer);
-		return false;
-	}
-
-	m_sunTex = CreateSrvFromNative(render, found);
-	free(buffer);
-	if (!m_sunTex) {
-		printf("[Error] Clouds: failed to create SRV for 'coronastar'\n");
-		return false;
-	}
-
-	printf("[Info] Clouds: loaded coronastar (volumetric clouds are procedural)\n");
-	return true;
 }
 
 bool Clouds::CreatePipeline(DXRender* render)
@@ -325,6 +256,8 @@ bool Clouds::CreateTargets(DXRender* render)
 
 bool Clouds::Init(DXRender* render, const char* particleTxdPath)
 {
+	(void)particleTxdPath;
+
 	m_vb = nullptr;
 	m_vsSun = nullptr;
 	m_psSun = nullptr;
@@ -333,7 +266,6 @@ bool Clouds::Init(DXRender* render, const char* particleTxdPath)
 	m_psCloud = nullptr;
 	m_psComposite = nullptr;
 	m_cb = nullptr;
-	m_sunTex = nullptr;
 	m_sampler = nullptr;
 	m_rasterizer = nullptr;
 	m_depthOff = nullptr;
@@ -348,8 +280,6 @@ bool Clouds::Init(DXRender* render, const char* particleTxdPath)
 	m_wind = 0.25f;
 	m_ready = false;
 
-	if (!LoadSunTexture(render, particleTxdPath))
-		return false;
 	if (!CreatePipeline(render))
 		return false;
 	if (!CreateStates(render))
@@ -358,7 +288,7 @@ bool Clouds::Init(DXRender* render, const char* particleTxdPath)
 		return false;
 
 	m_ready = true;
-	printf("[Info] Clouds ready (volumetric half-res)\n");
+	printf("[Info] Clouds ready (volumetric half-res, procedural sun)\n");
 	return true;
 }
 
@@ -366,7 +296,6 @@ void Clouds::Cleanup()
 {
 	m_ready = false;
 	ReleaseTargets();
-	if (m_sunTex) { m_sunTex->Release(); m_sunTex = nullptr; }
 	if (m_vb) { m_vb->Release(); m_vb = nullptr; }
 	if (m_vsSun) { m_vsSun->Release(); m_vsSun = nullptr; }
 	if (m_psSun) { m_psSun->Release(); m_psSun = nullptr; }
@@ -426,10 +355,10 @@ bool Clouds::ProjectGtaPoint(Camera* camera, float gtaX, float gtaY, float gtaZ,
 	return true;
 }
 
-void Clouds::FlushBatch(DXRender* render, ID3D11ShaderResourceView* srv,
-	ID3D11BlendState* blend, CloudVertex* verts, int vertCount)
+void Clouds::FlushBatch(DXRender* render, ID3D11BlendState* blend,
+	CloudVertex* verts, int vertCount)
 {
-	if (vertCount <= 0 || !srv)
+	if (vertCount <= 0)
 		return;
 
 	ID3D11DeviceContext* ctx = render->GetDeviceContext();
@@ -453,8 +382,6 @@ void Clouds::FlushBatch(DXRender* render, ID3D11ShaderResourceView* srv,
 	ctx->IASetVertexBuffers(0, 1, &m_vb, &stride, &offset);
 	ctx->VSSetShader(m_vsSun, nullptr, 0);
 	ctx->PSSetShader(m_psSun, nullptr, 0);
-	ctx->PSSetShaderResources(0, 1, &srv);
-	ctx->PSSetSamplers(0, 1, &m_sampler);
 	ctx->Draw((UINT)vertCount, 0);
 }
 
@@ -473,9 +400,6 @@ void Clouds::DrawFullscreen(ID3D11DeviceContext* ctx)
 void Clouds::RenderSun(DXRender* render, Camera* camera, FXMVECTOR sunDirToward,
 	float screenW, float screenH)
 {
-	if (!m_sunTex)
-		return;
-
 	if (XMVectorGetY(sunDirToward) < -0.2f)
 		return;
 
@@ -493,24 +417,29 @@ void Clouds::RenderSun(DXRender* render, Camera* camera, FXMVECTOR sunDirToward,
 		&sx, &sy, &szx, &szy))
 		return;
 
-	CloudVert verts[12];
+	/* Equal pixel extents → circular disc (szx/szy differ by aspect). */
+	float unit = 0.5f * (szx + szy);
+	/* Extra padding so soft glow dies inside the quad, not on the square edge. */
+	float glowHalf = unit * 36.0f * SUN_SIZE;
+
+	/* Warmer / dimmer near the horizon so additive glow matches sunset. */
+	float elev = XMVectorGetY(sunDirToward);
+	float high = elev > 0.0f ? elev : 0.0f;
+	if (high > 1.0f) high = 1.0f;
+	float warmth = 1.0f - high * 0.35f;
+	float tintR = 1.0f;
+	float tintG = 1.0f - warmth * 0.18f;
+	float tintB = 1.0f - warmth * 0.42f;
+	float intensity = 0.72f + high * 0.35f;
+
+	CloudVert verts[6];
 	int vertCount = 0;
-
-	float coreSize = 10.0f * SUN_SIZE;
 	EmitDimQuad(verts, &vertCount,
-		sx, sy, szx * coreSize, szy * coreSize, 0.0f,
+		sx, sy, glowHalf, glowHalf, 0.0f,
 		screenW, screenH,
-		SUN_CORE_R, SUN_CORE_G, SUN_CORE_B, 1.0f);
+		tintR * intensity, tintG * intensity, tintB * intensity, 1.0f);
 
-	if (XMVectorGetY(sunDirToward) > 0.0f) {
-		float coronaSize = 25.0f * SUN_SIZE;
-		EmitDimQuad(verts, &vertCount,
-			sx, sy, szx * coronaSize, szy * coronaSize, 0.0f,
-			screenW, screenH,
-			SUN_CORONA_R, SUN_CORONA_G, SUN_CORONA_B, 1.0f);
-	}
-
-	FlushBatch(render, m_sunTex, m_blendAdditive,
+	FlushBatch(render, m_blendAdditive,
 		reinterpret_cast<CloudVertex*>(verts), vertCount);
 }
 

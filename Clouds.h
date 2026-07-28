@@ -11,7 +11,7 @@
 using namespace DirectX;
 
 /*
- * Volumetric raymarched cloud slab (half-res) + re3-style sun corona.
+ * Volumetric raymarched cloud slab (half-res) + procedural sun disc/glow.
  * Clouds drawn after sky clear, before world (depth off, alpha over sky).
  */
 class Clouds
@@ -49,13 +49,8 @@ private:
 
 	enum { MAX_QUADS = 8 };
 
+	/* Angular size scale; glow extent is ~28 * SUN_SIZE in projected units. */
 	static constexpr float SUN_SIZE = 2.5f;
-	static constexpr float SUN_CORE_R = 255.0f / 255.0f;
-	static constexpr float SUN_CORE_G = 128.0f / 255.0f;
-	static constexpr float SUN_CORE_B = 0.0f / 255.0f;
-	static constexpr float SUN_CORONA_R = 255.0f / 255.0f;
-	static constexpr float SUN_CORONA_G = 128.0f / 255.0f;
-	static constexpr float SUN_CORONA_B = 0.0f / 255.0f;
 
 	static constexpr float CLOUD_BOTTOM = 140.0f;
 	static constexpr float CLOUD_TOP = 320.0f;
@@ -65,7 +60,6 @@ private:
 	static constexpr float CLOUD_WIND = 12.0f;
 	static constexpr float CLOUD_AMBIENT = 1.15f;
 
-	bool LoadSunTexture(DXRender* render, const char* particleTxdPath);
 	bool CreatePipeline(DXRender* render);
 	bool CreateStates(DXRender* render);
 	bool CreateTargets(DXRender* render);
@@ -79,8 +73,8 @@ private:
 		float screenW, float screenH);
 	void RenderVolumetric(DXRender* render, Camera* camera, FXMVECTOR sunDirToward);
 
-	void FlushBatch(DXRender* render, ID3D11ShaderResourceView* srv,
-		ID3D11BlendState* blend, CloudVertex* verts, int vertCount);
+	void FlushBatch(DXRender* render, ID3D11BlendState* blend,
+		CloudVertex* verts, int vertCount);
 	void DrawFullscreen(ID3D11DeviceContext* ctx);
 
 	ID3D11Buffer* m_vb;
@@ -93,7 +87,6 @@ private:
 	ID3D11PixelShader* m_psComposite;
 	ID3D11Buffer* m_cb;
 
-	ID3D11ShaderResourceView* m_sunTex;
 	ID3D11SamplerState* m_sampler;
 	ID3D11RasterizerState* m_rasterizer;
 	ID3D11DepthStencilState* m_depthOff;
