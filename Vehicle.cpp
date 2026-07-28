@@ -24,6 +24,9 @@ namespace {
 float Minf(float a, float b) { return a < b ? a : b; }
 float Clampf(float v, float lo, float hi) { return v < lo ? lo : (v > hi ? hi : v); }
 
+/* Body origin (COM) sits this far below visual/COL center to resist tip-overs. */
+const float kComDrop = 0.45f;
+
 XMMATRIX FrameLocalGta(Frame* f)
 {
 	return GtaCoords::FrameLocalMatrix(f->GetRotationMatrix(), f->GetPosition());
@@ -78,16 +81,16 @@ bool Vehicle::Init(Model* model, ColModel* col, CollisionWorld* world, IMG* img,
 	m_wheelScale = 0.7f; /* cheetah IDE field */
 
 	m_mass = 1200.0f;
-	m_engineAccel = 16.0f;
-	m_brakeDecel = 11.1f;
+	m_engineAccel = 9.0f;
+	m_brakeDecel = 5.0f;
 	m_steerLock = 30.0f * (float)M_PI / 180.0f;
 	m_suspForce = 2.2f;
-	m_suspDamp = 0.20f;
+	m_suspDamp = 0.28f;
 	m_suspUpper = 0.40f;
 	m_suspLower = 0.54f;
 	m_wheelRadius = 0.5f * m_wheelScale;
-	m_traction = 1.3f;
-	m_maxSpeed = 230.0f * 1000.0f / 3600.0f;
+	m_traction = 0.6f;
+	m_maxSpeed = 200.0f * 1000.0f / 3600.0f;
 
 	m_springLength = fabsf(m_suspUpper - m_suspLower);
 	if (m_springLength < 0.05f)
@@ -567,14 +570,29 @@ void Vehicle::CreateBulletVehicle()
 	start.setOrigin(btVector3(m_posX, m_posY, m_posZ));
 	start.setRotation(btQuaternion(btVector3(0, 1, 0), m_heading));
 
+	/*
+	 * Raise COL relative to body origin so dynamics COM sits lower than the
+	 * visual/collision center — stops brake/turn tip-overs.
+	 */
+	for (int i = 0; i < m_chassisShape->getNumChildShapes(); i++) {
+		btTransform child = m_chassisShape->getChildTransform(i);
+		child.getOrigin() += btVector3(0.0f, kComDrop, 0.0f);
+		m_chassisShape->updateChildTransform(i, child, false);
+	}
+	m_chassisShape->recalculateLocalAabb();
+
 	btVector3 inertia(0, 0, 0);
 	m_chassisShape->calculateLocalInertia(m_mass, inertia);
+	/* Resist pitch/roll; yaw stays more agile. */
+	inertia.setX(inertia.x() * 3.5f);
+	inertia.setY(inertia.y() * 1.8f);
+	inertia.setZ(inertia.z() * 3.5f);
 	m_motionState = new btDefaultMotionState(start);
 	btRigidBody::btRigidBodyConstructionInfo info(m_mass, m_motionState, m_chassisShape, inertia);
 	m_chassisBody = new btRigidBody(info);
 	m_chassisBody->setActivationState(DISABLE_DEACTIVATION);
-	m_chassisBody->setDamping(0.05f, 0.35f);
-	m_chassisBody->setFriction(0.35f);
+	m_chassisBody->setDamping(0.08f, 0.90f);
+	m_chassisBody->setFriction(0.20f);
 	m_chassisBody->setRestitution(0.0f);
 	m_chassisBody->setCcdMotionThreshold(0.05f);
 	m_chassisBody->setCcdSweptSphereRadius(0.4f);
@@ -588,12 +606,12 @@ void Vehicle::CreateBulletVehicle()
 
 	m_vehicleRaycaster = new btDefaultVehicleRaycaster(dyn);
 	btRaycastVehicle::btVehicleTuning tuning;
-	tuning.m_suspensionStiffness = 22.0f + m_suspForce * 24.0f;
-	tuning.m_suspensionCompression = 4.4f;
-	tuning.m_suspensionDamping = 2.6f + m_suspDamp * 10.0f;
-	tuning.m_maxSuspensionTravelCm = 60.0f;
-	tuning.m_frictionSlip = 9.0f + m_traction;
-	tuning.m_maxSuspensionForce = 25000.0f;
+	tuning.m_suspensionStiffness = 28.0f + m_suspForce * 28.0f;
+	tuning.m_suspensionCompression = 5.2f;
+	tuning.m_suspensionDamping = 3.2f + m_suspDamp * 12.0f;
+	tuning.m_maxSuspensionTravelCm = 28.0f;
+	tuning.m_frictionSlip = 4.2f + m_traction;
+	tuning.m_maxSuspensionForce = 9000.0f;
 
 	m_rayVehicle = new btRaycastVehicle(tuning, m_chassisBody, m_vehicleRaycaster);
 	m_rayVehicle->setCoordinateSystem(0, 1, 2); /* X right, Y up, Z forward */
@@ -612,7 +630,7 @@ void Vehicle::CreateBulletVehicle()
 	for (int i = 0; i < WHEEL_COUNT; i++) {
 		btVector3 connection(
 			m_wheelLocal[i].x,
-			m_wheelLocal[i].y + restLen,
+			m_wheelLocal[i].y + restLen + kComDrop,
 			m_wheelLocal[i].z);
 		m_rayVehicle->addWheel(
 			connection, wheelDir, wheelAxle,
@@ -625,7 +643,7 @@ void Vehicle::CreateBulletVehicle()
 		wi.m_wheelsDampingRelaxation = tuning.m_suspensionDamping;
 		wi.m_wheelsDampingCompression = tuning.m_suspensionCompression;
 		wi.m_frictionSlip = tuning.m_frictionSlip;
-		wi.m_rollInfluence = 0.1f;
+		wi.m_rollInfluence = 0.02f;
 		wi.m_maxSuspensionForce = tuning.m_maxSuspensionForce;
 		wi.m_maxSuspensionTravelCm = tuning.m_maxSuspensionTravelCm;
 	}
@@ -736,8 +754,8 @@ void Vehicle::Update(float dt, float throttle, float steer, bool handbrake)
 	ProcessControlInputs(throttle, steer, handbrake);
 
 	if (m_rayVehicle) {
-		float engineForce = m_gasPedal * m_engineAccel * m_mass * 0.90f;
-		float brakeForce = m_brakePedal * m_brakeDecel * m_mass * 0.35f;
+		float engineForce = m_gasPedal * m_engineAccel * m_mass * 0.55f;
+		float brakeForce = m_brakePedal * m_brakeDecel * m_mass * 0.12f;
 
 		/* Cheetah is RWD. */
 		m_rayVehicle->applyEngineForce(engineForce, WHEEL_RL);
@@ -748,19 +766,36 @@ void Vehicle::Update(float dt, float throttle, float steer, bool handbrake)
 		m_rayVehicle->setSteeringValue(m_steerAngle, WHEEL_FL);
 		m_rayVehicle->setSteeringValue(m_steerAngle, WHEEL_FR);
 
-		m_rayVehicle->setBrake(brakeForce * 0.4f, WHEEL_FL);
-		m_rayVehicle->setBrake(brakeForce * 0.4f, WHEEL_FR);
-		m_rayVehicle->setBrake(brakeForce, WHEEL_RL);
-		m_rayVehicle->setBrake(brakeForce, WHEEL_RR);
+		/* Front-biased brakes — rear-heavy bias lifts the rear under hard stop. */
+		m_rayVehicle->setBrake(brakeForce, WHEEL_FL);
+		m_rayVehicle->setBrake(brakeForce, WHEEL_FR);
+		m_rayVehicle->setBrake(brakeForce * 0.30f, WHEEL_RL);
+		m_rayVehicle->setBrake(brakeForce * 0.30f, WHEEL_RR);
 
-		/* Soft speed cap. */
-		float speed = sqrtf(m_velX * m_velX + m_velZ * m_velZ);
-		if (speed > m_maxSpeed && m_chassisBody) {
-			float scale = m_maxSpeed / speed;
-			btVector3 lv = m_chassisBody->getLinearVelocity();
-			lv.setX(lv.x() * scale);
-			lv.setZ(lv.z() * scale);
-			m_chassisBody->setLinearVelocity(lv);
+		if (m_chassisBody) {
+			/* Soft speed cap. */
+			float speed = sqrtf(m_velX * m_velX + m_velZ * m_velZ);
+			if (speed > m_maxSpeed) {
+				float scale = m_maxSpeed / speed;
+				btVector3 lv = m_chassisBody->getLinearVelocity();
+				lv.setX(lv.x() * scale);
+				lv.setZ(lv.z() * scale);
+				m_chassisBody->setLinearVelocity(lv);
+			}
+
+			/* Cap local pitch/roll so sticky wheel forces can't cartwheel the chassis. */
+			btTransform wt = m_chassisBody->getWorldTransform();
+			btVector3 avWorld = m_chassisBody->getAngularVelocity();
+			btVector3 avLocal = wt.getBasis().transpose() * avWorld;
+			const float maxPitchRoll = 1.4f;
+			const float maxYaw = 2.6f;
+			if (avLocal.x() > maxPitchRoll) avLocal.setX(maxPitchRoll);
+			if (avLocal.x() < -maxPitchRoll) avLocal.setX(-maxPitchRoll);
+			if (avLocal.z() > maxPitchRoll) avLocal.setZ(maxPitchRoll);
+			if (avLocal.z() < -maxPitchRoll) avLocal.setZ(-maxPitchRoll);
+			if (avLocal.y() > maxYaw) avLocal.setY(maxYaw);
+			if (avLocal.y() < -maxYaw) avLocal.setY(-maxYaw);
+			m_chassisBody->setAngularVelocity(wt.getBasis() * avLocal);
 		}
 	}
 
@@ -796,15 +831,20 @@ void Vehicle::Render(DXRender* render, MeshRenderContext& ctx)
 	}
 
 	/* Same chassis matrix as Model::SetPosition — keep wheels glued to the body. */
+	XMVECTOR comLift = XMVector3Rotate(XMVectorSet(0.0f, kComDrop, 0.0f, 0.0f), XMVectorSet(qx, qy, qz, qw));
+	float drawX = m_posX + XMVectorGetX(comLift);
+	float drawY = m_posY + XMVectorGetY(comLift);
+	float drawZ = m_posZ + XMVectorGetZ(comLift);
+
 	XMMATRIX chassisXm =
 		XMMatrixRotationQuaternion(XMVectorSet(qx, qy, qz, qw)) *
-		XMMatrixTranslation(m_posX, m_posY, m_posZ);
+		XMMatrixTranslation(drawX, drawY, drawZ);
 
 	/* Vehicle body + wheels: follow global F1 wireframe (and per-vehicle flag). */
 	render->SetVehicleRasterizer(m_wireframe || render->IsWireframe());
 
 	m_model->SetPosition(
-		m_posX, m_posY, m_posZ,
+		drawX, drawY, drawZ,
 		1.0f, 1.0f, 1.0f,
 		qx, qy, qz, qw);
 	m_model->Render(render, ctx);
@@ -851,7 +891,17 @@ void Vehicle::Render(DXRender* render, MeshRenderContext& ctx)
 
 XMVECTOR Vehicle::GetPosition() const
 {
-	return XMVectorSet(m_posX, m_posY, m_posZ, 0.0f);
+	/* Visual center sits kComDrop above physics COM. */
+	if (m_chassisBody) {
+		btTransform t;
+		if (m_motionState)
+			m_motionState->getWorldTransform(t);
+		else
+			t = m_chassisBody->getWorldTransform();
+		btVector3 up = t.getBasis().getColumn(1) * kComDrop;
+		return XMVectorSet(m_posX + up.x(), m_posY + up.y(), m_posZ + up.z(), 0.0f);
+	}
+	return XMVectorSet(m_posX, m_posY + kComDrop, m_posZ, 0.0f);
 }
 
 void Vehicle::SetPosition(float x, float y, float z)
@@ -882,7 +932,7 @@ bool Vehicle::PlaceOnGround()
 	for (int i = 0; i < WHEEL_COUNT; i++)
 		hubY += m_wheelLocal[i].y;
 	hubY *= 0.25f;
-	float y = groundY + m_wheelRadius - hubY + 0.12f;
+	float y = groundY + m_wheelRadius - hubY + 0.12f - kComDrop;
 	WarpChassis(m_posX, y, m_posZ);
 	return true;
 }
