@@ -1,5 +1,6 @@
 #include "Clouds.h"
 #include "graphics/TextureFactory.h"
+#include "core/GameConfig.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -8,64 +9,7 @@
 
 #include "renderware.h"
 
-enum { CLOUD_MAX_QUADS = 64 };
-enum { CLOUD_TEX_COUNT = 6 };
-
-/* Midday / sunny from DATA/TIMECYC.DAT (WORLD_HOUR ≈ 12). */
-static const float kLowR = 120.0f / 255.0f;
-static const float kLowG = 100.0f / 255.0f;
-static const float kLowB = 100.0f / 255.0f;
-static const float kTopR = 1.0f;
-static const float kTopG = 1.0f;
-static const float kTopB = 1.0f;
-static const float kBotR = 180.0f / 255.0f;
-static const float kBotG = 1.0f;
-static const float kBotB = 1.0f;
-
-/* re3 Clouds.cpp placement tables */
-static const float LowCloudsX[12] = {
-	1.0f, 0.7f, 0.0f, -0.7f, -1.0f, -0.7f, 0.0f, 0.7f, 0.8f, -0.8f, 0.4f, -0.4f
-};
-static const float LowCloudsY[12] = {
-	0.0f, -0.7f, -1.0f, -0.7f, 0.0f, 0.7f, 1.0f, 0.7f, 0.4f, 0.4f, -0.8f, -0.8f
-};
-static const float LowCloudsZ[12] = {
-	0.0f, 1.0f, 0.5f, 0.0f, 1.0f, 0.3f, 0.9f, 0.4f, 1.3f, 1.4f, 1.2f, 1.7f
-};
-
-static const float CoorsOffsetX[37] = {
-	0.0f, 60.0f, 72.0f, 48.0f, 21.0f, 12.0f,
-	9.0f, -3.0f, -8.4f, -18.0f, -15.0f, -36.0f,
-	-40.0f, -48.0f, -60.0f, -24.0f, 100.0f, 100.0f,
-	100.0f, 100.0f, 100.0f, 100.0f, 100.0f, 100.0f,
-	100.0f, 100.0f, -30.0f, -20.0f, 10.0f, 30.0f,
-	0.0f, -100.0f, -100.0f, -100.0f, -100.0f, -100.0f, -100.0f
-};
-static const float CoorsOffsetY[37] = {
-	100.0f, 100.0f, 100.0f, 100.0f, 100.0f, 100.0f,
-	100.0f, 100.0f, 100.0f, 100.0f, 100.0f, 100.0f,
-	100.0f, 100.0f, 100.0f, 100.0f, -30.0f, 10.0f,
-	-25.0f, -5.0f, 28.0f, -10.0f, 10.0f, 0.0f,
-	15.0f, 40.0f, -100.0f, -100.0f, -100.0f, -100.0f,
-	-100.0f, -40.0f, -20.0f, 0.0f, 10.0f, 30.0f, 35.0f
-};
-static const float CoorsOffsetZ[37] = {
-	2.0f, 1.0f, 0.0f, 0.3f, 0.7f, 1.4f,
-	1.7f, 0.24f, 0.7f, 1.3f, 1.6f, 1.0f,
-	1.2f, 0.3f, 0.7f, 1.4f, 0.0f, 0.1f,
-	0.5f, 0.4f, 0.55f, 0.75f, 1.0f, 1.4f,
-	1.7f, 2.0f, 2.0f, 2.3f, 1.9f, 2.4f,
-	2.0f, 2.0f, 1.5f, 1.2f, 1.7f, 1.5f, 2.1f
-};
-
-static const char* kCloudTexNames[CLOUD_TEX_COUNT] = {
-	"cloud1", "cloud2", "cloud3", "cloudhilit", "cloudmasked", "coronastar"
-};
-
-static float Clampf(float v, float lo, float hi)
-{
-	return v < lo ? lo : (v > hi ? hi : v);
-}
+enum { CLOUD_MAX_QUADS = 8 };
 
 static void PixelToNdc(float sx, float sy, float screenW, float screenH, float* nx, float* ny)
 {
@@ -133,57 +77,7 @@ static void EmitDimQuad(CloudVert* out, int* vertCount,
 	*vertCount = base + 6;
 }
 
-static void EmitAspect2ColQuad(CloudVert* out, int* vertCount,
-	float sx, float sy, float halfW, float halfH, float rotation,
-	float screenW, float screenH,
-	float r1, float g1, float b1, float r2, float g2, float b2, float a)
-{
-	float c = cosf(rotation);
-	float s = sinf(rotation);
-	float xs[4], ys[4], us[4], vs[4], cf[4];
-	xs[0] = sx + halfW * (-c - s); us[0] = 0.0f; vs[0] = 0.0f;
-	xs[1] = sx + halfW * (-c + s); us[1] = 0.0f; vs[1] = 1.0f;
-	xs[2] = sx + halfW * (+c + s); us[2] = 1.0f; vs[2] = 1.0f;
-	xs[3] = sx + halfW * (+c - s); us[3] = 1.0f; vs[3] = 0.0f;
-	ys[0] = sy + halfH * (-c + s);
-	ys[1] = sy + halfH * (+c + s);
-	ys[2] = sy + halfH * (+c - s);
-	ys[3] = sy + halfH * (-c - s);
-
-	if (xs[0] < 0 && xs[1] < 0 && xs[2] < 0 && xs[3] < 0) return;
-	if (ys[0] < 0 && ys[1] < 0 && ys[2] < 0 && ys[3] < 0) return;
-	if (xs[0] > screenW && xs[1] > screenW && xs[2] > screenW && xs[3] > screenW) return;
-	if (ys[0] > screenH && ys[1] > screenH && ys[2] > screenH && ys[3] > screenH) return;
-
-	const float cx = 0.0f;
-	const float cy = -1.0f;
-	cf[0] = Clampf((cx * (-c - s) + cy * (-c + s)) * 0.5f + 0.5f, 0.0f, 1.0f);
-	cf[1] = Clampf((cx * (-c + s) + cy * (c + s)) * 0.5f + 0.5f, 0.0f, 1.0f);
-	cf[2] = Clampf((cx * (c + s) + cy * (c - s)) * 0.5f + 0.5f, 0.0f, 1.0f);
-	cf[3] = Clampf((cx * (c - s) + cy * (-c - s)) * 0.5f + 0.5f, 0.0f, 1.0f);
-
-	int base = *vertCount;
-	if (base + 6 > CLOUD_MAX_QUADS * 6)
-		return;
-
-	static const int idx[6] = { 0, 1, 2, 0, 2, 3 };
-	for (int i = 0; i < 6; i++) {
-		int k = idx[i];
-		float f = cf[k];
-		float nx, ny;
-		PixelToNdc(xs[k], ys[k], screenW, screenH, &nx, &ny);
-		CloudVert& v = out[base + i];
-		v.x = nx; v.y = ny;
-		v.u = us[k]; v.v = vs[k];
-		v.r = r1 * f + r2 * (1.0f - f);
-		v.g = g1 * f + g2 * (1.0f - f);
-		v.b = b1 * f + b2 * (1.0f - f);
-		v.a = a;
-	}
-	*vertCount = base + 6;
-}
-
-bool Clouds::LoadTextures(DXRender* render, const char* particleTxdPath)
+bool Clouds::LoadSunTexture(DXRender* render, const char* particleTxdPath)
 {
 	FILE* f = fopen(particleTxdPath, "rb");
 	if (!f) {
@@ -207,30 +101,27 @@ bool Clouds::LoadTextures(DXRender* render, const char* particleTxdPath)
 	TextureDictionary txd;
 	txd.read(buffer, &offset);
 
-	for (int i = 0; i < TEX_COUNT; i++) {
-		m_textures[i] = nullptr;
-		NativeTexture* found = nullptr;
-		for (size_t t = 0; t < txd.texList.size(); t++) {
-			if (_stricmp(txd.texList[t].name, kCloudTexNames[i]) == 0) {
-				found = &txd.texList[t];
-				break;
-			}
-		}
-		if (!found) {
-			printf("[Error] Clouds: texture '%s' not in particle.txd\n", kCloudTexNames[i]);
-			free(buffer);
-			return false;
-		}
-		m_textures[i] = CreateSrvFromNative(render, found);
-		if (!m_textures[i]) {
-			printf("[Error] Clouds: failed to create SRV for '%s'\n", kCloudTexNames[i]);
-			free(buffer);
-			return false;
+	NativeTexture* found = nullptr;
+	for (size_t t = 0; t < txd.texList.size(); t++) {
+		if (_stricmp(txd.texList[t].name, "coronastar") == 0) {
+			found = &txd.texList[t];
+			break;
 		}
 	}
+	if (!found) {
+		printf("[Error] Clouds: texture 'coronastar' not in particle.txd\n");
+		free(buffer);
+		return false;
+	}
 
+	m_sunTex = CreateSrvFromNative(render, found);
 	free(buffer);
-	printf("[Info] Clouds: loaded cloud1/2/3, cloudhilit, cloudmasked, coronastar\n");
+	if (!m_sunTex) {
+		printf("[Error] Clouds: failed to create SRV for 'coronastar'\n");
+		return false;
+	}
+
+	printf("[Info] Clouds: loaded coronastar (volumetric clouds are procedural)\n");
 	return true;
 }
 
@@ -244,7 +135,7 @@ bool Clouds::CreatePipeline(DXRender* render)
 	}
 
 	hr = render->GetDevice()->CreateVertexShader(
-		vsBlob->GetBufferPointer(), vsBlob->GetBufferSize(), nullptr, &m_vs);
+		vsBlob->GetBufferPointer(), vsBlob->GetBufferSize(), nullptr, &m_vsSun);
 	if (FAILED(hr)) {
 		vsBlob->Release();
 		return false;
@@ -262,13 +153,46 @@ bool Clouds::CreatePipeline(DXRender* render)
 		return false;
 
 	ID3DBlob* psBlob = nullptr;
+	hr = D3DReadFileToBlob(L"cloud_sun_ps.cso", &psBlob);
+	if (FAILED(hr)) {
+		printf("[Error] Clouds: cannot read cloud_sun_ps.cso\n");
+		return false;
+	}
+	hr = render->GetDevice()->CreatePixelShader(
+		psBlob->GetBufferPointer(), psBlob->GetBufferSize(), nullptr, &m_psSun);
+	psBlob->Release();
+	if (FAILED(hr))
+		return false;
+
+	hr = D3DReadFileToBlob(L"ssao_vs.cso", &psBlob);
+	if (FAILED(hr)) {
+		printf("[Error] Clouds: cannot read ssao_vs.cso\n");
+		return false;
+	}
+	hr = render->GetDevice()->CreateVertexShader(
+		psBlob->GetBufferPointer(), psBlob->GetBufferSize(), nullptr, &m_vsCloud);
+	psBlob->Release();
+	if (FAILED(hr))
+		return false;
+
 	hr = D3DReadFileToBlob(L"cloud_ps.cso", &psBlob);
 	if (FAILED(hr)) {
 		printf("[Error] Clouds: cannot read cloud_ps.cso\n");
 		return false;
 	}
 	hr = render->GetDevice()->CreatePixelShader(
-		psBlob->GetBufferPointer(), psBlob->GetBufferSize(), nullptr, &m_ps);
+		psBlob->GetBufferPointer(), psBlob->GetBufferSize(), nullptr, &m_psCloud);
+	psBlob->Release();
+	if (FAILED(hr))
+		return false;
+
+	hr = D3DReadFileToBlob(L"cloud_composite_ps.cso", &psBlob);
+	if (FAILED(hr)) {
+		printf("[Error] Clouds: cannot read cloud_composite_ps.cso\n");
+		return false;
+	}
+	hr = render->GetDevice()->CreatePixelShader(
+		psBlob->GetBufferPointer(), psBlob->GetBufferSize(), nullptr, &m_psComposite);
 	psBlob->Release();
 	if (FAILED(hr))
 		return false;
@@ -280,6 +204,15 @@ bool Clouds::CreatePipeline(DXRender* render)
 	vbd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
 	vbd.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
 	hr = render->GetDevice()->CreateBuffer(&vbd, nullptr, &m_vb);
+	if (FAILED(hr))
+		return false;
+
+	D3D11_BUFFER_DESC cbd;
+	ZeroMemory(&cbd, sizeof(cbd));
+	cbd.ByteWidth = sizeof(CloudsCB);
+	cbd.Usage = D3D11_USAGE_DEFAULT;
+	cbd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+	hr = render->GetDevice()->CreateBuffer(&cbd, nullptr, &m_cb);
 	return SUCCEEDED(hr);
 }
 
@@ -341,78 +274,125 @@ bool Clouds::CreateStates(DXRender* render)
 	alpha.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
 	alpha.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
 	hr = render->GetDevice()->CreateBlendState(&alpha, &m_blendAlpha);
+	if (FAILED(hr))
+		return false;
+
+	D3D11_BLEND_DESC opaque;
+	ZeroMemory(&opaque, sizeof(opaque));
+	opaque.RenderTarget[0].BlendEnable = FALSE;
+	opaque.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+	hr = render->GetDevice()->CreateBlendState(&opaque, &m_blendOpaque);
+	return SUCCEEDED(hr);
+}
+
+void Clouds::ReleaseTargets()
+{
+	if (m_cloudSRV) { m_cloudSRV->Release(); m_cloudSRV = nullptr; }
+	if (m_cloudRTV) { m_cloudRTV->Release(); m_cloudRTV = nullptr; }
+	if (m_cloudTex) { m_cloudTex->Release(); m_cloudTex = nullptr; }
+	m_fullW = m_fullH = m_halfW = m_halfH = 0;
+}
+
+bool Clouds::CreateTargets(DXRender* render)
+{
+	ReleaseTargets();
+
+	m_fullW = render->GetBackBufferWidth();
+	m_fullH = render->GetBackBufferHeight();
+	m_halfW = (m_fullW > 1) ? (m_fullW / 2) : 1;
+	m_halfH = (m_fullH > 1) ? (m_fullH / 2) : 1;
+
+	D3D11_TEXTURE2D_DESC td;
+	ZeroMemory(&td, sizeof(td));
+	td.Width = m_halfW;
+	td.Height = m_halfH;
+	td.MipLevels = 1;
+	td.ArraySize = 1;
+	td.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+	td.SampleDesc.Count = 1;
+	td.Usage = D3D11_USAGE_DEFAULT;
+	td.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
+
+	HRESULT hr = render->GetDevice()->CreateTexture2D(&td, nullptr, &m_cloudTex);
+	if (FAILED(hr))
+		return false;
+	hr = render->GetDevice()->CreateRenderTargetView(m_cloudTex, nullptr, &m_cloudRTV);
+	if (FAILED(hr))
+		return false;
+	hr = render->GetDevice()->CreateShaderResourceView(m_cloudTex, nullptr, &m_cloudSRV);
 	return SUCCEEDED(hr);
 }
 
 bool Clouds::Init(DXRender* render, const char* particleTxdPath)
 {
 	m_vb = nullptr;
-	m_vs = nullptr;
-	m_ps = nullptr;
+	m_vsSun = nullptr;
+	m_psSun = nullptr;
 	m_layout = nullptr;
+	m_vsCloud = nullptr;
+	m_psCloud = nullptr;
+	m_psComposite = nullptr;
+	m_cb = nullptr;
+	m_sunTex = nullptr;
 	m_sampler = nullptr;
 	m_rasterizer = nullptr;
 	m_depthOff = nullptr;
 	m_blendAdditive = nullptr;
 	m_blendAlpha = nullptr;
-	for (int i = 0; i < TEX_COUNT; i++)
-		m_textures[i] = nullptr;
-	m_cloudRotation = 0.0f;
-	m_individualRotation = 0;
-	m_cameraRoll = 0.0f;
+	m_blendOpaque = nullptr;
+	m_cloudTex = nullptr;
+	m_cloudRTV = nullptr;
+	m_cloudSRV = nullptr;
+	m_fullW = m_fullH = m_halfW = m_halfH = 0;
+	m_time = 0.0f;
 	m_wind = 0.25f;
 	m_ready = false;
 
-	if (!LoadTextures(render, particleTxdPath))
+	if (!LoadSunTexture(render, particleTxdPath))
 		return false;
 	if (!CreatePipeline(render))
 		return false;
 	if (!CreateStates(render))
 		return false;
+	if (!CreateTargets(render))
+		return false;
 
 	m_ready = true;
-	printf("[Info] Clouds ready (re3 miami style)\n");
+	printf("[Info] Clouds ready (volumetric half-res)\n");
 	return true;
 }
 
 void Clouds::Cleanup()
 {
 	m_ready = false;
-	for (int i = 0; i < TEX_COUNT; i++) {
-		if (m_textures[i]) {
-			m_textures[i]->Release();
-			m_textures[i] = nullptr;
-		}
-	}
+	ReleaseTargets();
+	if (m_sunTex) { m_sunTex->Release(); m_sunTex = nullptr; }
 	if (m_vb) { m_vb->Release(); m_vb = nullptr; }
-	if (m_vs) { m_vs->Release(); m_vs = nullptr; }
-	if (m_ps) { m_ps->Release(); m_ps = nullptr; }
+	if (m_vsSun) { m_vsSun->Release(); m_vsSun = nullptr; }
+	if (m_psSun) { m_psSun->Release(); m_psSun = nullptr; }
 	if (m_layout) { m_layout->Release(); m_layout = nullptr; }
+	if (m_vsCloud) { m_vsCloud->Release(); m_vsCloud = nullptr; }
+	if (m_psCloud) { m_psCloud->Release(); m_psCloud = nullptr; }
+	if (m_psComposite) { m_psComposite->Release(); m_psComposite = nullptr; }
+	if (m_cb) { m_cb->Release(); m_cb = nullptr; }
 	if (m_sampler) { m_sampler->Release(); m_sampler = nullptr; }
 	if (m_rasterizer) { m_rasterizer->Release(); m_rasterizer = nullptr; }
 	if (m_depthOff) { m_depthOff->Release(); m_depthOff = nullptr; }
 	if (m_blendAdditive) { m_blendAdditive->Release(); m_blendAdditive = nullptr; }
 	if (m_blendAlpha) { m_blendAlpha->Release(); m_blendAlpha = nullptr; }
+	if (m_blendOpaque) { m_blendOpaque->Release(); m_blendOpaque = nullptr; }
 }
 
 void Clouds::Update(float dt, Camera* camera)
 {
-	if (!m_ready || !camera)
+	(void)camera;
+	if (!m_ready)
 		return;
 
-	float timestep = dt * 30.0f;
+	float timestep = dt;
 	if (timestep < 0.0f) timestep = 0.0f;
-	if (timestep > 3.0f) timestep = 3.0f;
-
-	XMMATRIX view = camera->GetView();
-	float fx = XMVectorGetZ(view.r[0]);
-	float fz = XMVectorGetZ(view.r[2]);
-	float orientation = atan2f(-fx, fz);
-
-	float s = sinf(orientation - 0.85f);
-	m_cloudRotation += m_wind * s * 0.001f * timestep;
-	m_individualRotation += (uint32_t)((m_wind * timestep * 0.5f + 0.3f * timestep) * 60.0f);
-	m_cameraRoll = 0.0f;
+	if (timestep > 0.1f) timestep = 0.1f;
+	m_time += timestep;
 }
 
 bool Clouds::ProjectGtaPoint(Camera* camera, float gtaX, float gtaY, float gtaZ,
@@ -471,30 +451,39 @@ void Clouds::FlushBatch(DXRender* render, ID3D11ShaderResourceView* srv,
 	UINT stride = sizeof(CloudVertex);
 	UINT offset = 0;
 	ctx->IASetVertexBuffers(0, 1, &m_vb, &stride, &offset);
-	ctx->VSSetShader(m_vs, nullptr, 0);
-	ctx->PSSetShader(m_ps, nullptr, 0);
+	ctx->VSSetShader(m_vsSun, nullptr, 0);
+	ctx->PSSetShader(m_psSun, nullptr, 0);
 	ctx->PSSetShaderResources(0, 1, &srv);
 	ctx->PSSetSamplers(0, 1, &m_sampler);
 	ctx->Draw((UINT)vertCount, 0);
 }
 
+void Clouds::DrawFullscreen(ID3D11DeviceContext* ctx)
+{
+	ctx->IASetInputLayout(nullptr);
+	ctx->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	UINT stride = 0, offset = 0;
+	ID3D11Buffer* nullVB = nullptr;
+	ctx->IASetVertexBuffers(0, 1, &nullVB, &stride, &offset);
+	ctx->IASetIndexBuffer(nullptr, DXGI_FORMAT_R32_UINT, 0);
+	ctx->VSSetShader(m_vsCloud, nullptr, 0);
+	ctx->Draw(3, 0);
+}
+
 void Clouds::RenderSun(DXRender* render, Camera* camera, FXMVECTOR sunDirToward,
 	float screenW, float screenH)
 {
-	if (!m_textures[TEX_CORONASTAR])
+	if (!m_sunTex)
 		return;
 
-	/* re3: only draw while sun is above a shallow dip below the horizon. */
 	if (XMVectorGetY(sunDirToward) < -0.2f)
 		return;
 
 	XMVECTOR cam = camera->GetPosition();
-	/* re3 DoSunAndMoon: camera + sunDir * 150 */
 	XMVECTOR sunWorld = XMVectorAdd(cam, XMVectorScale(sunDirToward, 150.0f));
 	float engX = XMVectorGetX(sunWorld);
 	float engY = XMVectorGetY(sunWorld);
 	float engZ = XMVectorGetZ(sunWorld);
-	/* ProjectGtaPoint expects GTA (x,y,z) with z-up → engine (x, z, y). */
 	float gtaX = engX;
 	float gtaY = engZ;
 	float gtaZ = engY;
@@ -507,14 +496,12 @@ void Clouds::RenderSun(DXRender* render, Camera* camera, FXMVECTOR sunDirToward,
 	CloudVert verts[12];
 	int vertCount = 0;
 
-	/* SUN_CORE ≈ (10 + jitter) * SunSz — skip jitter for a stable disc. */
 	float coreSize = 10.0f * SUN_SIZE;
 	EmitDimQuad(verts, &vertCount,
 		sx, sy, szx * coreSize, szy * coreSize, 0.0f,
 		screenW, screenH,
 		SUN_CORE_R, SUN_CORE_G, SUN_CORE_B, 1.0f);
 
-	/* SUN_CORONA ≈ 25 * SunSz — larger soft halo, same coronastar. */
 	if (XMVectorGetY(sunDirToward) > 0.0f) {
 		float coronaSize = 25.0f * SUN_SIZE;
 		EmitDimQuad(verts, &vertCount,
@@ -523,8 +510,87 @@ void Clouds::RenderSun(DXRender* render, Camera* camera, FXMVECTOR sunDirToward,
 			SUN_CORONA_R, SUN_CORONA_G, SUN_CORONA_B, 1.0f);
 	}
 
-	FlushBatch(render, m_textures[TEX_CORONASTAR], m_blendAdditive,
+	FlushBatch(render, m_sunTex, m_blendAdditive,
 		reinterpret_cast<CloudVertex*>(verts), vertCount);
+}
+
+void Clouds::RenderVolumetric(DXRender* render, Camera* camera, FXMVECTOR sunDirToward)
+{
+	UINT w = render->GetBackBufferWidth();
+	UINT h = render->GetBackBufferHeight();
+	if (w != m_fullW || h != m_fullH) {
+		if (!CreateTargets(render))
+			return;
+	}
+	if (!m_cloudRTV || !m_cloudSRV)
+		return;
+
+	ID3D11DeviceContext* ctx = render->GetDeviceContext();
+
+	XMMATRIX view = camera->GetView();
+	XMMATRIX proj = camera->GetProjection();
+	XMMATRIX viewProj = XMMatrixMultiply(view, proj);
+	XMMATRIX invViewProj = XMMatrixInverse(nullptr, viewProj);
+
+	CloudsCB cb;
+	XMStoreFloat4x4(&cb.InvViewProj, XMMatrixTranspose(invViewProj));
+
+	XMVECTOR cam = camera->GetPosition();
+	cb.CamPos = XMFLOAT3(XMVectorGetX(cam), XMVectorGetY(cam), XMVectorGetZ(cam));
+	cb.Time = m_time;
+
+	XMFLOAT3 sun;
+	XMStoreFloat3(&sun, XMVector3Normalize(sunDirToward));
+	cb.SunDir = sun;
+	cb.Coverage = CLOUD_COVERAGE;
+
+	cb.SkyColor = XMFLOAT3(SKY_COLOR_R, SKY_COLOR_G, SKY_COLOR_B);
+	cb.DensityMult = CLOUD_DENSITY;
+	cb.CloudSilver = XMFLOAT3(1.15f, 1.08f, 0.98f);
+	cb.Absorption = CLOUD_ABSORPTION;
+	cb.CloudBottom = CLOUD_BOTTOM;
+	cb.CloudTop = CLOUD_TOP;
+	cb.WindSpeed = CLOUD_WIND * (0.5f + m_wind);
+	cb.Ambient = CLOUD_AMBIENT;
+
+	ctx->UpdateSubresource(m_cb, 0, nullptr, &cb, 0, 0);
+
+	float bf[4] = { 0, 0, 0, 0 };
+	ctx->OMSetDepthStencilState(m_depthOff, 0);
+	ctx->RSSetState(m_rasterizer);
+	ctx->VSSetConstantBuffers(0, 1, &m_cb);
+	ctx->PSSetConstantBuffers(0, 1, &m_cb);
+
+	/* ---- Half-res raymarch ---- */
+	D3D11_VIEWPORT halfVP;
+	halfVP.TopLeftX = 0.0f;
+	halfVP.TopLeftY = 0.0f;
+	halfVP.Width = (float)m_halfW;
+	halfVP.Height = (float)m_halfH;
+	halfVP.MinDepth = 0.0f;
+	halfVP.MaxDepth = 1.0f;
+	ctx->RSSetViewports(1, &halfVP);
+
+	float clearCloud[4] = { 0, 0, 0, 0 };
+	ctx->OMSetRenderTargets(1, &m_cloudRTV, nullptr);
+	ctx->ClearRenderTargetView(m_cloudRTV, clearCloud);
+	ctx->OMSetBlendState(m_blendOpaque, bf, 0xffffffff);
+	ctx->PSSetShader(m_psCloud, nullptr, 0);
+	DrawFullscreen(ctx);
+
+	/* ---- Upsample + alpha blend onto scene ---- */
+	ID3D11ShaderResourceView* nullSRV = nullptr;
+	ctx->PSSetShaderResources(0, 1, &nullSRV);
+	render->RestoreMainTargets();
+	ctx->OMSetDepthStencilState(m_depthOff, 0);
+	ctx->RSSetState(m_rasterizer);
+	ctx->OMSetBlendState(m_blendAlpha, bf, 0xffffffff);
+	ctx->PSSetShader(m_psComposite, nullptr, 0);
+	ctx->PSSetShaderResources(0, 1, &m_cloudSRV);
+	ctx->PSSetSamplers(0, 1, &m_sampler);
+	DrawFullscreen(ctx);
+
+	ctx->PSSetShaderResources(0, 1, &nullSRV);
 }
 
 void Clouds::Render(DXRender* render, Camera* camera, FXMVECTOR sunDirToward, bool drawClouds)
@@ -537,71 +603,12 @@ void Clouds::Render(DXRender* render, Camera* camera, FXMVECTOR sunDirToward, bo
 	if (screenW < 1.0f || screenH < 1.0f)
 		return;
 
-	XMVECTOR cam = camera->GetPosition();
-	float camGtaX = XMVectorGetX(cam);
-	float camGtaY = XMVectorGetZ(cam);
-
-	/* CloudVertex layout matches CloudVert */
 	static_assert(sizeof(CloudVertex) == sizeof(CloudVert), "cloud vertex layout");
 
 	RenderSun(render, camera, sunDirToward, screenW, screenH);
 
-	if (!drawClouds) {
-		render->SetOpaqueState();
-		render->ApplyRasterizerState();
-		return;
-	}
-
-	CloudVert verts[CLOUD_MAX_QUADS * 6];
-	int vertCount = 0;
-
-	for (int cloudtype = 0; cloudtype < 3; cloudtype++) {
-		vertCount = 0;
-		for (int i = cloudtype; i < 12; i += 3) {
-			float gtaX = camGtaX + 800.0f * LowCloudsX[i];
-			float gtaY = camGtaY + 800.0f * LowCloudsY[i];
-			float gtaZ = 40.0f + 60.0f * LowCloudsZ[i];
-
-			float sx, sy, szx, szy;
-			if (!ProjectGtaPoint(camera, gtaX, gtaY, gtaZ, screenW, screenH,
-				&sx, &sy, &szx, &szy))
-				continue;
-
-			EmitDimQuad(verts, &vertCount,
-				sx, sy, szx * 320.0f, szy * 40.0f, m_cameraRoll,
-				screenW, screenH,
-				kLowR, kLowG, kLowB, 1.0f);
-		}
-		FlushBatch(render, m_textures[cloudtype], m_blendAdditive,
-			reinterpret_cast<CloudVertex*>(verts), vertCount);
-	}
-
-	float rotSin = sinf(m_cloudRotation);
-	float rotCos = cosf(m_cloudRotation);
-	float fluffyAlpha = 160.0f / 255.0f;
-	float spin = ((m_individualRotation & 0xFFFFu) / 65336.0f) * 6.28f + m_cameraRoll;
-
-	vertCount = 0;
-	for (int i = 0; i < 37; i++) {
-		float px = 2.0f * CoorsOffsetX[i];
-		float py = 2.0f * CoorsOffsetY[i];
-		float pz = 40.0f * CoorsOffsetZ[i] + 40.0f;
-		float gtaX = px * rotCos + py * rotSin + camGtaX;
-		float gtaY = px * rotSin - py * rotCos + camGtaY;
-		float gtaZ = pz;
-
-		float sx, sy, szx, szy;
-		if (!ProjectGtaPoint(camera, gtaX, gtaY, gtaZ, screenW, screenH,
-			&sx, &sy, &szx, &szy))
-			continue;
-
-		EmitAspect2ColQuad(verts, &vertCount,
-			sx, sy, szx * 55.0f, szy * 55.0f, spin,
-			screenW, screenH,
-			kTopR, kTopG, kTopB, kBotR, kBotG, kBotB, fluffyAlpha);
-	}
-	FlushBatch(render, m_textures[TEX_MASKED], m_blendAlpha,
-		reinterpret_cast<CloudVertex*>(verts), vertCount);
+	if (drawClouds)
+		RenderVolumetric(render, camera, sunDirToward);
 
 	render->SetOpaqueState();
 	render->ApplyRasterizerState();

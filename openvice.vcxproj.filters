@@ -277,6 +277,12 @@
     <FxCompile Include="shaders\cloud_ps.hlsl">
       <Filter>Source Files\shaders</Filter>
     </FxCompile>
+    <FxCompile Include="shaders\cloud_sun_ps.hlsl">
+      <Filter>Source Files\shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="shaders\cloud_composite_ps.hlsl">
+      <Filter>Source Files\shaders</Filter>
+    </FxCompile>
     <FxCompile Include="shaders\skinned_vs.hlsl">
       <Filter>Source Files\shaders</Filter>
     </FxCompile>

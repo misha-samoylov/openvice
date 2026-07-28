@@ -11,9 +11,8 @@
 using namespace DirectX;
 
 /*
- * re3 miami CClouds — camera-locked billboard sprites from PARTICLE.TXD.
- * Also draws the yellow SUN_CORE / SUN_CORONA (coronastar) like CCoronas::DoSunAndMoon.
- * Drawn after sky clear, before world (depth off).
+ * Volumetric raymarched cloud slab (half-res) + re3-style sun corona.
+ * Clouds drawn after sky clear, before world (depth off, alpha over sky).
  */
 class Clouds
 {
@@ -21,7 +20,7 @@ public:
 	bool Init(DXRender* render, const char* particleTxdPath);
 	void Update(float dt, Camera* camera);
 	/* sunDirToward = unit vector toward the sun (engine Y-up), same as ShadowMap.
-	 * drawClouds=false still draws the sun, skips cloud billboards. */
+	 * drawClouds=false still draws the sun, skips volumetric clouds. */
 	void Render(DXRender* render, Camera* camera, FXMVECTOR sunDirToward, bool drawClouds = true);
 	void Cleanup();
 
@@ -32,18 +31,24 @@ private:
 		float r, g, b, a;
 	};
 
-	enum {
-		TEX_CLOUD1 = 0,
-		TEX_CLOUD2,
-		TEX_CLOUD3,
-		TEX_HILIT,
-		TEX_MASKED,
-		TEX_CORONASTAR,
-		TEX_COUNT
+	struct CloudsCB {
+		XMFLOAT4X4 InvViewProj;
+		XMFLOAT3 CamPos;
+		float Time;
+		XMFLOAT3 SunDir;
+		float Coverage;
+		XMFLOAT3 SkyColor;
+		float DensityMult;
+		XMFLOAT3 CloudSilver;
+		float Absorption;
+		float CloudBottom;
+		float CloudTop;
+		float WindSpeed;
+		float Ambient;
 	};
-	enum { MAX_QUADS = 64 };
 
-	/* Midday sunny TIMECYC SunSz / core+corona RGB. */
+	enum { MAX_QUADS = 8 };
+
 	static constexpr float SUN_SIZE = 2.5f;
 	static constexpr float SUN_CORE_R = 255.0f / 255.0f;
 	static constexpr float SUN_CORE_G = 128.0f / 255.0f;
@@ -52,9 +57,19 @@ private:
 	static constexpr float SUN_CORONA_G = 128.0f / 255.0f;
 	static constexpr float SUN_CORONA_B = 0.0f / 255.0f;
 
-	bool LoadTextures(DXRender* render, const char* particleTxdPath);
+	static constexpr float CLOUD_BOTTOM = 140.0f;
+	static constexpr float CLOUD_TOP = 320.0f;
+	static constexpr float CLOUD_COVERAGE = 0.48f;
+	static constexpr float CLOUD_DENSITY = 0.055f;
+	static constexpr float CLOUD_ABSORPTION = 0.55f;
+	static constexpr float CLOUD_WIND = 12.0f;
+	static constexpr float CLOUD_AMBIENT = 1.15f;
+
+	bool LoadSunTexture(DXRender* render, const char* particleTxdPath);
 	bool CreatePipeline(DXRender* render);
 	bool CreateStates(DXRender* render);
+	bool CreateTargets(DXRender* render);
+	void ReleaseTargets();
 
 	bool ProjectGtaPoint(Camera* camera, float gtaX, float gtaY, float gtaZ,
 		float screenW, float screenH,
@@ -62,24 +77,40 @@ private:
 
 	void RenderSun(DXRender* render, Camera* camera, FXMVECTOR sunDirToward,
 		float screenW, float screenH);
+	void RenderVolumetric(DXRender* render, Camera* camera, FXMVECTOR sunDirToward);
 
 	void FlushBatch(DXRender* render, ID3D11ShaderResourceView* srv,
 		ID3D11BlendState* blend, CloudVertex* verts, int vertCount);
+	void DrawFullscreen(ID3D11DeviceContext* ctx);
 
 	ID3D11Buffer* m_vb;
-	ID3D11VertexShader* m_vs;
-	ID3D11PixelShader* m_ps;
+	ID3D11VertexShader* m_vsSun;
+	ID3D11PixelShader* m_psSun;
 	ID3D11InputLayout* m_layout;
-	ID3D11ShaderResourceView* m_textures[TEX_COUNT];
+
+	ID3D11VertexShader* m_vsCloud;
+	ID3D11PixelShader* m_psCloud;
+	ID3D11PixelShader* m_psComposite;
+	ID3D11Buffer* m_cb;
+
+	ID3D11ShaderResourceView* m_sunTex;
 	ID3D11SamplerState* m_sampler;
 	ID3D11RasterizerState* m_rasterizer;
 	ID3D11DepthStencilState* m_depthOff;
 	ID3D11BlendState* m_blendAdditive;
 	ID3D11BlendState* m_blendAlpha;
+	ID3D11BlendState* m_blendOpaque;
 
-	float m_cloudRotation;
-	uint32_t m_individualRotation;
-	float m_cameraRoll;
+	/* Half-res volumetric buffer. */
+	ID3D11Texture2D* m_cloudTex;
+	ID3D11RenderTargetView* m_cloudRTV;
+	ID3D11ShaderResourceView* m_cloudSRV;
+	UINT m_fullW;
+	UINT m_fullH;
+	UINT m_halfW;
+	UINT m_halfH;
+
+	float m_time;
 	float m_wind;
 	bool m_ready;
 };
