@@ -17,7 +17,9 @@
 /* Daytime hour for tobj visibility (re3 CTimeModelInfo). Night lights are off. */
 #define WORLD_HOUR 12
 
-/* VC stadium interior IDs (gtamods.com/wiki/Interior). */
+/* Interior IDs from IPL (gtamods.com/wiki/Interior). Scene renders exterior + listed IDs. */
+#define INTERIOR_EXTERIOR 0
+#define INTERIOR_EVERYWHERE 13 /* VIS_EVERYWHERE — stream in any interior */
 #define INTERIOR_DIRTRING 14
 #define INTERIOR_BLOODRING 15
 #define INTERIOR_HOTRING 16

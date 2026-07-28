@@ -21,9 +21,9 @@ void Scene::BuildFromAssets(AssetRegistry& assets, int worldHour)
 		for (int j = 0; j < count; j++) {
 			mapItem objectInfo = ipl->GetItem(j);
 
-			if (objectInfo.interior == INTERIOR_DIRTRING
-				|| objectInfo.interior == INTERIOR_BLOODRING
-				|| objectInfo.interior == INTERIOR_HOTRING)
+			/* Outdoor world + VIS_EVERYWHERE (13). Skip other interiors. */
+			if (objectInfo.interior != INTERIOR_EXTERIOR
+				&& objectInfo.interior != INTERIOR_EVERYWHERE)
 				continue;
 
 			if (DffLoader::IsLodModelName(objectInfo.modelName))
