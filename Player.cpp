@@ -341,7 +341,9 @@ void Player::Render(DXRender* render, MeshRenderContext& ctx)
 	objectConstBuffer cb;
 	cb.WVP = XMMatrixTranspose(wvp);
 	cb.World = XMMatrixTranspose(world);
-	cb.LightVP = XMMatrixTranspose(ctx.lightViewProj);
+	for (int i = 0; i < 4; i++)
+		cb.LightVP[i] = XMMatrixTranspose(ctx.lightViewProj[i]);
+	cb.cascadeSplits = ctx.cascadeSplits;
 	cb.fogColor = ctx.fogColor;
 	cb.fogStart = ctx.fogStart;
 	cb.fogEnd = ctx.fogEnd;

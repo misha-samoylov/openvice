@@ -2,7 +2,8 @@ cbuffer cbPerObject
 {
 	float4x4 WVP;
 	float4x4 World;
-	float4x4 LightVP;
+	float4x4 LightVP[4];
+	float4 cascadeSplits;
 	float4 fogColor;
 	float fogStart;
 	float fogEnd;

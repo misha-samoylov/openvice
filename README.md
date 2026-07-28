@@ -11,7 +11,7 @@ Features:
 * DirectX 11
 * SSAO
 * Post processing color with Motion blur
-* Shadows
+* Shadows (Cascaded Shadow Maps)
 * MSAA 4x
 * Volumetric God Rays
 * Volumetric Clouds (half-res raymarch) analytical lighting

@@ -31,7 +31,8 @@ struct objectConstBuffer
 {
 	XMMATRIX WVP;
 	XMMATRIX World;
-	XMMATRIX LightVP;
+	XMMATRIX LightVP[4];
+	XMFLOAT4 cascadeSplits;
 	XMFLOAT4 fogColor;
 	float fogStart;
 	float fogEnd;
@@ -52,7 +53,8 @@ enum MeshPass
 struct MeshRenderContext
 {
 	XMMATRIX viewProj;
-	XMMATRIX lightViewProj;
+	XMMATRIX lightViewProj[4];
+	XMFLOAT4 cascadeSplits;
 	XMFLOAT4 fogColor;
 	float fogStart;
 	float fogEnd;
@@ -72,11 +74,12 @@ struct MeshRenderContext
 	D3D_PRIMITIVE_TOPOLOGY topology;
 
 	MeshRenderContext()
-		: fogColor(0.49804f, 0.78431f, 0.94510f, 1.0f)
+		: cascadeSplits(25.0f, 80.0f, 200.0f, 500.0f)
+		, fogColor(0.49804f, 0.78431f, 0.94510f, 1.0f)
 		, fogStart(600.0f)
 		, fogEnd(1230.0f)
 		, receiveShadows(0.0f)
-		, shadowBias(0.0015f)
+		, shadowBias(0.00015f)
 		, windTime(0.0f)
 		, pass(MESH_PASS_COLOR)
 		, layout(nullptr)
@@ -91,7 +94,8 @@ struct MeshRenderContext
 		, topology(D3D11_PRIMITIVE_TOPOLOGY_UNDEFINED)
 	{
 		viewProj = XMMatrixIdentity();
-		lightViewProj = XMMatrixIdentity();
+		for (int i = 0; i < 4; i++)
+			lightViewProj[i] = XMMatrixIdentity();
 	}
 
 	void ClearBindings()

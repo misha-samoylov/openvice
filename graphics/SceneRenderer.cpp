@@ -69,6 +69,19 @@ void SceneRenderer::Shutdown()
 	}
 }
 
+static void FillCascadeMatrices(MeshRenderContext& ctx, ShadowMap* shadows)
+{
+	if (!shadows) {
+		for (UINT i = 0; i < ShadowMap::NUM_CASCADES; i++)
+			ctx.lightViewProj[i] = XMMatrixIdentity();
+		ctx.cascadeSplits = XMFLOAT4(25.0f, 80.0f, 200.0f, 500.0f);
+		return;
+	}
+	for (UINT i = 0; i < ShadowMap::NUM_CASCADES; i++)
+		ctx.lightViewProj[i] = shadows->GetLightViewProj(i);
+	ctx.cascadeSplits = shadows->GetSplitDistances();
+}
+
 void SceneRenderer::Render(DXRender* render, Camera* camera, Scene& scene, GameWorld& world)
 {
 	XMMATRIX view = camera->GetView();
@@ -84,37 +97,40 @@ void SceneRenderer::Render(DXRender* render, Camera* camera, Scene& scene, GameW
 	ctx.fogColor = XMFLOAT4(SKY_COLOR_R, SKY_COLOR_G, SKY_COLOR_B, SKY_COLOR_A);
 	ctx.fogStart = CAMERA_FAR_PLANE * FOG_START_FACTOR;
 	ctx.fogEnd = CAMERA_FAR_PLANE * FOG_END_FACTOR;
-	ctx.shadowBias = 0.0008f;
+	ctx.shadowBias = 0.00015f;
 	ctx.receiveShadows = 1.0f;
 	ctx.windTime = world.WindTime();
 
 	RenderSettings& settings = world.Settings();
 	const bool shadowsOn = m_shadowMap && settings.shadowsEnabled;
-	const float shadowRange = ShadowMap::CASCADE_HALF_EXTENT;
 
 	if (shadowsOn) {
-		m_shadowMap->UpdateLight(focusX, focusY, focusZ);
-		m_shadowMap->Begin(render);
+		m_shadowMap->UpdateCascades(focusX, focusY, focusZ);
+		FillCascadeMatrices(ctx, m_shadowMap.get());
 
 		ctx.pass = MESH_PASS_SHADOW;
-		ctx.viewProj = m_shadowMap->GetLightViewProj();
-		ctx.lightViewProj = ctx.viewProj;
 		ctx.receiveShadows = 0.0f;
-		ctx.ClearBindings();
 
-		scene.Draw(render, ctx, m_frustum, scene.Opaque(), AlphaFilter::All,
-			focusX, focusY, focusZ, shadowRange);
-		scene.Draw(render, ctx, m_frustum, scene.Alpha(), AlphaFilter::OpaqueOnly,
-			focusX, focusY, focusZ, shadowRange);
-		scene.Draw(render, ctx, m_frustum, scene.Alpha(), AlphaFilter::Cutout,
-			focusX, focusY, focusZ, shadowRange);
+		for (UINT c = 0; c < ShadowMap::NUM_CASCADES; c++) {
+			m_shadowMap->Begin(render, c);
+			ctx.ClearBindings();
+			ctx.viewProj = m_shadowMap->GetLightViewProj(c);
+			const float cullRange = m_shadowMap->GetCascadeHalfExtent(c);
 
-		if (world.GetVehicle())
-			world.GetVehicle()->Render(render, ctx);
-		if (world.GetPlayer() && !world.ControllingVehicle())
-			world.GetPlayer()->Render(render, ctx);
+			scene.Draw(render, ctx, m_frustum, scene.Opaque(), AlphaFilter::All,
+				focusX, focusY, focusZ, cullRange);
+			scene.Draw(render, ctx, m_frustum, scene.Alpha(), AlphaFilter::OpaqueOnly,
+				focusX, focusY, focusZ, cullRange);
+			scene.Draw(render, ctx, m_frustum, scene.Alpha(), AlphaFilter::Cutout,
+				focusX, focusY, focusZ, cullRange);
 
-		m_shadowMap->End(render);
+			if (world.GetVehicle())
+				world.GetVehicle()->Render(render, ctx);
+			if (world.GetPlayer() && !world.ControllingVehicle())
+				world.GetPlayer()->Render(render, ctx);
+
+			m_shadowMap->End(render);
+		}
 		ctx.ClearBindings();
 	}
 
@@ -122,7 +138,7 @@ void SceneRenderer::Render(DXRender* render, Camera* camera, Scene& scene, GameW
 
 	ctx.pass = MESH_PASS_COLOR;
 	ctx.viewProj = XMMatrixMultiply(view, proj);
-	ctx.lightViewProj = shadowsOn ? m_shadowMap->GetLightViewProj() : XMMatrixIdentity();
+	FillCascadeMatrices(ctx, shadowsOn ? m_shadowMap.get() : nullptr);
 	ctx.receiveShadows = shadowsOn ? 1.0f : 0.0f;
 	ctx.shadowSRV = shadowsOn ? m_shadowMap->GetSRV() : nullptr;
 	ctx.shadowSampler = shadowsOn ? m_shadowMap->GetCmpSampler() : nullptr;
@@ -160,6 +176,7 @@ void SceneRenderer::Render(DXRender* render, Camera* camera, Scene& scene, GameW
 
 	ctx.ClearBindings();
 	ctx.viewProj = XMMatrixMultiply(view, proj);
+	FillCascadeMatrices(ctx, shadowsOn ? m_shadowMap.get() : nullptr);
 	ctx.shadowSRV = shadowsOn ? m_shadowMap->GetSRV() : nullptr;
 	ctx.shadowSampler = shadowsOn ? m_shadowMap->GetCmpSampler() : nullptr;
 	ctx.receiveShadows = shadowsOn ? 1.0f : 0.0f;
