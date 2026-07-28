@@ -19,12 +19,16 @@ struct RenderSettings
 {
 	bool shadowsEnabled;
 	bool ssaoEnabled;
+	bool godRaysEnabled;
+	bool cloudsEnabled;
 	bool physicsDebugVisible;
 	int physicsDebugFilter;
 
 	RenderSettings()
 		: shadowsEnabled(true)
 		, ssaoEnabled(true)
+		, godRaysEnabled(true)
+		, cloudsEnabled(true)
 		, physicsDebugVisible(false)
 		, physicsDebugFilter(COL_DEBUG_ALL)
 	{

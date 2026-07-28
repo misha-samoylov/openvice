@@ -60,6 +60,9 @@
     <ClCompile Include="PostFX.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="GodRays.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="Mesh.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -155,6 +158,9 @@
     <ClInclude Include="PostFX.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="GodRays.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="Mesh.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -248,6 +254,12 @@
       <Filter>Source Files\shaders</Filter>
     </FxCompile>
     <FxCompile Include="shaders\postfx_blit_ps.hlsl">
+      <Filter>Source Files\shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="shaders\godrays_ps.hlsl">
+      <Filter>Source Files\shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="shaders\godrays_composite_ps.hlsl">
       <Filter>Source Files\shaders</Filter>
     </FxCompile>
     <FxCompile Include="shaders\vertex_shader.hlsl">

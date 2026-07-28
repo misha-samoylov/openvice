@@ -3,6 +3,7 @@
 #include "core/AlphaFilter.h"
 
 #include <stdio.h>
+#include <cmath>
 
 bool SceneRenderer::Init(DXRender* render)
 {
@@ -34,6 +35,13 @@ bool SceneRenderer::Init(DXRender* render)
 		m_postFX.reset();
 	}
 
+	m_godRays.reset(new GodRays());
+	if (FAILED(m_godRays->Init(render))) {
+		printf("[Error] GodRays init failed — continuing without volumetric rays\n");
+		m_godRays->Cleanup();
+		m_godRays.reset();
+	}
+
 	return true;
 }
 
@@ -50,6 +58,10 @@ void SceneRenderer::Shutdown()
 	if (m_postFX) {
 		m_postFX->Cleanup();
 		m_postFX.reset();
+	}
+	if (m_godRays) {
+		m_godRays->Cleanup();
+		m_godRays.reset();
 	}
 	if (m_physicsDebug) {
 		m_physicsDebug->Cleanup();
@@ -114,8 +126,16 @@ void SceneRenderer::Render(DXRender* render, Camera* camera, Scene& scene, GameW
 	ctx.shadowSRV = shadowsOn ? m_shadowMap->GetSRV() : nullptr;
 	ctx.shadowSampler = shadowsOn ? m_shadowMap->GetCmpSampler() : nullptr;
 
+	XMVECTOR sunDir;
+	if (m_shadowMap) {
+		sunDir = m_shadowMap->GetSunDirection();
+	} else {
+		const float zenith = XMConvertToRadians(ShadowMap::SUN_ZENITH_OFFSET_DEG);
+		sunDir = XMVector3Normalize(XMVectorSet(0.0f, cosf(zenith), sinf(zenith), 0.0f));
+	}
+
 	if (world.GetClouds())
-		world.GetClouds()->Render(render, camera);
+		world.GetClouds()->Render(render, camera, sunDir, settings.cloudsEnabled);
 	ctx.ClearBindings();
 	ctx.shadowSRV = shadowsOn ? m_shadowMap->GetSRV() : nullptr;
 	ctx.shadowSampler = shadowsOn ? m_shadowMap->GetCmpSampler() : nullptr;
@@ -166,12 +186,19 @@ void SceneRenderer::Render(DXRender* render, Camera* camera, Scene& scene, GameW
 		render->GetDeviceContext()->PSSetShaderResources(1, 1, &nullSRV);
 	}
 
-	if (m_ssao && settings.ssaoEnabled) {
+	const bool needDepth =
+		(m_ssao && settings.ssaoEnabled) ||
+		(m_godRays && settings.godRaysEnabled);
+	if (needDepth)
 		render->ResolveDepthForSSAO();
+
+	if (m_ssao && settings.ssaoEnabled)
 		m_ssao->Apply(render, camera);
-	}
 
 	render->ResolveMSAA();
+
+	if (m_godRays && settings.godRaysEnabled)
+		m_godRays->Apply(render, camera, sunDir);
 
 	if (m_postFX)
 		m_postFX->Apply(render);

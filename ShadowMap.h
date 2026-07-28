@@ -16,7 +16,7 @@ class ShadowMap
 {
 public:
 	static const UINT MAP_SIZE = 4096;
-	static constexpr float SUN_ZENITH_OFFSET_DEG = -10.0f;
+	static constexpr float SUN_ZENITH_OFFSET_DEG = -56.4f; /* ~20% lower elevation vs -48 */
 	/* Half-extent of orthographic cascade (= radius around Tommy). */
 	static constexpr float CASCADE_HALF_EXTENT = 500.0f;
 	static constexpr float CASCADE_DEPTH = 1200.0f;

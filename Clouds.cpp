@@ -9,7 +9,7 @@
 #include "renderware.h"
 
 enum { CLOUD_MAX_QUADS = 64 };
-enum { CLOUD_TEX_COUNT = 5 };
+enum { CLOUD_TEX_COUNT = 6 };
 
 /* Midday / sunny from DATA/TIMECYC.DAT (WORLD_HOUR ≈ 12). */
 static const float kLowR = 120.0f / 255.0f;
@@ -59,7 +59,7 @@ static const float CoorsOffsetZ[37] = {
 };
 
 static const char* kCloudTexNames[CLOUD_TEX_COUNT] = {
-	"cloud1", "cloud2", "cloud3", "cloudhilit", "cloudmasked"
+	"cloud1", "cloud2", "cloud3", "cloudhilit", "cloudmasked", "coronastar"
 };
 
 static float Clampf(float v, float lo, float hi)
@@ -230,7 +230,7 @@ bool Clouds::LoadTextures(DXRender* render, const char* particleTxdPath)
 	}
 
 	free(buffer);
-	printf("[Info] Clouds: loaded cloud1/2/3, cloudhilit, cloudmasked\n");
+	printf("[Info] Clouds: loaded cloud1/2/3, cloudhilit, cloudmasked, coronastar\n");
 	return true;
 }
 
@@ -478,7 +478,56 @@ void Clouds::FlushBatch(DXRender* render, ID3D11ShaderResourceView* srv,
 	ctx->Draw((UINT)vertCount, 0);
 }
 
-void Clouds::Render(DXRender* render, Camera* camera)
+void Clouds::RenderSun(DXRender* render, Camera* camera, FXMVECTOR sunDirToward,
+	float screenW, float screenH)
+{
+	if (!m_textures[TEX_CORONASTAR])
+		return;
+
+	/* re3: only draw while sun is above a shallow dip below the horizon. */
+	if (XMVectorGetY(sunDirToward) < -0.2f)
+		return;
+
+	XMVECTOR cam = camera->GetPosition();
+	/* re3 DoSunAndMoon: camera + sunDir * 150 */
+	XMVECTOR sunWorld = XMVectorAdd(cam, XMVectorScale(sunDirToward, 150.0f));
+	float engX = XMVectorGetX(sunWorld);
+	float engY = XMVectorGetY(sunWorld);
+	float engZ = XMVectorGetZ(sunWorld);
+	/* ProjectGtaPoint expects GTA (x,y,z) with z-up → engine (x, z, y). */
+	float gtaX = engX;
+	float gtaY = engZ;
+	float gtaZ = engY;
+
+	float sx, sy, szx, szy;
+	if (!ProjectGtaPoint(camera, gtaX, gtaY, gtaZ, screenW, screenH,
+		&sx, &sy, &szx, &szy))
+		return;
+
+	CloudVert verts[12];
+	int vertCount = 0;
+
+	/* SUN_CORE ≈ (10 + jitter) * SunSz — skip jitter for a stable disc. */
+	float coreSize = 10.0f * SUN_SIZE;
+	EmitDimQuad(verts, &vertCount,
+		sx, sy, szx * coreSize, szy * coreSize, 0.0f,
+		screenW, screenH,
+		SUN_CORE_R, SUN_CORE_G, SUN_CORE_B, 1.0f);
+
+	/* SUN_CORONA ≈ 25 * SunSz — larger soft halo, same coronastar. */
+	if (XMVectorGetY(sunDirToward) > 0.0f) {
+		float coronaSize = 25.0f * SUN_SIZE;
+		EmitDimQuad(verts, &vertCount,
+			sx, sy, szx * coronaSize, szy * coronaSize, 0.0f,
+			screenW, screenH,
+			SUN_CORONA_R, SUN_CORONA_G, SUN_CORONA_B, 1.0f);
+	}
+
+	FlushBatch(render, m_textures[TEX_CORONASTAR], m_blendAdditive,
+		reinterpret_cast<CloudVertex*>(verts), vertCount);
+}
+
+void Clouds::Render(DXRender* render, Camera* camera, FXMVECTOR sunDirToward, bool drawClouds)
 {
 	if (!m_ready || !render || !camera)
 		return;
@@ -494,6 +543,14 @@ void Clouds::Render(DXRender* render, Camera* camera)
 
 	/* CloudVertex layout matches CloudVert */
 	static_assert(sizeof(CloudVertex) == sizeof(CloudVert), "cloud vertex layout");
+
+	RenderSun(render, camera, sunDirToward, screenW, screenH);
+
+	if (!drawClouds) {
+		render->SetOpaqueState();
+		render->ApplyRasterizerState();
+		return;
+	}
 
 	CloudVert verts[CLOUD_MAX_QUADS * 6];
 	int vertCount = 0;

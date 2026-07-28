@@ -10,6 +10,7 @@
 #include "ShadowMap.h"
 #include "SSAO.h"
 #include "PostFX.h"
+#include "GodRays.h"
 #include "PhysicsDebugDraw.h"
 
 class SceneRenderer
@@ -23,12 +24,14 @@ public:
 	ShadowMap* Shadows() { return m_shadowMap.get(); }
 	SSAO* GetSSAO() { return m_ssao.get(); }
 	PostFX* GetPostFX() { return m_postFX.get(); }
+	GodRays* GetGodRays() { return m_godRays.get(); }
 	PhysicsDebugDraw* PhysicsDebug() { return m_physicsDebug.get(); }
 
 private:
 	std::unique_ptr<ShadowMap> m_shadowMap;
 	std::unique_ptr<SSAO> m_ssao;
 	std::unique_ptr<PostFX> m_postFX;
+	std::unique_ptr<GodRays> m_godRays;
 	std::unique_ptr<PhysicsDebugDraw> m_physicsDebug;
 	Frustum m_frustum;
 };

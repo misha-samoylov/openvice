@@ -100,6 +100,22 @@ void GameSession::HandleDebugHotkeys(
 		printf("[Info] PostFX %s (F9)\n", PostFX::ModeName(mode));
 	}
 	f9WasDown = f9Down;
+
+	static bool f10WasDown = false;
+	bool f10Down = input->IsKey(DIK_F10);
+	if (f10Down && !f10WasDown && renderer.GetGodRays()) {
+		world.Settings().godRaysEnabled = !world.Settings().godRaysEnabled;
+		printf("[Info] God rays %s (F10)\n", world.Settings().godRaysEnabled ? "ON" : "OFF");
+	}
+	f10WasDown = f10Down;
+
+	static bool np9WasDown = false;
+	bool np9Down = input->IsKey(DIK_NUMPAD9);
+	if (np9Down && !np9WasDown && world.GetClouds()) {
+		world.Settings().cloudsEnabled = !world.Settings().cloudsEnabled;
+		printf("[Info] Clouds %s (NUMPAD9)\n", world.Settings().cloudsEnabled ? "ON" : "OFF");
+	}
+	np9WasDown = np9Down;
 }
 
 void GameSession::HandleCameraModeHotkeys(Input* input, Camera* camera, GameWorld& world)

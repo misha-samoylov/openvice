@@ -12,7 +12,7 @@ HRESULT ShadowMap::Init(DXRender* render)
 	m_depthState = nullptr;
 	m_lightViewProj = XMMatrixIdentity();
 
-	/* Sun 10° from zenith, azimuth toward -Z for readable shadow length. */
+	/* Sun ~56° from zenith, azimuth toward -Z. */
 	const float zenith = XMConvertToRadians(SUN_ZENITH_OFFSET_DEG);
 	const float azimuth = 0.0f;
 	m_sunDir = XMVector3Normalize(XMVectorSet(
