@@ -290,6 +290,7 @@ void GameSession::UpdateMovement(float frameTime, Input* input, Camera* camera, 
 		world.GetWater()->Update(frameTime);
 	if (world.GetClouds())
 		world.GetClouds()->Update(frameTime, camera);
+	world.AdvanceWind(frameTime);
 }
 
 void GameSession::HandleFrame(

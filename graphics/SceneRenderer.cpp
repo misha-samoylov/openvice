@@ -86,6 +86,7 @@ void SceneRenderer::Render(DXRender* render, Camera* camera, Scene& scene, GameW
 	ctx.fogEnd = CAMERA_FAR_PLANE * FOG_END_FACTOR;
 	ctx.shadowBias = 0.0008f;
 	ctx.receiveShadows = 1.0f;
+	ctx.windTime = world.WindTime();
 
 	RenderSettings& settings = world.Settings();
 	const bool shadowsOn = m_shadowMap && settings.shadowsEnabled;

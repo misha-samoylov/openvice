@@ -37,6 +37,9 @@ struct objectConstBuffer
 	float fogEnd;
 	float receiveShadows;
 	float shadowBias;
+	float windTime;
+	float windAmount;
+	float padWind[2];
 };
 
 enum MeshPass
@@ -55,6 +58,7 @@ struct MeshRenderContext
 	float fogEnd;
 	float receiveShadows;
 	float shadowBias;
+	float windTime;
 	MeshPass pass;
 	ID3D11InputLayout* layout;
 	ID3D11VertexShader* vs;
@@ -73,6 +77,7 @@ struct MeshRenderContext
 		, fogEnd(1230.0f)
 		, receiveShadows(0.0f)
 		, shadowBias(0.0015f)
+		, windTime(0.0f)
 		, pass(MESH_PASS_COLOR)
 		, layout(nullptr)
 		, vs(nullptr)
@@ -143,6 +148,10 @@ public:
 	void SetAlphaCutout(bool cutout) { m_alphaCutout = cutout; }
 	bool IsAlphaCutout() const { return m_alphaCutout; }
 
+	/* Palm/tree frond sway amplitude in local meters (0 = off). */
+	void SetWindAmount(float amount) { m_windAmount = amount; }
+	float GetWindAmount() const { return m_windAmount; }
+
 	/* Interleaved xyz + uv (5 floats per vertex). Mutable for fake deformation. */
 	std::vector<float>& GetVertexData() { return m_vertexData; }
 	const std::vector<float>& GetVertexData() const { return m_vertexData; }
@@ -179,6 +188,7 @@ private:
 	int m_meshId;
 	bool m_hasAlpha;
 	bool m_alphaCutout;
+	float m_windAmount;
 
 	static ID3D11VertexShader* s_pVertexShader;
 	static ID3D11PixelShader* s_pPixelShader;

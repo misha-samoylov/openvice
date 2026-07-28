@@ -243,6 +243,10 @@ void Mesh::Render(DXRender* pRender, MeshRenderContext& ctx)
 	m_objectConstBuffer.receiveShadows =
 		(ctx.pass == MESH_PASS_COLOR) ? ctx.receiveShadows : 0.0f;
 	m_objectConstBuffer.shadowBias = ctx.shadowBias;
+	m_objectConstBuffer.windTime = ctx.windTime;
+	m_objectConstBuffer.windAmount = m_windAmount;
+	m_objectConstBuffer.padWind[0] = 0.0f;
+	m_objectConstBuffer.padWind[1] = 0.0f;
 	ctx3d->UpdateSubresource(m_pObjectBuffer, 0, NULL, &m_objectConstBuffer, 0, 0);
 	ctx3d->VSSetConstantBuffers(0, 1, &m_pObjectBuffer);
 	ctx3d->PSSetConstantBuffers(0, 1, &m_pObjectBuffer);
@@ -345,6 +349,7 @@ HRESULT Mesh::Init(DXRender*pRender, float *pVertices, int verticesCount, unsign
 
 	m_hasAlpha = false;
 	m_alphaCutout = false;
+	m_windAmount = 0.0f;
 	m_pTexture = nullptr;
 	m_pVertexBuffer = nullptr;
 	m_pIndexBuffer = nullptr;

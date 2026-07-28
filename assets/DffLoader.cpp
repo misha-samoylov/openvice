@@ -122,6 +122,47 @@ namespace DffLoader
 		return XMMatrixMultiply(local, FrameWorldGtaMat(frames, parent));
 	}
 
+	static bool HasI(const char* hay, const char* needle)
+	{
+		if (!hay || !needle || !needle[0])
+			return false;
+		size_t nlen = strlen(needle);
+		for (const char* p = hay; *p; p++) {
+			size_t i = 0;
+			while (i < nlen) {
+				char a = p[i];
+				char b = needle[i];
+				if (a >= 'A' && a <= 'Z') a = (char)(a - 'A' + 'a');
+				if (b >= 'A' && b <= 'Z') b = (char)(b - 'A' + 'a');
+				if (a != b)
+					break;
+				i++;
+			}
+			if (i == nlen)
+				return true;
+		}
+		return false;
+	}
+
+	/* Palms / trees / bushes — cutout fronds get vertex wind, trunks stay still. */
+	static bool IsFoliageWindModel(const char* name)
+	{
+		if (!name || !name[0])
+			return false;
+		if (_strnicmp(name, "veg_", 4) == 0)
+			return true;
+		if (HasI(name, "palm") || HasI(name, "bush") || HasI(name, "plant"))
+			return true;
+		if (HasI(name, "fern") || HasI(name, "grass") || HasI(name, "weed"))
+			return true;
+		/* "tree" but not "street" */
+		if (_strnicmp(name, "tree", 4) == 0)
+			return true;
+		if (HasI(name, "_tree") || HasI(name, "trees"))
+			return true;
+		return false;
+	}
+
 	static void ApplyTexture(
 		DXRender* render, Mesh* mesh, Model* model,
 		AssetRegistry& assets, const char* matName)
@@ -137,6 +178,9 @@ namespace DffLoader
 		mesh->SetAlphaCutout(isAlpha && dxt != 3 && dxt != 4 && dxt != 5);
 		if (!model->IsAlpha() && isAlpha)
 			model->SetAlpha(true);
+		/* Alpha fronds sway; opaque trunks stay put. */
+		if (isAlpha && IsFoliageWindModel(model->GetName().c_str()))
+			mesh->SetWindAmount(0.32f);
 		mesh->SetDataDDS(
 			render,
 			tex.Data(),

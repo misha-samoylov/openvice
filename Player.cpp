@@ -347,6 +347,10 @@ void Player::Render(DXRender* render, MeshRenderContext& ctx)
 	cb.fogEnd = ctx.fogEnd;
 	cb.receiveShadows = shadowPass ? 0.0f : ctx.receiveShadows;
 	cb.shadowBias = ctx.shadowBias;
+	cb.windTime = 0.0f;
+	cb.windAmount = 0.0f;
+	cb.padWind[0] = 0.0f;
+	cb.padWind[1] = 0.0f;
 
 	for (size_t i = 0; i < m_meshes.size(); i++) {
 		SkinnedMeshPart& part = m_meshes[i];

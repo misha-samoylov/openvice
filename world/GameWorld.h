@@ -60,6 +60,14 @@ public:
 	RenderSettings& Settings() { return m_settings; }
 	const RenderSettings& Settings() const { return m_settings; }
 
+	float WindTime() const { return m_windTime; }
+	void AdvanceWind(float dt)
+	{
+		if (dt < 0.0f) dt = 0.0f;
+		if (dt > 0.1f) dt = 0.1f;
+		m_windTime += dt;
+	}
+
 private:
 	void BuildCollision(AssetRegistry& assets, Scene& scene, PhysicsDebugDraw* debugDraw);
 	static void AppendColPlacements(
@@ -76,4 +84,5 @@ private:
 	std::unique_ptr<IFP> m_ifp;
 	bool m_controllingVehicle = false;
 	RenderSettings m_settings;
+	float m_windTime = 0.0f;
 };

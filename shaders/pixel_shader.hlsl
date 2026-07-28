@@ -8,6 +8,9 @@ cbuffer cbPerObject : register(b0)
 	float fogEnd;
 	float receiveShadows;
 	float shadowBias;
+	float windTime;
+	float windAmount;
+	float2 padWind;
 };
 
 Texture2D ObjTexture : register(t0);
