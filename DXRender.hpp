@@ -30,7 +30,7 @@ public:
 
 	/* Opaque: blending off, depth write on. */
 	void SetOpaqueState();
-	/* Cutout alpha (trees): blending on, depth write on (PS clips transparent texels). */
+	/* Cutout alpha (trees): A2C + depth write (PS clips transparent texels). */
 	void SetCutoutAlphaState();
 	/* Soft alpha (glass): blending on, depth write off — draw back-to-front. */
 	void SetSoftAlphaState();
@@ -103,6 +103,8 @@ private:
 
 	ID3D11BlendState* m_pBlendStateOpaque;
 	ID3D11BlendState* m_pBlendStateTransparency;
+	/* Cutout foliage/fences: MSAA alpha-to-coverage softens binary alpha edges. */
+	ID3D11BlendState* m_pBlendStateCutout;
 
 	ID3D11DepthStencilState* m_pDepthStateOpaque;
 	ID3D11DepthStencilState* m_pDepthStateCutout;

@@ -460,6 +460,16 @@ HRESULT DXRender::CreateBlendStates()
 	blendDesc.RenderTarget[0] = rtbd;
 
 	hr = m_pDevice->CreateBlendState(&blendDesc, &m_pBlendStateTransparency);
+	if (FAILED(hr))
+		return hr;
+
+	/* Cutout: no color blend — filtered alpha drives MSAA coverage instead. */
+	D3D11_BLEND_DESC cutoutDesc;
+	ZeroMemory(&cutoutDesc, sizeof(cutoutDesc));
+	cutoutDesc.AlphaToCoverageEnable = TRUE;
+	cutoutDesc.RenderTarget[0].BlendEnable = FALSE;
+	cutoutDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+	hr = m_pDevice->CreateBlendState(&cutoutDesc, &m_pBlendStateCutout);
 	return hr;
 }
 
@@ -506,7 +516,7 @@ void DXRender::SetOpaqueState()
 void DXRender::SetCutoutAlphaState()
 {
 	float blendFactor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
-	m_pDeviceContext->OMSetBlendState(m_pBlendStateTransparency, blendFactor, 0xffffffff);
+	m_pDeviceContext->OMSetBlendState(m_pBlendStateCutout, blendFactor, 0xffffffff);
 	m_pDeviceContext->OMSetDepthStencilState(m_pDepthStateCutout, 0);
 }
 
@@ -542,6 +552,9 @@ HRESULT DXRender::Init(HWND hWnd, bool vsync)
 	m_pBackBufferRTV = nullptr;
 	m_pSceneColor = nullptr;
 	m_pSceneRTV = nullptr;
+	m_pBlendStateOpaque = nullptr;
+	m_pBlendStateTransparency = nullptr;
+	m_pBlendStateCutout = nullptr;
 
 	RECT rc;
 	GetClientRect(hWnd, &rc);
@@ -729,11 +742,20 @@ void DXRender::Cleanup()
 		m_pRSWireframe->Release();
 	m_pRasterizerState = nullptr;
 
-	if (m_pBlendStateOpaque)
+	if (m_pBlendStateOpaque) {
 		m_pBlendStateOpaque->Release();
+		m_pBlendStateOpaque = nullptr;
+	}
 
-	if (m_pBlendStateTransparency)
+	if (m_pBlendStateTransparency) {
 		m_pBlendStateTransparency->Release();
+		m_pBlendStateTransparency = nullptr;
+	}
+
+	if (m_pBlendStateCutout) {
+		m_pBlendStateCutout->Release();
+		m_pBlendStateCutout = nullptr;
+	}
 
 	if (m_pDepthStateOpaque)
 		m_pDepthStateOpaque->Release();
