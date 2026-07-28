@@ -31,10 +31,20 @@ private:
 	struct mapItem* m_mapItems;
 
 public:
+	IPL() : m_countItems(0), m_mapItems(nullptr) {}
+	~IPL() { Cleanup(); }
+	IPL(const IPL&) = delete;
+	IPL& operator=(const IPL&) = delete;
+
 	struct mapItem GetItem(int index) { return m_mapItems[index]; }
 	int GetCountObjects() { return m_countItems; }
 	int Load(const char* filepath);
-	void Cleanup() { free(m_mapItems); };
+	void Cleanup()
+	{
+		free(m_mapItems);
+		m_mapItems = nullptr;
+		m_countItems = 0;
+	}
 };
 
 #endif

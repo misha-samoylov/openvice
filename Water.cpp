@@ -1,12 +1,10 @@
 #include "Water.h"
+#include "graphics/TextureFactory.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <cmath>
-
-#include <Dds.h>
-#include <DirectXTex.h>
 
 #include "renderware.h"
 
@@ -15,15 +13,6 @@
 #define SMALL_SECTOR_SIZE 32.0f
 #define LARGE_SECTOR_SIZE 64.0f
 #define HUGE_SECTOR_SIZE 128.0f
-
-#define FOURCC_DXT1_W (MAKEFOURCC('D','X','T','1'))
-#define FOURCC_DXT3_W (MAKEFOURCC('D','X','T','3'))
-#define FOURCC_DXT4_W (MAKEFOURCC('D','X','T','4'))
-
-struct DDS_File_W {
-	DWORD dwMagic;
-	DDS_HEADER header;
-};
 
 static float WaterFromSmallX(int x)
 {
@@ -111,62 +100,27 @@ bool Water::LoadWaterTexture(DXRender* render, const char* particleTxdPath)
 		return false;
 	}
 
-	DDS_File_W dds;
-	ZeroMemory(&dds, sizeof(dds));
-	dds.dwMagic = DDS_MAGIC;
-	dds.header.size = sizeof(DDS_HEADER);
-	dds.header.width = waterTex->width[0];
-	dds.header.height = waterTex->height[0];
-	dds.header.pitchOrLinearSize = waterTex->width[0] * waterTex->height[0];
-	dds.header.ddspf.size = sizeof(DDS_PIXELFORMAT);
-	dds.header.ddspf.flags = DDS_FOURCC;
-
-	switch (waterTex->dxtCompression) {
-	default:
-	case 1:
-		dds.header.ddspf.fourCC = FOURCC_DXT1_W;
-		break;
-	case 3:
-		dds.header.ddspf.fourCC = FOURCC_DXT3_W;
-		break;
-	case 4:
-		dds.header.ddspf.fourCC = FOURCC_DXT4_W;
-		break;
-	}
-
-	size_t texSize = waterTex->dataSizes[0];
-	size_t len = sizeof(dds) + texSize;
-	uint8_t* ddsBuf = (uint8_t*)malloc(len);
-	memcpy(ddsBuf, &dds, sizeof(dds));
-	memcpy(ddsBuf + sizeof(dds), waterTex->texels[0], texSize);
-
-	ScratchImage image;
-	HRESULT hr = LoadFromDDSMemory(ddsBuf, len, DDS_FLAGS_NONE, nullptr, image);
-	free(ddsBuf);
+	HRESULT hr = TextureFactory::CreateSrvFromDxt(
+		render,
+		waterTex->texels[0],
+		waterTex->dataSizes[0],
+		waterTex->width[0],
+		waterTex->height[0],
+		waterTex->dxtCompression,
+		&m_texture
+	);
 
 	if (FAILED(hr)) {
-		printf("[Error] Failed to parse water DDS\n");
+		printf("[Error] Failed to create water texture SRV\n");
 		free(buffer);
 		return false;
 	}
 
-	hr = CreateShaderResourceView(
-		render->GetDevice(),
-		image.GetImages(),
-		image.GetImageCount(),
-		image.GetMetadata(),
-		&m_texture
-	);
-
+	uint32_t tw = waterTex->width[0];
+	uint32_t th = waterTex->height[0];
 	free(buffer);
 
-	if (FAILED(hr)) {
-		printf("[Error] Failed to create water texture SRV\n");
-		return false;
-	}
-
-	printf("[Info] Loaded water texture waterclear256 %ux%u\n",
-		waterTex->width[0], waterTex->height[0]);
+	printf("[Info] Loaded water texture waterclear256 %ux%u\n", tw, th);
 	return true;
 }
 

@@ -26,6 +26,12 @@ public:
 	{
 	}
 
+	~Model() { Cleanup(); }
+
+	/* Non-copyable — owns Mesh pointers. */
+	Model(const Model&) = delete;
+	Model& operator=(const Model&) = delete;
+
 	void AddMesh(Mesh* pMesh) { m_pMeshes.push_back(pMesh); };
 	std::vector<Mesh*>& GetMeshes() { return m_pMeshes; }
 

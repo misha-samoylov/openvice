@@ -1,5 +1,6 @@
 #include "Vehicle.h"
 #include "CollisionWorld.h"
+#include "core/GtaCoords.h"
 #include "loaders/Clump.h"
 #include "loaders/Geometry.h"
 #include "renderware.h"
@@ -23,27 +24,9 @@ namespace {
 float Minf(float a, float b) { return a < b ? a : b; }
 float Clampf(float v, float lo, float hi) { return v < lo ? lo : (v > hi ? hi : v); }
 
-XMMATRIX GtaToEngineMat()
-{
-	return XMMATRIX(
-		1.0f, 0.0f, 0.0f, 0.0f,
-		0.0f, 0.0f, 1.0f, 0.0f,
-		0.0f, 1.0f, 0.0f, 0.0f,
-		0.0f, 0.0f, 0.0f, 1.0f
-	);
-}
-
 XMMATRIX FrameLocalGta(Frame* f)
 {
-	const float* r = f->GetRotationMatrix();
-	const float* p = f->GetPosition();
-	/* RW stores rows as right/up/at; build column-style for XM (row-vector). */
-	XMMATRIX m = XMMatrixIdentity();
-	m.r[0] = XMVectorSet(r[0], r[1], r[2], 0.0f);
-	m.r[1] = XMVectorSet(r[3], r[4], r[5], 0.0f);
-	m.r[2] = XMVectorSet(r[6], r[7], r[8], 0.0f);
-	m.r[3] = XMVectorSet(p[0], p[1], p[2], 1.0f);
-	return m;
+	return GtaCoords::FrameLocalMatrix(f->GetRotationMatrix(), f->GetPosition());
 }
 
 XMMATRIX FrameWorldGta(FrameList* frames, int idx)
@@ -389,9 +372,11 @@ bool Vehicle::LoadWheelMeshes(IMG* img, DXRender* render)
 			tx = geometry->texCoords[0][v * 2 + 0];
 			ty = geometry->texCoords[0][v * 2 + 1];
 		}
-		meshVertexData[v * 5 + 0] = gx;
-		meshVertexData[v * 5 + 1] = gz;
-		meshVertexData[v * 5 + 2] = gy;
+		float ex, ey, ez;
+		GtaCoords::ToEngine(gx, gy, gz, &ex, &ey, &ez);
+		meshVertexData[v * 5 + 0] = ex;
+		meshVertexData[v * 5 + 1] = ey;
+		meshVertexData[v * 5 + 2] = ez;
 		meshVertexData[v * 5 + 3] = tx;
 		meshVertexData[v * 5 + 4] = ty;
 	}

@@ -1,4 +1,5 @@
 ﻿#include "Mesh.hpp"
+#include "graphics/TextureFactory.h"
 
 ID3D11VertexShader* Mesh::s_pVertexShader = nullptr;
 ID3D11PixelShader* Mesh::s_pPixelShader = nullptr;
@@ -273,57 +274,16 @@ void Mesh::SetPosition(float x, float y, float z,
 
 HRESULT Mesh::SetDataDDS(DXRender* pRender, uint8_t* pDataSourceDDS, size_t fileSizeDDS, uint32_t width, uint32_t height, uint32_t dxtCompression, uint32_t depth)
 {
-	HRESULT hr;
-
-	struct DDS_File dds;
-	dds.dwMagic = DDS_MAGIC;
-	dds.header.size = sizeof(struct DDS_HEADER);
-	dds.header.flags = 0;
-	dds.header.width = width;
-	dds.header.height = height;
-	dds.header.pitchOrLinearSize = width * height;
-	dds.header.mipMapCount = 0;
-	dds.header.ddspf.size = sizeof(struct DDS_PIXELFORMAT);
-	dds.header.ddspf.flags = DDS_FOURCC;
-	switch (dxtCompression) {
-	default:
-	case 1:
-		dds.header.ddspf.fourCC = FOURCC_DXT1;
-		break;
-	case 3:
-		dds.header.ddspf.fourCC = FOURCC_DXT3;
-		break;
-	case 4:
-		dds.header.ddspf.fourCC = FOURCC_DXT4;
-		break;
-	}
-
-	size_t len = sizeof(dds) + fileSizeDDS;
-	uint8_t* buf = (uint8_t*)malloc(len);
-	memcpy(buf, &dds, sizeof(dds));
-	memcpy(buf + sizeof(dds), pDataSourceDDS, fileSizeDDS);
-
-	ScratchImage image;
-	hr = LoadFromDDSMemory(buf, len, DDS_FLAGS_NONE, nullptr, image);
-	if (FAILED(hr)) {
-		printf("Error: cannot load dds file\n");
-	}
-
-	hr = CreateShaderResourceView(
-		pRender->GetDevice(),
-		image.GetImages(),
-		image.GetImageCount(),
-		image.GetMetadata(),
+	(void)depth;
+	return TextureFactory::CreateSrvFromDxt(
+		pRender,
+		pDataSourceDDS,
+		fileSizeDDS,
+		width,
+		height,
+		dxtCompression,
 		&m_pTexture
 	);
-
-	free(buf);
-
-	if (FAILED(hr)) {
-		printf("Error: cannot CreateShaderResourceView dds file\n");
-	}
-
-	return hr;
 }
 
 HRESULT Mesh::CreateDataBuffer(

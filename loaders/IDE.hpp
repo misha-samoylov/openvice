@@ -52,10 +52,20 @@ private:
 	struct itemDefinition* m_items;
 
 public:
+	IDE() : m_countItems(0), m_items(nullptr) {}
+	~IDE() { Cleanup(); }
+	IDE(const IDE&) = delete;
+	IDE& operator=(const IDE&) = delete;
+
 	int Load(const char* filepath);
 	int GetCountItems() { return m_countItems; }
 	struct itemDefinition* GetItems() { return m_items; }
-	void Cleanup() { free(m_items); }
+	void Cleanup()
+	{
+		free(m_items);
+		m_items = nullptr;
+		m_countItems = 0;
+	}
 };
 
 #endif

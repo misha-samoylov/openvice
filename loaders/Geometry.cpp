@@ -687,101 +687,56 @@ void Geometry::dump(uint32_t index, std::string ind, bool detailed)
 }
 
 Geometry::Geometry(void)
-	: flags(0), numUVs(0), hasNativeGeometry(false), vertexCount(0),
-	hasNormals(false), faceType(0), numIndices(0), hasSkin(false), boneCount(0),
-	specialIndexCount(0), unknown1(0), unknown2(0), hasMeshExtension(false),
-	meshExtension(0), hasNightColors(false), nightColorsUnknown(0),
-	has2dfx(false), hasMorph(false)
+	: flags(0)
+	, numUVs(0)
+	, hasNativeGeometry(false)
+	, vertexCount(0)
+	, hasPositions(0)
+	, hasNormals(0)
+	, vertices(nullptr)
+	, normals(nullptr)
+	, materialList(nullptr)
+	, m_numMaterials(0)
+	, faceType(0)
+	, numIndices(0)
+	, hasSkin(false)
+	, boneCount(0)
+	, specialIndexCount(0)
+	, unknown1(0)
+	, unknown2(0)
+	, hasMeshExtension(false)
+	, meshExtension(nullptr)
+	, hasNightColors(false)
+	, nightColorsUnknown(0)
+	, has2dfx(false)
+	, hasMorph(false)
 {
-}
-
-Geometry::Geometry(const Geometry& orig)
-	: flags(orig.flags), numUVs(orig.numUVs),
-	hasNativeGeometry(orig.hasNativeGeometry), vertexCount(orig.vertexCount),
-	faces(orig.faces), vertexColors(orig.vertexColors),
-	hasPositions(orig.hasPositions), hasNormals(orig.hasNormals),
-	vertices(orig.vertices), normals(orig.normals),
-	materialList(orig.materialList), faceType(orig.faceType),
-	numIndices(orig.numIndices), splits(orig.splits), hasSkin(orig.hasSkin),
-	boneCount(orig.boneCount), specialIndexCount(orig.specialIndexCount),
-	unknown1(orig.unknown1), unknown2(orig.unknown2),
-	specialIndices(orig.specialIndices),
-	vertexBoneIndices(orig.vertexBoneIndices),
-	vertexBoneWeights(orig.vertexBoneWeights),
-	inverseMatrices(orig.inverseMatrices),
-	hasMeshExtension(orig.hasMeshExtension), hasNightColors(orig.hasNightColors),
-	nightColorsUnknown(orig.nightColorsUnknown), nightColors(orig.nightColors),
-	has2dfx(orig.has2dfx), hasMorph(orig.hasMorph)
-{
-	if (orig.meshExtension)
-		meshExtension = new MeshExtension(*orig.meshExtension);
-	else
-		meshExtension = 0;
-
-	for (uint32_t i = 0; i < 8; i++)
-		texCoords[i] = orig.texCoords[i];
-	for (uint32_t i = 0; i < 4; i++)
-		boundingSphere[i] = orig.boundingSphere[i];
-}
-
-Geometry& Geometry::operator=(const Geometry& that)
-{
-	if (this != &that) {
-		flags = that.flags;
-		numUVs = that.numUVs;
-		hasNativeGeometry = that.hasNativeGeometry;
-
-		vertexCount = that.vertexCount;
-		faces = that.faces;
-		vertexColors = that.vertexColors;
-		for (uint32_t i = 0; i < 8; i++)
-			texCoords[i] = that.texCoords[i];
-
-		for (uint32_t i = 0; i < 4; i++)
-			boundingSphere[i] = that.boundingSphere[i];
-
-		hasPositions = that.hasPositions;
-		hasNormals = that.hasNormals;
-		vertices = that.vertices;
-		normals = that.normals;
-		materialList = that.materialList;
-
-		faceType = that.faceType;
-		numIndices = that.numIndices;
-		splits = that.splits;
-
-		hasSkin = that.hasSkin;
-		boneCount = that.boneCount;
-		specialIndexCount = that.specialIndexCount;
-		unknown1 = that.unknown1;
-		unknown2 = that.unknown2;
-		specialIndices = that.specialIndices;
-		vertexBoneIndices = that.vertexBoneIndices;
-		vertexBoneWeights = that.vertexBoneWeights;
-		inverseMatrices = that.inverseMatrices;
-
-		hasMeshExtension = that.hasMeshExtension;
-		delete meshExtension;
-		meshExtension = 0;
-		if (that.meshExtension)
-			meshExtension = new MeshExtension(*that.meshExtension);
-
-		hasNightColors = that.hasNightColors;
-		nightColorsUnknown = that.nightColorsUnknown;
-		nightColors = that.nightColors;
-
-		has2dfx = that.has2dfx;
-
-		hasMorph = that.hasMorph;
-	}
-	return *this;
+	boundingSphere[0] = boundingSphere[1] = boundingSphere[2] = boundingSphere[3] = 0.0f;
 }
 
 Geometry::~Geometry(void)
 {
-	//free(vertices);
-	std::cout << "clear geometry" << std::endl;
+	free(vertices);
+	vertices = nullptr;
+	free(normals);
+	normals = nullptr;
+
+	for (size_t i = 0; i < splits.size(); i++) {
+		free(splits[i].indices);
+		splits[i].indices = nullptr;
+	}
+	splits.clear();
+
+	if (materialList) {
+		for (uint32_t i = 0; i < m_numMaterials; i++)
+			delete materialList[i];
+		delete[] materialList;
+		materialList = nullptr;
+		m_numMaterials = 0;
+	}
+
 	delete meshExtension;
+	meshExtension = nullptr;
 }
 
 
@@ -840,6 +795,7 @@ void Material::readExtension(char* bytes, size_t* offset)
 			break;
 		case CHUNK_MATERIALEFFECTS: {
 			hasMatFx = true;
+			delete matFx;
 			matFx = new MatFx;
 			matFx->type = readUInt32(bytes, offset);
 			switch (matFx->type) {
@@ -1033,16 +989,16 @@ void Material::dump(uint32_t index, std::string ind)
 
 Material::Material(void)
 	: flags(0), unknown(0), hasTex(false), hasRightToRender(false),
-	rightToRenderVal1(0), rightToRenderVal2(0), hasMatFx(false), matFx(0),
+	rightToRenderVal1(0), rightToRenderVal2(0), hasMatFx(false), matFx(nullptr),
 	hasReflectionMat(false), reflectionIntensity(0.0f), hasSpecularMat(false),
-	specularLevel(0.0f), hasUVAnim(false)
+	specularLevel(0.0f), hasUVAnim(false), uvVal(0)
 {
-	for (int i = 0; i < 4; i++)
+	for (int i = 0; i < 4; i++) {
 		color[i] = 0;
-	for (int i = 0; i < 3; i++) {
-		surfaceProps[i] = 0.0f;
 		reflectionChannelAmount[i] = 0.0f;
 	}
+	for (int i = 0; i < 3; i++)
+		surfaceProps[i] = 0.0f;
 }
 
 Material::Material(const Material& orig)
@@ -1110,6 +1066,7 @@ Material& Material::operator=(const Material& that)
 Material::~Material(void)
 {
 	delete matFx;
+	matFx = nullptr;
 }
 
 void MatFx::dump(std::string ind)
@@ -1172,21 +1129,20 @@ void Texture::read(char* bytes, size_t* offset)
 	// READ_HEADER(CHUNK_STRING);
 	header.read(bytes, offset);
 
-	//char* buffer = new char[header.length + 1];
-	//char* buffer = new char[24];
-	//rw.read(buffer, header.length);
-	memcpy(name, &bytes[*offset], (header.length) * sizeof(char));
+	/* RW string chunks are often >24 bytes (padding). Never overflow name[]. */
+	memset(name, 0, sizeof(name));
+	size_t nameLen = header.length;
+	if (nameLen >= sizeof(name))
+		nameLen = sizeof(name) - 1;
+	if (nameLen > 0)
+		memcpy(name, &bytes[*offset], nameLen);
+	name[sizeof(name) - 1] = '\0';
 	*offset += header.length;
-
-	//buffer[header.length] = '\0';
-	//memcpy(name, buffer, sizeof(name));
-	//delete[] buffer;
 
 	// READ_HEADER(CHUNK_STRING);
 	header.read(bytes, offset);
 
 	char* buffer = new char[header.length + 1];
-	//rw.read(buffer, header.length);
 	memcpy(buffer, &bytes[*offset], header.length);
 	*offset += header.length;
 
@@ -1235,6 +1191,7 @@ void Texture::dump(std::string ind)
 }
 
 Texture::Texture(void)
-	: filterFlags(0), name(""), maskName(""), hasSkyMipmap(false)
+	: filterFlags(0), maskName(), hasSkyMipmap(false)
 {
+	memset(name, 0, sizeof(name));
 }

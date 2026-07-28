@@ -24,16 +24,16 @@ public:
 	AtomicList* GetAtomicList();
 	LightList* GetLightList();
 
-	uint32_t m_numGeometries;
+	uint32_t m_numGeometries = 0;
 
 private:
-	AtomicList *m_atomicList;
-	FrameList *m_frameList;
-	LightList *m_lightList;
-	Geometry **m_geometryList;
+	AtomicList *m_atomicList = nullptr;
+	FrameList *m_frameList = nullptr;
+	LightList *m_lightList = nullptr;
+	Geometry **m_geometryList = nullptr;
 
 	/* Extensions */
 	/* collision file */
-	bool m_hasCollision;
-	uint8_t *m_colData;
+	bool m_hasCollision = false;
+	uint8_t *m_colData = nullptr;
 };

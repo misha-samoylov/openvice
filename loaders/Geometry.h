@@ -105,6 +105,8 @@ struct Split {
 	uint32_t matIndex;
 	uint32_t m_numIndices;
 	uint32_t *indices;
+
+	Split() : matIndex(0), m_numIndices(0), indices(nullptr) {}
 };
 
 struct Geometry {
@@ -177,8 +179,8 @@ struct Geometry {
 	void dump(uint32_t index, std::string ind = "", bool detailed = false);
 
 	Geometry(void);
-	Geometry(const Geometry& orig);
-	Geometry& operator= (const Geometry& other);
+	Geometry(const Geometry& orig) = delete;
+	Geometry& operator=(const Geometry& other) = delete;
 	~Geometry(void);
 
 private:

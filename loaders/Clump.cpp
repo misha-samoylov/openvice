@@ -132,16 +132,34 @@ void Clump::Dump(bool detailed)
 
 void Clump::Clear(void)
 {
-	m_atomicList->Cleanup();
-	delete m_atomicList;
+	if (m_atomicList) {
+		m_atomicList->Cleanup();
+		delete m_atomicList;
+		m_atomicList = nullptr;
+	}
 
-	//m_geometryList.clear();
+	if (m_geometryList) {
+		for (uint32_t i = 0; i < m_numGeometries; i++) {
+			delete m_geometryList[i];
+			m_geometryList[i] = nullptr;
+		}
+		delete[] m_geometryList;
+		m_geometryList = nullptr;
+		m_numGeometries = 0;
+	}
 
-	m_frameList->Cleanup();
-	delete m_frameList;
+	if (m_frameList) {
+		m_frameList->Cleanup();
+		delete m_frameList;
+		m_frameList = nullptr;
+	}
 
-	m_lightList->Cleanup();
-	delete m_lightList;
+	if (m_lightList) {
+		m_lightList->Cleanup();
+		delete m_lightList;
+		m_lightList = nullptr;
+	}
 
 	free(m_colData);
+	m_colData = nullptr;
 }

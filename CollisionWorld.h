@@ -70,16 +70,6 @@ public:
 	/* Vertical cast for suspension / ground (engine Y-up). */
 	bool CastDownLine(float x, float z, float startY, float endY, float* hitY, ColVec3* hitNormal = nullptr) const;
 
-	/*
-	 * Legacy sphere resolve — no-ops under Bullet (character/vehicle own contacts).
-	 * Kept so older call sites still compile during migration.
-	 */
-	void ResolvePedSpheres(float* x, float* y, float* z) const;
-	void ResolveSpheres(
-		const ColSphere* spheres, int count,
-		float* x, float* y, float* z,
-		float* vx = nullptr, float* vy = nullptr, float* vz = nullptr) const;
-
 	size_t GetInstanceCount() const { return m_staticBodies.size(); }
 
 private:

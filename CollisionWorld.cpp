@@ -505,16 +505,3 @@ bool CollisionWorld::CastDownLine(float x, float z, float startY, float endY, fl
 		*hitNormal = n;
 	return true;
 }
-
-void CollisionWorld::ResolvePedSpheres(float*, float*, float*) const
-{
-	/* Contacts handled by btKinematicCharacterController. */
-}
-
-void CollisionWorld::ResolveSpheres(
-	const ColSphere*, int,
-	float*, float*, float*,
-	float*, float*, float*) const
-{
-	/* Contacts handled by btRaycastVehicle / chassis rigid body. */
-}

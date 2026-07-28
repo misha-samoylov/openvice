@@ -150,9 +150,17 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>TurnOffAllWarnings</WarningLevel>
     </ClCompile>
+    <ClCompile Include="app\App.cpp" />
+    <ClCompile Include="assets\ContentLoader.cpp" />
+    <ClCompile Include="assets\DffLoader.cpp" />
     <ClCompile Include="Camera.cpp" />
     <ClCompile Include="CollisionWorld.cpp" />
     <ClCompile Include="Frustum.cpp" />
+    <ClCompile Include="gameplay\GameSession.cpp" />
+    <ClCompile Include="gameplay\PlayerAnimation.cpp" />
+    <ClCompile Include="gameplay\PlayerPhysics.cpp" />
+    <ClCompile Include="graphics\SceneRenderer.cpp" />
+    <ClCompile Include="graphics\TextureFactory.cpp" />
     <ClCompile Include="Input.cpp" />
     <ClCompile Include="loaders\AtomicList.cpp" />
     <ClCompile Include="loaders\COL.cpp" />
@@ -175,6 +183,8 @@
     <ClCompile Include="Water.cpp" />
     <ClCompile Include="Clouds.cpp" />
     <ClCompile Include="Window.cpp" />
+    <ClCompile Include="world\GameWorld.cpp" />
+    <ClCompile Include="world\Scene.cpp" />
     <ClCompile Include="loaders\Clump.cpp" />
     <ClCompile Include="loaders\IMG.cpp" />
     <ClCompile Include="main.cpp" />
@@ -183,10 +193,21 @@
     <ClCompile Include="uvanim.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="app\App.h" />
+    <ClInclude Include="assets\AssetRegistry.h" />
+    <ClInclude Include="assets\ContentLoader.h" />
+    <ClInclude Include="assets\DffLoader.h" />
+    <ClInclude Include="assets\GameMaterial.h" />
     <ClInclude Include="Camera.hpp" />
     <ClInclude Include="collision\ColTypes.h" />
     <ClInclude Include="CollisionWorld.h" />
+    <ClInclude Include="core\AlphaFilter.h" />
+    <ClInclude Include="core\GameConfig.h" />
+    <ClInclude Include="core\GtaCoords.h" />
     <ClInclude Include="Frustum.h" />
+    <ClInclude Include="gameplay\GameSession.h" />
+    <ClInclude Include="graphics\SceneRenderer.h" />
+    <ClInclude Include="graphics\TextureFactory.h" />
     <ClInclude Include="Input.hpp" />
     <ClInclude Include="loaders\AtomicList.h" />
     <ClInclude Include="loaders\COL.hpp" />
@@ -208,6 +229,8 @@
     <ClInclude Include="Utils.hpp" />
     <ClInclude Include="Water.h" />
     <ClInclude Include="Window.hpp" />
+    <ClInclude Include="world\GameWorld.h" />
+    <ClInclude Include="world\Scene.h" />
     <ClInclude Include="loaders\Clump.h" />
     <ClInclude Include="loaders\IMG.hpp" />
     <ClInclude Include="renderware.h" />

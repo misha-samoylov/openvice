@@ -4,6 +4,8 @@
 #include <vector>
 #include <cmath>
 
+#include "core/GtaCoords.h"
+
 /* Collision primitives — layout mirrors re3/miami CCol* types.
  * Stored in engine space (Y-up): GTA (x,y,z) -> engine (x,z,y). */
 
@@ -29,10 +31,11 @@ struct ColVec3 {
 	}
 };
 
-/* Remap GTA Z-up vector into engine Y-up. */
 inline ColVec3 GtaToEngineVec(float gx, float gy, float gz)
 {
-	return ColVec3(gx, gz, gy);
+	float ex, ey, ez;
+	GtaCoords::ToEngine(gx, gy, gz, &ex, &ey, &ez);
+	return ColVec3(ex, ey, ez);
 }
 
 struct ColSphere {

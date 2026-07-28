@@ -111,6 +111,12 @@
     <ClCompile Include="Player.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="gameplay\PlayerAnimation.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="gameplay\PlayerPhysics.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="CollisionWorld.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>

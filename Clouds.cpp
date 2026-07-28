@@ -1,24 +1,12 @@
 #include "Clouds.h"
+#include "graphics/TextureFactory.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <cmath>
 
-#include <Dds.h>
-#include <DirectXTex.h>
-
 #include "renderware.h"
-
-#define FOURCC_DXT1_C (MAKEFOURCC('D','X','T','1'))
-#define FOURCC_DXT3_C (MAKEFOURCC('D','X','T','3'))
-#define FOURCC_DXT4_C (MAKEFOURCC('D','X','T','4'))
-#define FOURCC_DXT5_C (MAKEFOURCC('D','X','T','5'))
-
-struct DDS_File_C {
-	DWORD dwMagic;
-	DDS_HEADER header;
-};
 
 enum { CLOUD_MAX_QUADS = 64 };
 enum { CLOUD_TEX_COUNT = 5 };
@@ -90,43 +78,14 @@ static ID3D11ShaderResourceView* CreateSrvFromNative(DXRender* render, NativeTex
 	if (!tex || tex->texels.empty() || !tex->texels[0])
 		return nullptr;
 
-	DDS_File_C dds;
-	ZeroMemory(&dds, sizeof(dds));
-	dds.dwMagic = DDS_MAGIC;
-	dds.header.size = sizeof(DDS_HEADER);
-	dds.header.width = tex->width[0];
-	dds.header.height = tex->height[0];
-	dds.header.pitchOrLinearSize = tex->width[0] * tex->height[0];
-	dds.header.ddspf.size = sizeof(DDS_PIXELFORMAT);
-	dds.header.ddspf.flags = DDS_FOURCC;
-
-	switch (tex->dxtCompression) {
-	case 3: dds.header.ddspf.fourCC = FOURCC_DXT3_C; break;
-	case 4: dds.header.ddspf.fourCC = FOURCC_DXT4_C; break;
-	case 5: dds.header.ddspf.fourCC = FOURCC_DXT5_C; break;
-	default: dds.header.ddspf.fourCC = FOURCC_DXT1_C; break;
-	}
-
-	size_t texSize = tex->dataSizes[0];
-	size_t len = sizeof(dds) + texSize;
-	uint8_t* ddsBuf = (uint8_t*)malloc(len);
-	if (!ddsBuf)
-		return nullptr;
-	memcpy(ddsBuf, &dds, sizeof(dds));
-	memcpy(ddsBuf + sizeof(dds), tex->texels[0], texSize);
-
-	ScratchImage image;
-	HRESULT hr = LoadFromDDSMemory(ddsBuf, len, DDS_FLAGS_NONE, nullptr, image);
-	free(ddsBuf);
-	if (FAILED(hr))
-		return nullptr;
-
 	ID3D11ShaderResourceView* srv = nullptr;
-	hr = CreateShaderResourceView(
-		render->GetDevice(),
-		image.GetImages(),
-		image.GetImageCount(),
-		image.GetMetadata(),
+	HRESULT hr = TextureFactory::CreateSrvFromDxt(
+		render,
+		tex->texels[0],
+		tex->dataSizes[0],
+		tex->width[0],
+		tex->height[0],
+		tex->dxtCompression,
 		&srv);
 	return SUCCEEDED(hr) ? srv : nullptr;
 }
