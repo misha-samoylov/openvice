@@ -15,6 +15,8 @@ static __int64 g_frameTimeOld;
 class Utils
 {
 public:
+	/* Point cwd at the .exe folder so .cso next to the binary are found under VS. */
+	static void SetWorkingDirectoryToExe();
 	static void StartTimer();
 	static double GetTime();
 	static double GetFrameTime();

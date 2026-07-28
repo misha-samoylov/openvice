@@ -152,7 +152,7 @@ void SceneRenderer::Render(DXRender* render, Camera* camera, Scene& scene, GameW
 		world.GetPlayer()->Render(render, ctx);
 
 	if (world.GetWater())
-		world.GetWater()->Render(render, camera, m_frustum, CAMERA_FAR_PLANE);
+		world.GetWater()->Render(render, camera, m_frustum, CAMERA_FAR_PLANE, sunDir);
 
 	ctx.ClearBindings();
 	ctx.viewProj = XMMatrixMultiply(view, proj);

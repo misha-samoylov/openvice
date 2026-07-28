@@ -17,7 +17,8 @@ class Water
 public:
 	bool Init(DXRender* render, const char* waterproPath, const char* particleTxdPath);
 	void Update(float deltaTime);
-	void Render(DXRender* render, Camera* camera, Frustum& frustum, float drawDistance);
+	void Render(DXRender* render, Camera* camera, Frustum& frustum, float drawDistance,
+		FXMVECTOR sunDirToward);
 	void Cleanup();
 
 private:
@@ -33,6 +34,10 @@ private:
 		float fogEnd;
 		XMFLOAT4 tint;
 		XMFLOAT4 fogColor;
+		XMFLOAT3 cameraPos;
+		float time;
+		XMFLOAT3 sunDir;
+		float pad0;
 	};
 
 	bool LoadWaterPro(const char* path);
@@ -42,7 +47,8 @@ private:
 	bool CreateOceanBuffers(DXRender* render);
 	void AddQuad(std::vector<WaterVertex>& verts, std::vector<uint32_t>& indices,
 		float gx, float gy, float gz, float size, float uvScale);
-	void BindPipeline(DXRender* render, Camera* camera, float drawDistance);
+	void BindPipeline(DXRender* render, Camera* camera, float drawDistance,
+		FXMVECTOR sunDirToward);
 	void DrawCoast(DXRender* render);
 	void DrawInfiniteOcean(DXRender* render, Camera* camera, float drawDistance);
 	bool IsInsideMapWaterGrid(float gtaX, float gtaY) const;
@@ -72,9 +78,11 @@ private:
 	ID3D11SamplerState* m_sampler;
 	ID3D11RasterizerState* m_rasterizer;
 	ID3D11DepthStencilState* m_depthState;
+	ID3D11BlendState* m_blendState;
 
 	uint32_t m_indexCount;
 	float m_uvU;
 	float m_uvV;
+	float m_time;
 	bool m_ready;
 };

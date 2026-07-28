@@ -6,6 +6,9 @@
 
 bool App::Initialize(HINSTANCE hInstance, int nCmdShow)
 {
+	/* .cso land in $(OutDir); VS defaults cwd to $(ProjectDir). */
+	Utils::SetWorkingDirectoryToExe();
+
 	if (!DirectX::XMVerifyCPUSupport()) {
 		MessageBox(NULL, L"You CPU doesn't support DirectXMath", L"Error", MB_OK);
 		return false;

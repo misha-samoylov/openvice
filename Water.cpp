@@ -380,6 +380,20 @@ bool Water::CreatePipeline(DXRender* render)
 	if (FAILED(hr))
 		return false;
 
+	D3D11_BLEND_DESC bd;
+	ZeroMemory(&bd, sizeof(bd));
+	bd.RenderTarget[0].BlendEnable = TRUE;
+	bd.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;
+	bd.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
+	bd.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
+	bd.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_ONE;
+	bd.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
+	bd.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
+	bd.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+	hr = render->GetDevice()->CreateBlendState(&bd, &m_blendState);
+	if (FAILED(hr))
+		return false;
+
 	return true;
 }
 
@@ -397,9 +411,11 @@ bool Water::Init(DXRender* render, const char* waterproPath, const char* particl
 	m_sampler = nullptr;
 	m_rasterizer = nullptr;
 	m_depthState = nullptr;
+	m_blendState = nullptr;
 	m_indexCount = 0;
 	m_uvU = 0.0f;
 	m_uvV = 0.0f;
+	m_time = 0.0f;
 	m_seaZ = 6.0f;
 	m_ready = false;
 	m_numLevels = 0;
@@ -430,16 +446,22 @@ void Water::Update(float deltaTime)
 	if (!m_ready)
 		return;
 
-	float windAddUV = (0.0006f) * (deltaTime * 30.0f);
+	m_time += deltaTime;
+
+	/* Slow drift — calm surface, not wind chop */
+	float windAddUV = 0.000189f * (deltaTime * 30.0f);
 	m_uvU += windAddUV;
-	m_uvV += windAddUV;
+	m_uvV += windAddUV * 0.72f;
 	if (m_uvU >= 1.0f) m_uvU -= 1.0f;
 	if (m_uvV >= 1.0f) m_uvV -= 1.0f;
 }
 
-void Water::BindPipeline(DXRender* render, Camera* camera, float drawDistance)
+void Water::BindPipeline(DXRender* render, Camera* camera, float drawDistance,
+	FXMVECTOR sunDirToward)
 {
 	ID3D11DeviceContext* ctx = render->GetDeviceContext();
+
+	XMVECTOR camPos = camera->GetPosition();
 
 	WaterCB cb;
 	XMMATRIX wvp = camera->GetView() * camera->GetProjection();
@@ -448,12 +470,18 @@ void Water::BindPipeline(DXRender* render, Camera* camera, float drawDistance)
 	/* Match main.cpp: fully fogged before far clip hides the horizon seam. */
 	cb.fogStart = drawDistance * 0.40f;
 	cb.fogEnd = drawDistance * 0.82f;
-	cb.tint = XMFLOAT4(0.45f, 0.65f, 0.75f, 0.85f);
+	cb.tint = XMFLOAT4(0.2352f, 0.3472f, 0.4032f, 0.82f); /* 30% darker */
 	cb.fogColor = XMFLOAT4(0.49804f, 0.78431f, 0.94510f, 1.0f);
+	cb.cameraPos = XMFLOAT3(XMVectorGetX(camPos), XMVectorGetY(camPos), XMVectorGetZ(camPos));
+	cb.time = m_time;
+	XMStoreFloat3(&cb.sunDir, XMVector3Normalize(sunDirToward));
+	cb.pad0 = 0.0f;
 
 	ctx->UpdateSubresource(m_cb, 0, nullptr, &cb, 0, 0);
 
+	float blendFactor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 	ctx->RSSetState(m_rasterizer);
+	ctx->OMSetBlendState(m_blendState, blendFactor, 0xffffffff);
 	ctx->OMSetDepthStencilState(m_depthState, 0);
 
 	ctx->IASetInputLayout(m_layout);
@@ -557,24 +585,29 @@ void Water::DrawInfiniteOcean(DXRender* render, Camera* camera, float drawDistan
 	ctx->DrawIndexed(quadCount * 6, 0, 0);
 }
 
-void Water::Render(DXRender* render, Camera* camera, Frustum& frustum, float drawDistance)
+void Water::Render(DXRender* render, Camera* camera, Frustum& frustum, float drawDistance,
+	FXMVECTOR sunDirToward)
 {
 	if (!m_ready)
 		return;
 
 	(void)frustum;
 
-	BindPipeline(render, camera, drawDistance);
+	BindPipeline(render, camera, drawDistance, sunDirToward);
 	DrawCoast(render);
 	DrawInfiniteOcean(render, camera, drawDistance);
 
 	ID3D11DeviceContext* ctx = render->GetDeviceContext();
+	float blendFactor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+	ctx->OMSetBlendState(nullptr, blendFactor, 0xffffffff);
 	ctx->OMSetDepthStencilState(nullptr, 0);
+	render->SetOpaqueState();
 	render->ApplyRasterizerState();
 }
 
 void Water::Cleanup()
 {
+	if (m_blendState) { m_blendState->Release(); m_blendState = nullptr; }
 	if (m_depthState) { m_depthState->Release(); m_depthState = nullptr; }
 	if (m_rasterizer) { m_rasterizer->Release(); m_rasterizer = nullptr; }
 	if (m_sampler) { m_sampler->Release(); m_sampler = nullptr; }

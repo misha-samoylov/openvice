@@ -1,5 +1,22 @@
 #include "Utils.hpp"
 
+void Utils::SetWorkingDirectoryToExe()
+{
+	wchar_t path[MAX_PATH];
+	DWORD n = GetModuleFileNameW(nullptr, path, MAX_PATH);
+	if (n == 0 || n >= MAX_PATH)
+		return;
+
+	wchar_t* slash = wcsrchr(path, L'\\');
+	if (!slash)
+		slash = wcsrchr(path, L'/');
+	if (!slash)
+		return;
+
+	*slash = L'\0';
+	SetCurrentDirectoryW(path);
+}
+
 void Utils::StartTimer()
 {
 	LARGE_INTEGER frequencyCount;
