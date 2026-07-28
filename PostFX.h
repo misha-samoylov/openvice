@@ -29,7 +29,7 @@ public:
 	static constexpr float DEFAULT_G = 40.0f;
 	static constexpr float DEFAULT_B = 40.0f;
 	/* Additive pass alpha for motion blur (0–255). */
-	static constexpr float DEFAULT_BLUR_ALPHA = 45.0f;
+	static constexpr float DEFAULT_BLUR_ALPHA = 47.25f;
 
 	HRESULT Init(DXRender* render);
 	void Cleanup();
