@@ -9,7 +9,6 @@ Features:
 Open `openvice.sln` solution in **Microsoft Visual Studio 2019** and click **Build** -> **Build Solution**.
 
 ## Controls
-
 * `NUMPAD 0` - Change to control character (Tommy)
 * `NUMPAD 1` - Free camera
 * `NUMAPD 2` - Change to control Cheetah
@@ -17,9 +16,9 @@ Open `openvice.sln` solution in **Microsoft Visual Studio 2019** and click **Bui
 * `F7` - Enable/disable shadows
 * `F8` - Enable/disable SSAO
 * `F9` - Change post effects mode to: Off, Post FX, Post FX with Motion blur
-* `WASD` - Controls
+* `WASD` - Controls character/vehicle/camera
 * `Mouse`
-* `Mouse wheel` - Camera speed or Camera+-
+* `Mouse wheel` - Change camera speed, change camera+-
 
 ## System requirements
 * Windows Vista or higher
