@@ -171,9 +171,14 @@ float readFloat32(char *bytes, size_t *offset);
  * TXDs
  */
 
+/* PC TXD / RW texture dictionary name field is 32 bytes. */
+#ifndef MAX_TEXTURE_NAME
+#define MAX_TEXTURE_NAME 32
+#endif
+
 struct NativeTexture {
 	uint32_t platform;
-	char name[24];
+	char name[MAX_TEXTURE_NAME];
 	std::string maskName;
 	uint32_t filterFlags;
 	uint32_t rasterFormat;

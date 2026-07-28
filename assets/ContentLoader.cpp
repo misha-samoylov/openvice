@@ -48,7 +48,8 @@ void ContentLoader::LoadTexturesFromTxd(IMG* img, AssetRegistry& assets, const c
 	for (uint32_t i = 0; i < txd.texList.size(); i++) {
 		NativeTexture& t = txd.texList[i];
 		GameMaterial m;
-		memcpy(m.name, t.name, sizeof(t.name));
+		memcpy(m.name, t.name, sizeof(m.name));
+		m.name[sizeof(m.name) - 1] = '\0';
 
 		size_t len = t.dataSizes[0];
 		m.source.assign(t.texels[0], t.texels[0] + len);

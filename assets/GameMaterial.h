@@ -4,11 +4,11 @@
 #include <vector>
 #include <string.h>
 
-#include "loaders/IPL.hpp" /* MAX_LENGTH_FILENAME */
+#include "renderware.h" /* MAX_TEXTURE_NAME */
 
 struct GameMaterial
 {
-	char name[MAX_LENGTH_FILENAME];
+	char name[MAX_TEXTURE_NAME];
 	std::vector<uint8_t> source;
 	uint32_t width;
 	uint32_t height;

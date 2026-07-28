@@ -89,17 +89,16 @@ void NativeTexture::readD3d(char *bytes, size_t *offset)
 
 	filterFlags = readUInt32(bytes, offset);
 
+	/* PC native texture: 32-byte name + 32-byte mask name (may lack NUL if full). */
 	char buffer[32];
-	// rw.read(buffer, 32);
-	memcpy(name, &bytes[*offset], 24);
-	*offset += sizeof(buffer);
+	memset(name, 0, sizeof(name));
+	memcpy(name, &bytes[*offset], 32);
+	name[sizeof(name) - 1] = '\0';
+	*offset += 32;
 
-	//name = buffer;
-
-	//rw.read(buffer, 32);
 	memcpy(buffer, &bytes[*offset], sizeof(buffer));
 	*offset += sizeof(buffer);
-
+	buffer[sizeof(buffer) - 1] = '\0';
 	maskName = buffer;
 
 	rasterFormat = readUInt32(bytes, offset);
