@@ -5,6 +5,22 @@ Features:
 * Read GTA format files: IMG, DIR, DFF, TXD
 * Render: Frustum culling
 
+## Features
+
+### Render
+* DirectX 11
+* SSAO
+* Post processing color with Motion blur
+* Shadows
+* MSAA 4x
+* Volumetric God Rays
+* Volumetric Clouds (half-res raymarch) analytical lighting
+* Water: Fresnel effect, soft ripples, specular highlights from the sun, alpha blending, and cloud reflections
+
+### Physics
+* Used Bullet Physics
+* Vehicle vertex deformation physics
+
 ## Build 
 Open `openvice.sln` solution in **Microsoft Visual Studio 2019** and click **Build** -> **Build Solution**.
 
