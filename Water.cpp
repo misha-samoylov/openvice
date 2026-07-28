@@ -446,10 +446,13 @@ void Water::Update(float deltaTime)
 	if (!m_ready)
 		return;
 
-	m_time += deltaTime;
+	float dt = deltaTime;
+	if (dt < 0.0f) dt = 0.0f;
+	if (dt > 0.1f) dt = 0.1f;
+	m_time += dt;
 
-	/* Slow drift — calm surface, not wind chop */
-	float windAddUV = 0.000189f * (deltaTime * 30.0f);
+	/* Visible surface drift */
+	float windAddUV = 0.0028f * (dt * 30.0f);
 	m_uvU += windAddUV;
 	m_uvV += windAddUV * 0.72f;
 	if (m_uvU >= 1.0f) m_uvU -= 1.0f;
@@ -457,7 +460,7 @@ void Water::Update(float deltaTime)
 }
 
 void Water::BindPipeline(DXRender* render, Camera* camera, float drawDistance,
-	FXMVECTOR sunDirToward)
+	FXMVECTOR sunDirToward, bool reflectClouds)
 {
 	ID3D11DeviceContext* ctx = render->GetDeviceContext();
 
@@ -475,7 +478,12 @@ void Water::BindPipeline(DXRender* render, Camera* camera, float drawDistance,
 	cb.cameraPos = XMFLOAT3(XMVectorGetX(camPos), XMVectorGetY(camPos), XMVectorGetZ(camPos));
 	cb.time = m_time;
 	XMStoreFloat3(&cb.sunDir, XMVector3Normalize(sunDirToward));
-	cb.pad0 = 0.0f;
+	/* Match Clouds.h / Clouds::RenderVolumetric wind & density. */
+	cb.cloudReflect = reflectClouds ? 1.0f : 0.0f;
+	cb.windSpeed = 9.0f; /* CLOUD_WIND * (0.5 + 0.25) */
+	cb.cloudCoverage = 0.48f;
+	cb.cloudDensity = 0.055f;
+	cb.pad1 = 0.0f;
 
 	ctx->UpdateSubresource(m_cb, 0, nullptr, &cb, 0, 0);
 
@@ -586,14 +594,14 @@ void Water::DrawInfiniteOcean(DXRender* render, Camera* camera, float drawDistan
 }
 
 void Water::Render(DXRender* render, Camera* camera, Frustum& frustum, float drawDistance,
-	FXMVECTOR sunDirToward)
+	FXMVECTOR sunDirToward, bool reflectClouds)
 {
 	if (!m_ready)
 		return;
 
 	(void)frustum;
 
-	BindPipeline(render, camera, drawDistance, sunDirToward);
+	BindPipeline(render, camera, drawDistance, sunDirToward, reflectClouds);
 	DrawCoast(render);
 	DrawInfiniteOcean(render, camera, drawDistance);
 

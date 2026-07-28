@@ -18,7 +18,7 @@ public:
 	bool Init(DXRender* render, const char* waterproPath, const char* particleTxdPath);
 	void Update(float deltaTime);
 	void Render(DXRender* render, Camera* camera, Frustum& frustum, float drawDistance,
-		FXMVECTOR sunDirToward);
+		FXMVECTOR sunDirToward, bool reflectClouds = true);
 	void Cleanup();
 
 private:
@@ -37,7 +37,11 @@ private:
 		XMFLOAT3 cameraPos;
 		float time;
 		XMFLOAT3 sunDir;
-		float pad0;
+		float cloudReflect;
+		float windSpeed;
+		float cloudCoverage;
+		float cloudDensity;
+		float pad1;
 	};
 
 	bool LoadWaterPro(const char* path);
@@ -48,7 +52,7 @@ private:
 	void AddQuad(std::vector<WaterVertex>& verts, std::vector<uint32_t>& indices,
 		float gx, float gy, float gz, float size, float uvScale);
 	void BindPipeline(DXRender* render, Camera* camera, float drawDistance,
-		FXMVECTOR sunDirToward);
+		FXMVECTOR sunDirToward, bool reflectClouds);
 	void DrawCoast(DXRender* render);
 	void DrawInfiniteOcean(DXRender* render, Camera* camera, float drawDistance);
 	bool IsInsideMapWaterGrid(float gtaX, float gtaY) const;

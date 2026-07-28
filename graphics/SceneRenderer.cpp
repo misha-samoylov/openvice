@@ -151,8 +151,11 @@ void SceneRenderer::Render(DXRender* render, Camera* camera, Scene& scene, GameW
 	if (world.GetPlayer() && !world.ControllingVehicle())
 		world.GetPlayer()->Render(render, ctx);
 
-	if (world.GetWater())
-		world.GetWater()->Render(render, camera, m_frustum, CAMERA_FAR_PLANE, sunDir);
+	if (world.GetWater()) {
+		const bool reflectClouds = settings.cloudsEnabled && world.GetClouds() != nullptr;
+		world.GetWater()->Render(render, camera, m_frustum, CAMERA_FAR_PLANE, sunDir,
+			reflectClouds);
+	}
 
 	ctx.ClearBindings();
 	ctx.viewProj = XMMatrixMultiply(view, proj);
