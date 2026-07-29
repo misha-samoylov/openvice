@@ -42,7 +42,7 @@ public:
 
 private:
 	HRESULT CreateTargets(DXRender* render);
-	void ReleaseTargets();
+	void ReleaseTargets(DXRender* render = nullptr);
 	void DrawFullscreen(DXRender* render, ID3D12PipelineState* pso, UINT srvIndex);
 	void CopyBackBuffer(DXRender* render, ID3D12Resource* dest, D3D12_RESOURCE_STATES& destState);
 	void ApplyColourFilter(DXRender* render);

@@ -55,7 +55,7 @@ static HRESULT CreateGRPso(
 
 HRESULT GodRays::CreateTargets(DXRender* render)
 {
-	ReleaseTargets();
+	ReleaseTargets(render);
 
 	m_fullW = render->GetBackBufferWidth();
 	m_fullH = render->GetBackBufferHeight();
@@ -90,10 +90,22 @@ HRESULT GodRays::CreateTargets(DXRender* render)
 	return (m_raysSrv != UINT_MAX) ? S_OK : E_FAIL;
 }
 
-void GodRays::ReleaseTargets()
+void GodRays::ReleaseTargets(DXRender* render)
 {
-	if (m_raysTex) { m_raysTex->Release(); m_raysTex = nullptr; }
-	if (m_colorTex) { m_colorTex->Release(); m_colorTex = nullptr; }
+	if (m_raysTex) {
+		if (render)
+			render->DeferRelease(m_raysTex);
+		else
+			m_raysTex->Release();
+		m_raysTex = nullptr;
+	}
+	if (m_colorTex) {
+		if (render)
+			render->DeferRelease(m_colorTex);
+		else
+			m_colorTex->Release();
+		m_colorTex = nullptr;
+	}
 	m_colorSrv = m_raysRtv = m_raysSrv = UINT_MAX;
 }
 
@@ -102,7 +114,7 @@ HRESULT GodRays::Init(DXRender* render)
 	m_rootSig = nullptr;
 	m_psoRays = nullptr;
 	m_psoComposite = nullptr;
-	m_pointSampler = m_linearSampler = m_pairSrvBase = UINT_MAX;
+	m_pointSampler = m_linearSampler = UINT_MAX;
 	m_colorTex = nullptr;
 	m_raysTex = nullptr;
 	m_colorSrv = m_raysRtv = m_raysSrv = UINT_MAX;
@@ -111,31 +123,40 @@ HRESULT GodRays::Init(DXRender* render)
 	ID3D12Device* device = render->GetDevice();
 	HRESULT hr;
 
-	D3D12_DESCRIPTOR_RANGE srvRange = {};
-	srvRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
-	srvRange.NumDescriptors = 2;
-	srvRange.BaseShaderRegister = 0;
+	D3D12_DESCRIPTOR_RANGE srv0 = {};
+	srv0.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+	srv0.NumDescriptors = 1;
+	srv0.BaseShaderRegister = 0;
+
+	D3D12_DESCRIPTOR_RANGE srv1 = {};
+	srv1.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+	srv1.NumDescriptors = 1;
+	srv1.BaseShaderRegister = 1;
 
 	D3D12_DESCRIPTOR_RANGE sampRange = {};
 	sampRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER;
 	sampRange.NumDescriptors = 2;
 	sampRange.BaseShaderRegister = 0;
 
-	D3D12_ROOT_PARAMETER params[3] = {};
+	D3D12_ROOT_PARAMETER params[4] = {};
 	params[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
 	params[0].Descriptor.ShaderRegister = 0;
 	params[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 	params[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
 	params[1].DescriptorTable.NumDescriptorRanges = 1;
-	params[1].DescriptorTable.pDescriptorRanges = &srvRange;
+	params[1].DescriptorTable.pDescriptorRanges = &srv0;
 	params[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 	params[2].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
 	params[2].DescriptorTable.NumDescriptorRanges = 1;
-	params[2].DescriptorTable.pDescriptorRanges = &sampRange;
+	params[2].DescriptorTable.pDescriptorRanges = &srv1;
 	params[2].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+	params[3].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+	params[3].DescriptorTable.NumDescriptorRanges = 1;
+	params[3].DescriptorTable.pDescriptorRanges = &sampRange;
+	params[3].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 
 	D3D12_ROOT_SIGNATURE_DESC rsDesc = {};
-	rsDesc.NumParameters = 3;
+	rsDesc.NumParameters = 4;
 	rsDesc.pParameters = params;
 
 	ID3DBlob* sigBlob = nullptr;
@@ -182,10 +203,6 @@ HRESULT GodRays::Init(DXRender* render)
 		return E_FAIL;
 	}
 
-	m_pairSrvBase = render->AllocSrvIndex();
-	if (m_pairSrvBase == UINT_MAX || render->AllocSrvIndex() == UINT_MAX)
-		return E_FAIL;
-
 	hr = CreateTargets(render);
 	if (FAILED(hr)) {
 		printf("Error: GodRays CreateTargets failed\n");
@@ -198,7 +215,7 @@ HRESULT GodRays::Init(DXRender* render)
 
 void GodRays::Cleanup()
 {
-	ReleaseTargets();
+	ReleaseTargets(nullptr);
 	if (m_psoComposite) { m_psoComposite->Release(); m_psoComposite = nullptr; }
 	if (m_psoRays) { m_psoRays->Release(); m_psoRays = nullptr; }
 	if (m_rootSig) { m_rootSig->Release(); m_rootSig = nullptr; }
@@ -245,13 +262,15 @@ float GodRays::ProjectSun(
 	return edge;
 }
 
-void GodRays::DrawFullscreen(DXRender* render, ID3D12PipelineState* pso, UINT srvIndex, UINT samplerIndex)
+void GodRays::DrawFullscreen(DXRender* render, ID3D12PipelineState* pso,
+	UINT srv0, UINT srv1, UINT samplerIndex)
 {
 	ID3D12GraphicsCommandList* cmd = render->GetCommandList();
 	cmd->SetGraphicsRootSignature(m_rootSig);
 	cmd->SetPipelineState(pso);
-	cmd->SetGraphicsRootDescriptorTable(1, render->GetSrvGpu(srvIndex));
-	cmd->SetGraphicsRootDescriptorTable(2, render->GetSamplerGpu(samplerIndex));
+	cmd->SetGraphicsRootDescriptorTable(1, render->GetSrvGpu(srv0));
+	cmd->SetGraphicsRootDescriptorTable(2, render->GetSrvGpu(srv1 != UINT_MAX ? srv1 : srv0));
+	cmd->SetGraphicsRootDescriptorTable(3, render->GetSamplerGpu(samplerIndex));
 	cmd->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 	cmd->DrawInstanced(3, 1, 0, 0);
 }
@@ -296,14 +315,9 @@ void GodRays::Apply(DXRender* render, Camera* camera, FXMVECTOR sunDirToward)
 
 	D3D12_GPU_VIRTUAL_ADDRESS cbAddr = 0;
 	void* ptr = render->AllocFrameConstants(sizeof(cb), &cbAddr);
+	if (!ptr)
+		return;
 	memcpy(ptr, &cb, sizeof(cb));
-
-	render->GetDevice()->CopyDescriptorsSimple(
-		1, render->GetSrvCpu(m_pairSrvBase), render->GetSrvCpu(m_colorSrv),
-		D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-	render->GetDevice()->CopyDescriptorsSimple(
-		1, render->GetSrvCpu(m_pairSrvBase + 1), render->GetSrvCpu(depthSrv),
-		D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
 	if (m_raysState != D3D12_RESOURCE_STATE_RENDER_TARGET) {
 		render->Transition(m_raysTex, m_raysState, D3D12_RESOURCE_STATE_RENDER_TARGET);
@@ -323,14 +337,14 @@ void GodRays::Apply(DXRender* render, Camera* camera, FXMVECTOR sunDirToward)
 	cmd->RSSetScissorRects(1, &halfSc);
 	cmd->SetGraphicsRootSignature(m_rootSig);
 	cmd->SetGraphicsRootConstantBufferView(0, cbAddr);
-	DrawFullscreen(render, m_psoRays, m_pairSrvBase, m_linearSampler);
+	DrawFullscreen(render, m_psoRays, m_colorSrv, depthSrv, m_linearSampler);
 
 	render->Transition(m_raysTex, m_raysState, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 	m_raysState = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
 
 	render->BindBackBufferOnly();
 	cmd->SetGraphicsRootConstantBufferView(0, cbAddr);
-	DrawFullscreen(render, m_psoComposite, m_raysSrv, m_linearSampler);
+	DrawFullscreen(render, m_psoComposite, m_raysSrv, UINT_MAX, m_linearSampler);
 
 	render->RestoreMainTargets();
 	render->ApplyRasterizerState();

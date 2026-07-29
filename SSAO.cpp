@@ -85,7 +85,7 @@ static HRESULT CreateFullscreenPso(
 
 HRESULT SSAO::CreateHalfResTargets(DXRender* render)
 {
-	ReleaseHalfResTargets();
+	ReleaseHalfResTargets(render);
 
 	m_fullW = render->GetBackBufferWidth();
 	m_fullH = render->GetBackBufferHeight();
@@ -124,10 +124,22 @@ HRESULT SSAO::CreateHalfResTargets(DXRender* render)
 	return (m_blurSrv != UINT_MAX) ? S_OK : E_FAIL;
 }
 
-void SSAO::ReleaseHalfResTargets()
+void SSAO::ReleaseHalfResTargets(DXRender* render)
 {
-	if (m_blurTex) { m_blurTex->Release(); m_blurTex = nullptr; }
-	if (m_aoTex) { m_aoTex->Release(); m_aoTex = nullptr; }
+	if (m_blurTex) {
+		if (render)
+			render->DeferRelease(m_blurTex);
+		else
+			m_blurTex->Release();
+		m_blurTex = nullptr;
+	}
+	if (m_aoTex) {
+		if (render)
+			render->DeferRelease(m_aoTex);
+		else
+			m_aoTex->Release();
+		m_aoTex = nullptr;
+	}
 	m_aoRtv = m_aoSrv = m_blurRtv = m_blurSrv = UINT_MAX;
 }
 
@@ -139,7 +151,6 @@ HRESULT SSAO::Init(DXRender* render)
 	m_psoComposite = nullptr;
 	m_pointSampler = UINT_MAX;
 	m_linearSampler = UINT_MAX;
-	m_pairSrvBase = UINT_MAX;
 	m_aoTex = nullptr;
 	m_blurTex = nullptr;
 	m_aoRtv = m_aoSrv = m_blurRtv = m_blurSrv = UINT_MAX;
@@ -148,31 +159,40 @@ HRESULT SSAO::Init(DXRender* render)
 	ID3D12Device* device = render->GetDevice();
 	HRESULT hr;
 
-	D3D12_DESCRIPTOR_RANGE srvRange = {};
-	srvRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
-	srvRange.NumDescriptors = 2;
-	srvRange.BaseShaderRegister = 0;
+	D3D12_DESCRIPTOR_RANGE srv0 = {};
+	srv0.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+	srv0.NumDescriptors = 1;
+	srv0.BaseShaderRegister = 0;
+
+	D3D12_DESCRIPTOR_RANGE srv1 = {};
+	srv1.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+	srv1.NumDescriptors = 1;
+	srv1.BaseShaderRegister = 1;
 
 	D3D12_DESCRIPTOR_RANGE sampRange = {};
 	sampRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER;
 	sampRange.NumDescriptors = 1;
 	sampRange.BaseShaderRegister = 0;
 
-	D3D12_ROOT_PARAMETER params[3] = {};
+	D3D12_ROOT_PARAMETER params[4] = {};
 	params[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
 	params[0].Descriptor.ShaderRegister = 0;
 	params[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 	params[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
 	params[1].DescriptorTable.NumDescriptorRanges = 1;
-	params[1].DescriptorTable.pDescriptorRanges = &srvRange;
+	params[1].DescriptorTable.pDescriptorRanges = &srv0;
 	params[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 	params[2].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
 	params[2].DescriptorTable.NumDescriptorRanges = 1;
-	params[2].DescriptorTable.pDescriptorRanges = &sampRange;
+	params[2].DescriptorTable.pDescriptorRanges = &srv1;
 	params[2].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+	params[3].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+	params[3].DescriptorTable.NumDescriptorRanges = 1;
+	params[3].DescriptorTable.pDescriptorRanges = &sampRange;
+	params[3].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 
 	D3D12_ROOT_SIGNATURE_DESC rsDesc = {};
-	rsDesc.NumParameters = 3;
+	rsDesc.NumParameters = 4;
 	rsDesc.pParameters = params;
 
 	ID3DBlob* sigBlob = nullptr;
@@ -223,10 +243,6 @@ HRESULT SSAO::Init(DXRender* render)
 	if (m_pointSampler == UINT_MAX || m_linearSampler == UINT_MAX)
 		return E_FAIL;
 
-	m_pairSrvBase = render->AllocSrvIndex();
-	if (m_pairSrvBase == UINT_MAX || render->AllocSrvIndex() == UINT_MAX)
-		return E_FAIL;
-
 	hr = CreateHalfResTargets(render);
 	if (FAILED(hr)) {
 		printf("Error: SSAO CreateHalfResTargets failed\n");
@@ -239,7 +255,7 @@ HRESULT SSAO::Init(DXRender* render)
 
 void SSAO::Cleanup()
 {
-	ReleaseHalfResTargets();
+	ReleaseHalfResTargets(nullptr);
 	if (m_psoComposite) { m_psoComposite->Release(); m_psoComposite = nullptr; }
 	if (m_psoBlur) { m_psoBlur->Release(); m_psoBlur = nullptr; }
 	if (m_psoAO) { m_psoAO->Release(); m_psoAO = nullptr; }
@@ -247,14 +263,15 @@ void SSAO::Cleanup()
 }
 
 void SSAO::DrawFullscreen(DXRender* render, ID3D12PipelineState* pso,
-	UINT srvIndex, UINT srvCount, UINT samplerIndex)
+	UINT srv0, UINT srv1, UINT samplerIndex)
 {
-	(void)srvCount;
 	ID3D12GraphicsCommandList* cmd = render->GetCommandList();
 	cmd->SetGraphicsRootSignature(m_rootSig);
 	cmd->SetPipelineState(pso);
-	cmd->SetGraphicsRootDescriptorTable(1, render->GetSrvGpu(srvIndex));
-	cmd->SetGraphicsRootDescriptorTable(2, render->GetSamplerGpu(samplerIndex));
+	/* Separate tables — never rewrite shader-visible descriptors while GPU is in flight. */
+	cmd->SetGraphicsRootDescriptorTable(1, render->GetSrvGpu(srv0));
+	cmd->SetGraphicsRootDescriptorTable(2, render->GetSrvGpu(srv1 != UINT_MAX ? srv1 : srv0));
+	cmd->SetGraphicsRootDescriptorTable(3, render->GetSamplerGpu(samplerIndex));
 	cmd->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 	cmd->DrawInstanced(3, 1, 0, 0);
 }
@@ -285,6 +302,8 @@ void SSAO::Apply(DXRender* render, Camera* camera)
 
 	D3D12_GPU_VIRTUAL_ADDRESS cbAddr = 0;
 	void* cbPtr = render->AllocFrameConstants(sizeof(cb), &cbAddr);
+	if (!cbPtr)
+		return;
 	memcpy(cbPtr, &cb, sizeof(cb));
 
 	D3D12_VIEWPORT halfVP = {};
@@ -304,7 +323,7 @@ void SSAO::Apply(DXRender* render, Camera* camera)
 	cmd->RSSetScissorRects(1, &halfSc);
 	cmd->SetGraphicsRootSignature(m_rootSig);
 	cmd->SetGraphicsRootConstantBufferView(0, cbAddr);
-	DrawFullscreen(render, m_psoAO, depthSrv, 1, m_pointSampler);
+	DrawFullscreen(render, m_psoAO, depthSrv, UINT_MAX, m_pointSampler);
 
 	/* ---- Blur pass ---- */
 	render->Transition(m_aoTex, m_aoState, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
@@ -314,24 +333,17 @@ void SSAO::Apply(DXRender* render, Camera* camera)
 		m_blurState = D3D12_RESOURCE_STATE_RENDER_TARGET;
 	}
 
-	render->GetDevice()->CopyDescriptorsSimple(
-		1, render->GetSrvCpu(m_pairSrvBase), render->GetSrvCpu(m_aoSrv),
-		D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-	render->GetDevice()->CopyDescriptorsSimple(
-		1, render->GetSrvCpu(m_pairSrvBase + 1), render->GetSrvCpu(depthSrv),
-		D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-
 	D3D12_CPU_DESCRIPTOR_HANDLE blurRtv = render->GetRtvCpu(m_blurRtv);
 	cmd->OMSetRenderTargets(1, &blurRtv, FALSE, nullptr);
 	cmd->SetGraphicsRootConstantBufferView(0, cbAddr);
-	DrawFullscreen(render, m_psoBlur, m_pairSrvBase, 2, m_pointSampler);
+	DrawFullscreen(render, m_psoBlur, m_aoSrv, depthSrv, m_pointSampler);
 
 	/* ---- Composite multiply onto back buffer ---- */
 	render->Transition(m_blurTex, m_blurState, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 	m_blurState = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
 	render->BindColorTargetOnly();
 	cmd->SetGraphicsRootConstantBufferView(0, cbAddr);
-	DrawFullscreen(render, m_psoComposite, m_blurSrv, 1, m_linearSampler);
+	DrawFullscreen(render, m_psoComposite, m_blurSrv, UINT_MAX, m_linearSampler);
 
 	render->RestoreMainTargets();
 	render->ApplyRasterizerState();

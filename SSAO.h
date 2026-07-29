@@ -27,9 +27,9 @@ public:
 
 private:
 	HRESULT CreateHalfResTargets(DXRender* render);
-	void ReleaseHalfResTargets();
+	void ReleaseHalfResTargets(DXRender* render = nullptr);
 	void DrawFullscreen(DXRender* render, ID3D12PipelineState* pso,
-		UINT srvIndex, UINT srvCount, UINT samplerIndex);
+		UINT srv0, UINT srv1, UINT samplerIndex);
 
 	ID3D12RootSignature* m_rootSig;
 	ID3D12PipelineState* m_psoAO;
@@ -38,7 +38,6 @@ private:
 
 	UINT m_pointSampler;
 	UINT m_linearSampler;
-	UINT m_pairSrvBase; /* scratch contiguous SRV pair for blur (ao+depth) */
 
 	ID3D12Resource* m_aoTex;
 	UINT m_aoRtv;

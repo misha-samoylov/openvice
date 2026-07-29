@@ -7,6 +7,9 @@ ID3D12RootSignature* Mesh::s_rootSig = nullptr;
 ID3D12PipelineState* Mesh::s_psoOpaque = nullptr;
 ID3D12PipelineState* Mesh::s_psoCutout = nullptr;
 ID3D12PipelineState* Mesh::s_psoSoft = nullptr;
+ID3D12PipelineState* Mesh::s_psoOpaqueCullNone = nullptr;
+ID3D12PipelineState* Mesh::s_psoCutoutCullNone = nullptr;
+ID3D12PipelineState* Mesh::s_psoSoftCullNone = nullptr;
 ID3D12PipelineState* Mesh::s_psoShadow = nullptr;
 ID3D12PipelineState* Mesh::s_psoWire = nullptr;
 UINT Mesh::s_samplerIndex = UINT_MAX;
@@ -202,8 +205,23 @@ HRESULT Mesh::EnsureSharedPipeline(DXRender* pRender)
 		rtv, false, &s_psoSoft);
 	if (FAILED(hr))
 		return hr;
+	hr = CreateMeshPso(pRender->GetDevice(), s_rootSig, s_vsBlob, s_psBlob,
+		MakeBlendOpaque(false), MakeRaster(D3D12_CULL_MODE_NONE, false), MakeDepth(true),
+		rtv, false, &s_psoOpaqueCullNone);
+	if (FAILED(hr))
+		return hr;
+	hr = CreateMeshPso(pRender->GetDevice(), s_rootSig, s_vsBlob, s_psBlob,
+		MakeBlendOpaque(true), MakeRaster(D3D12_CULL_MODE_NONE, false), MakeDepth(true),
+		rtv, false, &s_psoCutoutCullNone);
+	if (FAILED(hr))
+		return hr;
+	hr = CreateMeshPso(pRender->GetDevice(), s_rootSig, s_vsBlob, s_psBlob,
+		MakeBlendSoft(), MakeRaster(D3D12_CULL_MODE_NONE, false), MakeDepth(false),
+		rtv, false, &s_psoSoftCullNone);
+	if (FAILED(hr))
+		return hr;
 	{
-		/* Depth bias formerly set via ShadowMap rasterizer state (DX11). */
+		/* Depth bias formerly set via ShadowMap rasterizer state. */
 		D3D12_RASTERIZER_DESC shadowR = MakeRaster(D3D12_CULL_MODE_NONE, false);
 		shadowR.DepthBias = 16;
 		shadowR.DepthBiasClamp = 0.00018f;
@@ -246,6 +264,9 @@ void Mesh::ReleaseSharedResources()
 	if (s_psoOpaque) { s_psoOpaque->Release(); s_psoOpaque = nullptr; }
 	if (s_psoCutout) { s_psoCutout->Release(); s_psoCutout = nullptr; }
 	if (s_psoSoft) { s_psoSoft->Release(); s_psoSoft = nullptr; }
+	if (s_psoOpaqueCullNone) { s_psoOpaqueCullNone->Release(); s_psoOpaqueCullNone = nullptr; }
+	if (s_psoCutoutCullNone) { s_psoCutoutCullNone->Release(); s_psoCutoutCullNone = nullptr; }
+	if (s_psoSoftCullNone) { s_psoSoftCullNone->Release(); s_psoSoftCullNone = nullptr; }
 	if (s_psoShadow) { s_psoShadow->Release(); s_psoShadow = nullptr; }
 	if (s_psoWire) { s_psoWire->Release(); s_psoWire = nullptr; }
 	if (s_rootSig) { s_rootSig->Release(); s_rootSig = nullptr; }
@@ -301,10 +322,15 @@ ID3D12PipelineState* Mesh::SelectPso(DXRender* pRender, MeshRenderContext& ctx) 
 		return s_psoShadow;
 	if (pRender->IsWireframe() || pRender->GetRasterCullMode() == RasterCullMode::Wireframe)
 		return s_psoWire;
+
+	const bool cullNone = (pRender->GetRasterCullMode() == RasterCullMode::CullNone);
 	switch (pRender->GetBlendPassMode()) {
-	case BlendPassMode::Cutout: return s_psoCutout;
-	case BlendPassMode::SoftAlpha: return s_psoSoft;
-	default: return s_psoOpaque;
+	case BlendPassMode::Cutout:
+		return cullNone ? s_psoCutoutCullNone : s_psoCutout;
+	case BlendPassMode::SoftAlpha:
+		return cullNone ? s_psoSoftCullNone : s_psoSoft;
+	default:
+		return cullNone ? s_psoOpaqueCullNone : s_psoOpaque;
 	}
 }
 
@@ -361,6 +387,8 @@ void Mesh::Render(DXRender* pRender, MeshRenderContext& ctx)
 
 	D3D12_GPU_VIRTUAL_ADDRESS cbAddr = 0;
 	void* cbPtr = pRender->AllocFrameConstants(sizeof(m_objectConstBuffer), &cbAddr);
+	if (!cbPtr)
+		return;
 	memcpy(cbPtr, &m_objectConstBuffer, sizeof(m_objectConstBuffer));
 	cmd->SetGraphicsRootConstantBufferView(0, cbAddr);
 

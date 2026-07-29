@@ -184,6 +184,9 @@ private:
 	static ID3D12PipelineState* s_psoOpaque;
 	static ID3D12PipelineState* s_psoCutout;
 	static ID3D12PipelineState* s_psoSoft;
+	static ID3D12PipelineState* s_psoOpaqueCullNone;
+	static ID3D12PipelineState* s_psoCutoutCullNone;
+	static ID3D12PipelineState* s_psoSoftCullNone;
 	static ID3D12PipelineState* s_psoShadow;
 	static ID3D12PipelineState* s_psoWire;
 	static UINT s_samplerIndex;

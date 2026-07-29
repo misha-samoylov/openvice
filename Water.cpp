@@ -430,6 +430,8 @@ void Water::BindPipeline(DXRender* render, Camera* camera, float drawDistance,
 
 	D3D12_GPU_VIRTUAL_ADDRESS cbAddr = 0;
 	void* ptr = render->AllocFrameConstants(sizeof(cb), &cbAddr);
+	if (!ptr)
+		return;
 	memcpy(ptr, &cb, sizeof(cb));
 
 	cmd->SetGraphicsRootSignature(m_rootSig);
@@ -513,6 +515,8 @@ void Water::DrawInfiniteOcean(DXRender* render, Camera* camera, float drawDistan
 	UINT64 bytes = sizeof(WaterVertex) * verts.size();
 	D3D12_GPU_VIRTUAL_ADDRESS vbAddr = 0;
 	void* mapped = render->AllocFrameConstants(bytes, &vbAddr);
+	if (!mapped)
+		return;
 	memcpy(mapped, verts.data(), (size_t)bytes);
 
 	ID3D12GraphicsCommandList* cmd = render->GetCommandList();

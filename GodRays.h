@@ -29,8 +29,9 @@ public:
 
 private:
 	HRESULT CreateTargets(DXRender* render);
-	void ReleaseTargets();
-	void DrawFullscreen(DXRender* render, ID3D12PipelineState* pso, UINT srvIndex, UINT samplerIndex);
+	void ReleaseTargets(DXRender* render = nullptr);
+	void DrawFullscreen(DXRender* render, ID3D12PipelineState* pso,
+		UINT srv0, UINT srv1, UINT samplerIndex);
 	float ProjectSun(
 		Camera* camera,
 		FXMVECTOR sunDirToward,
@@ -45,7 +46,6 @@ private:
 
 	UINT m_pointSampler;
 	UINT m_linearSampler;
-	UINT m_pairSrvBase;
 
 	ID3D12Resource* m_colorTex;
 	UINT m_colorSrv;

@@ -35,7 +35,7 @@ void GameSession::HandleDebugHotkeys(
 			render->ChangeRasterizerStateToSolid();
 		if (world.GetVehicle())
 			world.GetVehicle()->SetWireframe(on);
-		printf("[Info] World+Cheetah DX11 wireframe %s (F1)\n", on ? "ON" : "OFF");
+		printf("[Info] World+Cheetah wireframe %s (F1)\n", on ? "ON" : "OFF");
 	}
 	f1WasDown = f1Down;
 

@@ -185,6 +185,24 @@ UINT DXRender::CreateTexture2DArraySrv(ID3D12Resource* resource, DXGI_FORMAT for
 	return index;
 }
 
+UINT DXRender::CreateTypedBufferSrv(ID3D12Resource* resource, UINT elementCount, UINT stride)
+{
+	UINT index = AllocSrvIndex();
+	if (index == UINT_MAX || !resource || elementCount == 0 || stride == 0)
+		return UINT_MAX;
+
+	D3D12_SHADER_RESOURCE_VIEW_DESC srv = {};
+	srv.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+	srv.Format = DXGI_FORMAT_UNKNOWN;
+	srv.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
+	srv.Buffer.FirstElement = 0;
+	srv.Buffer.NumElements = elementCount;
+	srv.Buffer.StructureByteStride = stride;
+	srv.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
+	m_device->CreateShaderResourceView(resource, &srv, GetSrvCpu(index));
+	return index;
+}
+
 UINT DXRender::CreateSampler(const D3D12_SAMPLER_DESC& desc)
 {
 	if (m_samplerCount >= kSamplerHeapSize) {
@@ -242,8 +260,10 @@ void DXRender::DeferRelease(IUnknown* obj)
 {
 	if (!obj)
 		return;
+	/* Release only after the fence signaled at the end of this frame
+	 * (m_fenceValue + 1). Using the last signaled value frees one frame early. */
 	DeferredRelease d;
-	d.fenceValue = m_fenceValue;
+	d.fenceValue = m_fenceValue + 1;
 	d.obj = obj;
 	m_deferred.push_back(d);
 }
@@ -370,8 +390,12 @@ HRESULT DXRender::CreateHeaps()
 
 HRESULT DXRender::CreateSwapChain(HWND hWnd)
 {
+	UINT dxgiFactoryFlags = 0;
+#if defined(_DEBUG)
+	dxgiFactoryFlags |= DXGI_CREATE_FACTORY_DEBUG;
+#endif
 	ComPtr<IDXGIFactory4> factory;
-	HRESULT hr = CreateDXGIFactory2(0, IID_PPV_ARGS(&factory));
+	HRESULT hr = CreateDXGIFactory2(dxgiFactoryFlags, IID_PPV_ARGS(&factory));
 	if (FAILED(hr))
 		return hr;
 

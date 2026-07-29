@@ -169,9 +169,9 @@ struct Geometry {
 	void readMeshExtension(char* bytes, size_t* offset);
 
 	/*
-	 * Expand a binmesh split to a triangle list for D3D11.
+	 * Expand a binmesh split to a triangle list for D3D12.
 	 * RW STRIP meshes use degenerate restarts; drawing them as
-	 * TRIANGLESTRIP on D3D11 drops / wrongly culls many faces.
+	 * TRIANGLESTRIP drops / wrongly culls many faces.
 	 * Winding matches native TRIANGLESTRIP (not generateFaces swap).
 	 */
 	void ExpandSplitToTriangles(uint32_t splitIndex, std::vector<uint32_t>& outIndices) const;

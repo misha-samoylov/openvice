@@ -235,6 +235,8 @@ void PhysicsDebugDraw::Render(DXRender* render)
 	XMMATRIX vp = XMMatrixTranspose(m_viewProj);
 	D3D12_GPU_VIRTUAL_ADDRESS cbAddr = 0;
 	void* cbPtr = render->AllocFrameConstants(sizeof(vp), &cbAddr);
+	if (!cbPtr)
+		return;
 	memcpy(cbPtr, &vp, sizeof(vp));
 
 	ID3D12GraphicsCommandList* cmd = render->GetCommandList();

@@ -88,7 +88,7 @@ const char* PostFX::ModeName(Mode mode)
 
 HRESULT PostFX::CreateTargets(DXRender* render)
 {
-	ReleaseTargets();
+	ReleaseTargets(render);
 
 	m_width = render->GetBackBufferWidth();
 	m_height = render->GetBackBufferHeight();
@@ -117,10 +117,22 @@ HRESULT PostFX::CreateTargets(DXRender* render)
 	return (m_frontSrv != UINT_MAX) ? S_OK : E_FAIL;
 }
 
-void PostFX::ReleaseTargets()
+void PostFX::ReleaseTargets(DXRender* render)
 {
-	if (m_frontTex) { m_frontTex->Release(); m_frontTex = nullptr; }
-	if (m_backTex) { m_backTex->Release(); m_backTex = nullptr; }
+	if (m_frontTex) {
+		if (render)
+			render->DeferRelease(m_frontTex);
+		else
+			m_frontTex->Release();
+		m_frontTex = nullptr;
+	}
+	if (m_backTex) {
+		if (render)
+			render->DeferRelease(m_backTex);
+		else
+			m_backTex->Release();
+		m_backTex = nullptr;
+	}
 	m_backSrv = m_frontSrv = UINT_MAX;
 }
 
@@ -226,7 +238,7 @@ HRESULT PostFX::Init(DXRender* render)
 
 void PostFX::Cleanup()
 {
-	ReleaseTargets();
+	ReleaseTargets(nullptr);
 	if (m_psoBlitAdditive) { m_psoBlitAdditive->Release(); m_psoBlitAdditive = nullptr; }
 	if (m_psoBlitAlpha) { m_psoBlitAlpha->Release(); m_psoBlitAlpha = nullptr; }
 	if (m_psoBlitOpaque) { m_psoBlitOpaque->Release(); m_psoBlitOpaque = nullptr; }
@@ -308,6 +320,8 @@ void PostFX::ApplyColourFilter(DXRender* render)
 
 	D3D12_GPU_VIRTUAL_ADDRESS cbAddr = 0;
 	void* ptr = render->AllocFrameConstants(sizeof(cb), &cbAddr);
+	if (!ptr)
+		return;
 	memcpy(ptr, &cb, sizeof(cb));
 
 	render->BindBackBufferOnly();
@@ -342,6 +356,8 @@ void PostFX::ApplyMotionBlur(DXRender* render)
 
 		D3D12_GPU_VIRTUAL_ADDRESS cbAddr = 0;
 		void* ptr = render->AllocFrameConstants(sizeof(blit), &cbAddr);
+		if (!ptr)
+			return;
 		memcpy(ptr, &blit, sizeof(blit));
 		cmd->SetGraphicsRootConstantBufferView(0, cbAddr);
 		DrawFullscreen(render, m_psoBlitAlpha, m_frontSrv);
@@ -349,12 +365,16 @@ void PostFX::ApplyMotionBlur(DXRender* render)
 		blit.Color = XMFLOAT4(r, g, b, a);
 		blit.UVOffset = XMFLOAT2(0, 0);
 		ptr = render->AllocFrameConstants(sizeof(blit), &cbAddr);
+		if (!ptr)
+			return;
 		memcpy(ptr, &blit, sizeof(blit));
 		cmd->SetGraphicsRootConstantBufferView(0, cbAddr);
 		DrawFullscreen(render, m_psoBlitAdditive, m_frontSrv);
 
 		blit.UVOffset = offsetUV;
 		ptr = render->AllocFrameConstants(sizeof(blit), &cbAddr);
+		if (!ptr)
+			return;
 		memcpy(ptr, &blit, sizeof(blit));
 		cmd->SetGraphicsRootConstantBufferView(0, cbAddr);
 		DrawFullscreen(render, m_psoBlitAdditive, m_frontSrv);

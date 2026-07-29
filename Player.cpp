@@ -314,6 +314,8 @@ void Player::Render(DXRender* render, MeshRenderContext& ctx)
 	const UINT boneBytes = sizeof(XMFLOAT4X4) * MAX_BONES;
 	D3D12_GPU_VIRTUAL_ADDRESS boneAddr = 0;
 	void* bonePtr = render->AllocFrameConstants(boneBytes, &boneAddr);
+	if (!bonePtr)
+		return;
 	memcpy(bonePtr, m_skinPalette.data(), boneBytes);
 	cmd->SetGraphicsRootConstantBufferView(1, boneAddr);
 
@@ -345,6 +347,8 @@ void Player::Render(DXRender* render, MeshRenderContext& ctx)
 
 	D3D12_GPU_VIRTUAL_ADDRESS objAddr = 0;
 	void* objPtr = render->AllocFrameConstants(sizeof(cb), &objAddr);
+	if (!objPtr)
+		return;
 	memcpy(objPtr, &cb, sizeof(cb));
 	cmd->SetGraphicsRootConstantBufferView(0, objAddr);
 

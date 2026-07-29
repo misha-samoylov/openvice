@@ -220,16 +220,22 @@ bool Clouds::CreatePipeline(DXRender* render)
 	return m_samplerIndex != UINT_MAX;
 }
 
-void Clouds::ReleaseTargets()
+void Clouds::ReleaseTargets(DXRender* render)
 {
-	if (m_cloudTex) { m_cloudTex->Release(); m_cloudTex = nullptr; }
+	if (m_cloudTex) {
+		if (render)
+			render->DeferRelease(m_cloudTex);
+		else
+			m_cloudTex->Release();
+		m_cloudTex = nullptr;
+	}
 	m_cloudRtv = m_cloudSrv = UINT_MAX;
 	m_fullW = m_fullH = m_halfW = m_halfH = 0;
 }
 
 bool Clouds::CreateTargets(DXRender* render)
 {
-	ReleaseTargets();
+	ReleaseTargets(render);
 
 	m_fullW = render->GetBackBufferWidth();
 	m_fullH = render->GetBackBufferHeight();
@@ -282,7 +288,7 @@ bool Clouds::Init(DXRender* render, const char* particleTxdPath)
 void Clouds::Cleanup()
 {
 	m_ready = false;
-	ReleaseTargets();
+	ReleaseTargets(nullptr);
 	if (m_psoComposite) { m_psoComposite->Release(); m_psoComposite = nullptr; }
 	if (m_psoCloud) { m_psoCloud->Release(); m_psoCloud = nullptr; }
 	if (m_psoSun) { m_psoSun->Release(); m_psoSun = nullptr; }
@@ -342,6 +348,8 @@ void Clouds::FlushBatch(DXRender* render, ID3D12PipelineState* pso,
 	UINT64 bytes = sizeof(CloudVertex) * (UINT64)vertCount;
 	D3D12_GPU_VIRTUAL_ADDRESS vbAddr = 0;
 	void* mapped = render->AllocFrameConstants(bytes, &vbAddr);
+	if (!mapped)
+		return;
 	memcpy(mapped, verts, (size_t)bytes);
 
 	ID3D12GraphicsCommandList* cmd = render->GetCommandList();
@@ -447,6 +455,8 @@ void Clouds::RenderVolumetric(DXRender* render, Camera* camera, FXMVECTOR sunDir
 
 	D3D12_GPU_VIRTUAL_ADDRESS cbAddr = 0;
 	void* ptr = render->AllocFrameConstants(sizeof(cb), &cbAddr);
+	if (!ptr)
+		return;
 	memcpy(ptr, &cb, sizeof(cb));
 
 	if (m_cloudState != D3D12_RESOURCE_STATE_RENDER_TARGET) {

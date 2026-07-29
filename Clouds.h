@@ -57,7 +57,7 @@ private:
 
 	bool CreatePipeline(DXRender* render);
 	bool CreateTargets(DXRender* render);
-	void ReleaseTargets();
+	void ReleaseTargets(DXRender* render = nullptr);
 
 	bool ProjectGtaPoint(Camera* camera, float gtaX, float gtaY, float gtaZ,
 		float screenW, float screenH,
