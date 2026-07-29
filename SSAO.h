@@ -1,6 +1,5 @@
 #pragma once
 
-#include <d3d11.h>
 #include <DirectXMath.h>
 
 #include "DXRender.hpp"
@@ -29,27 +28,27 @@ public:
 private:
 	HRESULT CreateHalfResTargets(DXRender* render);
 	void ReleaseHalfResTargets();
-	void DrawFullscreen(ID3D11DeviceContext* ctx);
+	void DrawFullscreen(DXRender* render, ID3D12PipelineState* pso,
+		UINT srvIndex, UINT srvCount, UINT samplerIndex);
 
-	ID3D11VertexShader* m_vs;
-	ID3D11PixelShader* m_psAO;
-	ID3D11PixelShader* m_psBlur;
-	ID3D11PixelShader* m_psComposite;
-	ID3D11Buffer* m_cb;
-	ID3D11SamplerState* m_pointSampler;
-	ID3D11SamplerState* m_linearSampler;
-	ID3D11RasterizerState* m_rasterizer;
-	ID3D11DepthStencilState* m_depthDisabled;
-	ID3D11BlendState* m_blendOpaque;
-	ID3D11BlendState* m_blendMultiply;
+	ID3D12RootSignature* m_rootSig;
+	ID3D12PipelineState* m_psoAO;
+	ID3D12PipelineState* m_psoBlur;
+	ID3D12PipelineState* m_psoComposite;
 
-	ID3D11Texture2D* m_aoTex;
-	ID3D11RenderTargetView* m_aoRTV;
-	ID3D11ShaderResourceView* m_aoSRV;
+	UINT m_pointSampler;
+	UINT m_linearSampler;
+	UINT m_pairSrvBase; /* scratch contiguous SRV pair for blur (ao+depth) */
 
-	ID3D11Texture2D* m_blurTex;
-	ID3D11RenderTargetView* m_blurRTV;
-	ID3D11ShaderResourceView* m_blurSRV;
+	ID3D12Resource* m_aoTex;
+	UINT m_aoRtv;
+	UINT m_aoSrv;
+	D3D12_RESOURCE_STATES m_aoState;
+
+	ID3D12Resource* m_blurTex;
+	UINT m_blurRtv;
+	UINT m_blurSrv;
+	D3D12_RESOURCE_STATES m_blurState;
 
 	UINT m_fullW;
 	UINT m_fullH;

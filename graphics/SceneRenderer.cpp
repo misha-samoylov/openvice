@@ -104,6 +104,9 @@ void SceneRenderer::Render(DXRender* render, Camera* camera, Scene& scene, GameW
 	RenderSettings& settings = world.Settings();
 	const bool shadowsOn = m_shadowMap && settings.shadowsEnabled;
 
+	/* Open command list + clear main targets before any draws (incl. shadows). */
+	render->RenderStart();
+
 	if (shadowsOn) {
 		m_shadowMap->UpdateCascades(focusX, focusY, focusZ);
 		FillCascadeMatrices(ctx, m_shadowMap.get());
@@ -134,14 +137,12 @@ void SceneRenderer::Render(DXRender* render, Camera* camera, Scene& scene, GameW
 		ctx.ClearBindings();
 	}
 
-	render->RenderStart();
-
 	ctx.pass = MESH_PASS_COLOR;
 	ctx.viewProj = XMMatrixMultiply(view, proj);
 	FillCascadeMatrices(ctx, shadowsOn ? m_shadowMap.get() : nullptr);
 	ctx.receiveShadows = shadowsOn ? 1.0f : 0.0f;
-	ctx.shadowSRV = shadowsOn ? m_shadowMap->GetSRV() : nullptr;
-	ctx.shadowSampler = shadowsOn ? m_shadowMap->GetCmpSampler() : nullptr;
+	ctx.shadowSrvIndex = shadowsOn ? m_shadowMap->GetSrvIndex() : UINT_MAX;
+	ctx.shadowSamplerIndex = shadowsOn ? m_shadowMap->GetCmpSamplerIndex() : UINT_MAX;
 
 	XMVECTOR sunDir;
 	if (m_shadowMap) {
@@ -154,8 +155,8 @@ void SceneRenderer::Render(DXRender* render, Camera* camera, Scene& scene, GameW
 	if (world.GetClouds())
 		world.GetClouds()->Render(render, camera, sunDir, settings.cloudsEnabled);
 	ctx.ClearBindings();
-	ctx.shadowSRV = shadowsOn ? m_shadowMap->GetSRV() : nullptr;
-	ctx.shadowSampler = shadowsOn ? m_shadowMap->GetCmpSampler() : nullptr;
+	ctx.shadowSrvIndex = shadowsOn ? m_shadowMap->GetSrvIndex() : UINT_MAX;
+	ctx.shadowSamplerIndex = shadowsOn ? m_shadowMap->GetCmpSamplerIndex() : UINT_MAX;
 	ctx.receiveShadows = shadowsOn ? 1.0f : 0.0f;
 
 	render->SetOpaqueState();
@@ -177,8 +178,8 @@ void SceneRenderer::Render(DXRender* render, Camera* camera, Scene& scene, GameW
 	ctx.ClearBindings();
 	ctx.viewProj = XMMatrixMultiply(view, proj);
 	FillCascadeMatrices(ctx, shadowsOn ? m_shadowMap.get() : nullptr);
-	ctx.shadowSRV = shadowsOn ? m_shadowMap->GetSRV() : nullptr;
-	ctx.shadowSampler = shadowsOn ? m_shadowMap->GetCmpSampler() : nullptr;
+	ctx.shadowSrvIndex = shadowsOn ? m_shadowMap->GetSrvIndex() : UINT_MAX;
+	ctx.shadowSamplerIndex = shadowsOn ? m_shadowMap->GetCmpSamplerIndex() : UINT_MAX;
 	ctx.receiveShadows = shadowsOn ? 1.0f : 0.0f;
 
 	scene.SortAlphaBackToFront(camera);
@@ -202,11 +203,6 @@ void SceneRenderer::Render(DXRender* render, Camera* camera, Scene& scene, GameW
 		m_physicsDebug->Render(render);
 	}
 
-	if (m_shadowMap) {
-		ID3D11ShaderResourceView* nullSRV = nullptr;
-		render->GetDeviceContext()->PSSetShaderResources(1, 1, &nullSRV);
-	}
-
 	const bool needDepth =
 		(m_ssao && settings.ssaoEnabled) ||
 		(m_godRays && settings.godRaysEnabled);
@@ -218,8 +214,10 @@ void SceneRenderer::Render(DXRender* render, Camera* camera, Scene& scene, GameW
 
 	render->ResolveMSAA();
 
-	if (m_godRays && settings.godRaysEnabled)
+	if (m_godRays && settings.godRaysEnabled) {
+		render->ResolveDepthForSSAO();
 		m_godRays->Apply(render, camera, sunDir);
+	}
 
 	if (m_postFX)
 		m_postFX->Apply(render);

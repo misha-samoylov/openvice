@@ -51,11 +51,11 @@ private:
 	};
 
 	struct SkinnedMeshPart {
-		ID3D11Buffer* vb;
-		ID3D11Buffer* ib;
-		ID3D11ShaderResourceView* texture;
-		ID3D11Buffer* objectCB;
+		ID3D12Resource* vb;
+		ID3D12Resource* ib;
+		GpuTexture texture;
 		unsigned int indexCount;
+		unsigned int vertexCount;
 		D3D_PRIMITIVE_TOPOLOGY topology;
 		bool hasAlpha;
 	};
@@ -80,7 +80,7 @@ private:
 	bool LoadTextures(IMG* img);
 	bool LoadModel(IMG* img, DXRender* render);
 	bool InitPipeline(DXRender* render);
-	HRESULT CreateTextureSRV(DXRender* render, LoadedTex& tex, ID3D11ShaderResourceView** outSRV);
+	HRESULT CreateTextureSRV(DXRender* render, LoadedTex& tex, GpuTexture* outTex);
 	void BindAnims();
 	void SampleAnim(IfpAnim* anim, float time);
 	void BlendAnimPose(float dt);
@@ -138,12 +138,11 @@ private:
 	std::vector<SkinnedMeshPart> m_meshes;
 	std::vector<LoadedTex> m_textures;
 
-	ID3D11VertexShader* m_vs;
-	ID3D11PixelShader* m_ps;
-	ID3D11PixelShader* m_shadowPS;
-	ID3D11InputLayout* m_layout;
-	ID3D11SamplerState* m_sampler;
-	ID3D11Buffer* m_boneCB;
+	ID3D12RootSignature* m_rootSig;
+	ID3D12PipelineState* m_psoColor;
+	ID3D12PipelineState* m_psoShadow;
+	UINT m_samplerIndex;
+	UINT m_shadowSamplerIndex;
 
 	static const int MAX_BONES = 64;
 };

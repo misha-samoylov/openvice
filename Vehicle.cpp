@@ -220,6 +220,8 @@ bool Vehicle::LoadWheelMeshes(IMG* img, DXRender* render)
 		txd.read(buf, &offset);
 		for (size_t i = 0; i < txd.texList.size(); i++) {
 			NativeTexture& t = txd.texList[i];
+			if (t.dxtCompression == 0)
+				t.convertTo32Bit();
 			WheelTex wt;
 			memset(&wt, 0, sizeof(wt));
 			memcpy(wt.name, t.name, sizeof(wt.name));

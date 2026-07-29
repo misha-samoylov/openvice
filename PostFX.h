@@ -1,6 +1,5 @@
 #pragma once
 
-#include <d3d11.h>
 #include <DirectXMath.h>
 
 #include "DXRender.hpp"
@@ -22,13 +21,10 @@ public:
 		MODE_COUNT
 	};
 
-	/* Colour-filter strength (shader path). */
 	static constexpr float INTENSITY = 0.45f;
-	/* Timecycle-style blur RGB (0–255). */
 	static constexpr float DEFAULT_R = 40.0f;
 	static constexpr float DEFAULT_G = 40.0f;
 	static constexpr float DEFAULT_B = 40.0f;
-	/* Additive pass alpha for motion blur (0–255). */
 	static constexpr float DEFAULT_BLUR_ALPHA = 47.25f;
 
 	HRESULT Init(DXRender* render);
@@ -42,34 +38,31 @@ public:
 	Mode GetMode() const { return m_mode; }
 	static const char* ModeName(Mode mode);
 
-	/* Call after the scene (and SSAO) has finished writing color. */
 	void Apply(DXRender* render);
 
 private:
 	HRESULT CreateTargets(DXRender* render);
 	void ReleaseTargets();
-	void DrawFullscreen(ID3D11DeviceContext* ctx);
-	void ApplyColourFilter(DXRender* render, ID3D11Texture2D* backBuf);
-	void ApplyMotionBlur(DXRender* render, ID3D11Texture2D* backBuf);
+	void DrawFullscreen(DXRender* render, ID3D12PipelineState* pso, UINT srvIndex);
+	void CopyBackBuffer(DXRender* render, ID3D12Resource* dest, D3D12_RESOURCE_STATES& destState);
+	void ApplyColourFilter(DXRender* render);
+	void ApplyMotionBlur(DXRender* render);
 
-	ID3D11VertexShader* m_vs;
-	ID3D11PixelShader* m_psColour;
-	ID3D11PixelShader* m_psBlit;
-	ID3D11Buffer* m_cbColour;
-	ID3D11Buffer* m_cbBlit;
-	ID3D11SamplerState* m_pointSampler;
-	ID3D11RasterizerState* m_rasterizer;
-	ID3D11DepthStencilState* m_depthDisabled;
-	ID3D11BlendState* m_blendOpaque;
-	ID3D11BlendState* m_blendAlpha;
-	ID3D11BlendState* m_blendAdditive;
+	ID3D12RootSignature* m_rootSig;
+	ID3D12PipelineState* m_psoColour;
+	ID3D12PipelineState* m_psoBlitOpaque;
+	ID3D12PipelineState* m_psoBlitAlpha;
+	ID3D12PipelineState* m_psoBlitAdditive;
 
-	/* Current-frame copy for colour filter. */
-	ID3D11Texture2D* m_backTex;
-	ID3D11ShaderResourceView* m_backSRV;
-	/* Previous-frame copy for motion blur. */
-	ID3D11Texture2D* m_frontTex;
-	ID3D11ShaderResourceView* m_frontSRV;
+	UINT m_pointSampler;
+
+	ID3D12Resource* m_backTex;
+	UINT m_backSrv;
+	D3D12_RESOURCE_STATES m_backState;
+
+	ID3D12Resource* m_frontTex;
+	UINT m_frontSrv;
+	D3D12_RESOURCE_STATES m_frontState;
 
 	UINT m_width;
 	UINT m_height;

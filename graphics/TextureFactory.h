@@ -1,13 +1,12 @@
 #pragma once
 
 #include <stdint.h>
-#include <d3d11.h>
 
-class DXRender;
+#include "DXRender.hpp"
 
 namespace TextureFactory
 {
-	/* Build an SRV from raw DXT texel payload (no DDS header). */
+	/* Build a GpuTexture from raw DXT texel payload (no DDS header). */
 	HRESULT CreateSrvFromDxt(
 		DXRender* render,
 		const uint8_t* data,
@@ -15,6 +14,6 @@ namespace TextureFactory
 		uint32_t width,
 		uint32_t height,
 		uint32_t dxtCompression,
-		ID3D11ShaderResourceView** outSrv
+		GpuTexture* outTex
 	);
 }

@@ -43,6 +43,10 @@ bool App::Initialize(HINSTANCE hInstance, int nCmdShow)
 	m_world.InitFromAssets(
 		m_assets, m_scene, m_img.get(), m_render.get(), m_renderer.PhysicsDebug());
 
+	/* Finish pending DEFAULT-buffer / texture uploads from ContentLoader + world. */
+	m_render->FlushUploads();
+	printf("[Info] SRV descriptors used: %u\n", m_render->GetSrvCount());
+
 	m_session.InitCameraState();
 
 	printf("[Info] %s loaded\n", PROJECT_NAME);
@@ -79,6 +83,10 @@ int App::Run()
 
 void App::Shutdown()
 {
+	/* GPU may still reference player/mesh/IB resources from in-flight frames. */
+	if (m_render)
+		m_render->WaitForGpu();
+
 	m_world.Shutdown();
 	m_renderer.Shutdown();
 	m_assets.Clear();

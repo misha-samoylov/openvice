@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <cmath>
+#include <d3dcompiler.h>
 
 enum { CLOUD_MAX_QUADS = 8 };
 
@@ -58,169 +59,171 @@ static void EmitDimQuad(CloudVert* out, int* vertCount,
 
 bool Clouds::CreatePipeline(DXRender* render)
 {
-	ID3DBlob* vsBlob = nullptr;
-	HRESULT hr = D3DReadFileToBlob(L"cloud_vs.cso", &vsBlob);
+	ID3D12Device* device = render->GetDevice();
+	HRESULT hr;
+
+	/* ---- Sun: VB + no CB ---- */
+	{
+		D3D12_ROOT_SIGNATURE_DESC rsDesc = {};
+		rsDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
+		ID3DBlob* sigBlob = nullptr;
+		hr = D3D12SerializeRootSignature(&rsDesc, D3D_ROOT_SIGNATURE_VERSION_1, &sigBlob, nullptr);
+		if (FAILED(hr))
+			return false;
+		hr = device->CreateRootSignature(
+			0, sigBlob->GetBufferPointer(), sigBlob->GetBufferSize(), IID_PPV_ARGS(&m_rootSigSun));
+		sigBlob->Release();
+		if (FAILED(hr))
+			return false;
+	}
+
+	ID3DBlob* vsSun = nullptr;
+	hr = D3DReadFileToBlob(L"cloud_vs.cso", &vsSun);
 	if (FAILED(hr)) {
 		printf("[Error] Clouds: cannot read cloud_vs.cso\n");
 		return false;
 	}
-
-	hr = render->GetDevice()->CreateVertexShader(
-		vsBlob->GetBufferPointer(), vsBlob->GetBufferSize(), nullptr, &m_vsSun);
-	if (FAILED(hr)) {
-		vsBlob->Release();
-		return false;
-	}
-
-	D3D11_INPUT_ELEMENT_DESC layout[] = {
-		{ "POSITION", 0, DXGI_FORMAT_R32G32_FLOAT,       0, 0,  D3D11_INPUT_PER_VERTEX_DATA, 0 },
-		{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT,       0, 8,  D3D11_INPUT_PER_VERTEX_DATA, 0 },
-		{ "COLOR",    0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 16, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-	};
-	hr = render->GetDevice()->CreateInputLayout(
-		layout, 3, vsBlob->GetBufferPointer(), vsBlob->GetBufferSize(), &m_layout);
-	vsBlob->Release();
-	if (FAILED(hr))
-		return false;
-
-	ID3DBlob* psBlob = nullptr;
-	hr = D3DReadFileToBlob(L"cloud_sun_ps.cso", &psBlob);
+	ID3DBlob* psSun = nullptr;
+	hr = D3DReadFileToBlob(L"cloud_sun_ps.cso", &psSun);
 	if (FAILED(hr)) {
 		printf("[Error] Clouds: cannot read cloud_sun_ps.cso\n");
+		vsSun->Release();
 		return false;
 	}
-	hr = render->GetDevice()->CreatePixelShader(
-		psBlob->GetBufferPointer(), psBlob->GetBufferSize(), nullptr, &m_psSun);
-	psBlob->Release();
+
+	D3D12_INPUT_ELEMENT_DESC layout[] = {
+		{ "POSITION", 0, DXGI_FORMAT_R32G32_FLOAT,       0, 0,  D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+		{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT,       0, 8,  D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+		{ "COLOR",    0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 16, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+	};
+
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC sunPso = {};
+	sunPso.pRootSignature = m_rootSigSun;
+	sunPso.VS = { vsSun->GetBufferPointer(), vsSun->GetBufferSize() };
+	sunPso.PS = { psSun->GetBufferPointer(), psSun->GetBufferSize() };
+	sunPso.BlendState.RenderTarget[0].BlendEnable = TRUE;
+	sunPso.BlendState.RenderTarget[0].SrcBlend = D3D12_BLEND_ONE;
+	sunPso.BlendState.RenderTarget[0].DestBlend = D3D12_BLEND_ONE;
+	sunPso.BlendState.RenderTarget[0].BlendOp = D3D12_BLEND_OP_ADD;
+	sunPso.BlendState.RenderTarget[0].SrcBlendAlpha = D3D12_BLEND_ONE;
+	sunPso.BlendState.RenderTarget[0].DestBlendAlpha = D3D12_BLEND_ONE;
+	sunPso.BlendState.RenderTarget[0].BlendOpAlpha = D3D12_BLEND_OP_ADD;
+	sunPso.BlendState.RenderTarget[0].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
+	sunPso.SampleMask = UINT_MAX;
+	sunPso.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID;
+	sunPso.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+	sunPso.RasterizerState.DepthClipEnable = TRUE;
+	sunPso.DepthStencilState.DepthEnable = FALSE;
+	sunPso.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
+	sunPso.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_ALWAYS;
+	sunPso.InputLayout = { layout, 3 };
+	sunPso.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+	sunPso.NumRenderTargets = 1;
+	sunPso.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
+	sunPso.SampleDesc.Count = 1;
+	hr = device->CreateGraphicsPipelineState(&sunPso, IID_PPV_ARGS(&m_psoSun));
+	vsSun->Release();
+	psSun->Release();
 	if (FAILED(hr))
 		return false;
 
-	hr = D3DReadFileToBlob(L"ssao_vs.cso", &psBlob);
+	/* ---- Volumetric / composite: CBV + optional SRV/sampler ---- */
+	D3D12_DESCRIPTOR_RANGE srvRange = {};
+	srvRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+	srvRange.NumDescriptors = 1;
+	srvRange.BaseShaderRegister = 0;
+
+	D3D12_DESCRIPTOR_RANGE sampRange = {};
+	sampRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER;
+	sampRange.NumDescriptors = 1;
+	sampRange.BaseShaderRegister = 0;
+
+	D3D12_ROOT_PARAMETER params[3] = {};
+	params[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+	params[0].Descriptor.ShaderRegister = 0;
+	params[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+	params[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+	params[1].DescriptorTable.NumDescriptorRanges = 1;
+	params[1].DescriptorTable.pDescriptorRanges = &srvRange;
+	params[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+	params[2].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+	params[2].DescriptorTable.NumDescriptorRanges = 1;
+	params[2].DescriptorTable.pDescriptorRanges = &sampRange;
+	params[2].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+
+	D3D12_ROOT_SIGNATURE_DESC cloudRs = {};
+	cloudRs.NumParameters = 3;
+	cloudRs.pParameters = params;
+	ID3DBlob* cloudSig = nullptr;
+	hr = D3D12SerializeRootSignature(&cloudRs, D3D_ROOT_SIGNATURE_VERSION_1, &cloudSig, nullptr);
+	if (FAILED(hr))
+		return false;
+	hr = device->CreateRootSignature(
+		0, cloudSig->GetBufferPointer(), cloudSig->GetBufferSize(), IID_PPV_ARGS(&m_rootSigCloud));
+	cloudSig->Release();
+	if (FAILED(hr))
+		return false;
+
+	ID3DBlob* vsCloud = nullptr;
+	ID3DBlob* psCloud = nullptr;
+	ID3DBlob* psComp = nullptr;
+	hr = D3DReadFileToBlob(L"ssao_vs.cso", &vsCloud);
+	if (FAILED(hr)) { printf("[Error] Clouds: cannot read ssao_vs.cso\n"); return false; }
+	hr = D3DReadFileToBlob(L"cloud_ps.cso", &psCloud);
+	if (FAILED(hr)) { printf("[Error] Clouds: cannot read cloud_ps.cso\n"); return false; }
+	hr = D3DReadFileToBlob(L"cloud_composite_ps.cso", &psComp);
+	if (FAILED(hr)) { printf("[Error] Clouds: cannot read cloud_composite_ps.cso\n"); return false; }
+
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC cloudPso = {};
+	cloudPso.pRootSignature = m_rootSigCloud;
+	cloudPso.VS = { vsCloud->GetBufferPointer(), vsCloud->GetBufferSize() };
+	cloudPso.PS = { psCloud->GetBufferPointer(), psCloud->GetBufferSize() };
+	cloudPso.BlendState.RenderTarget[0].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
+	cloudPso.SampleMask = UINT_MAX;
+	cloudPso.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID;
+	cloudPso.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+	cloudPso.RasterizerState.DepthClipEnable = TRUE;
+	cloudPso.DepthStencilState.DepthEnable = FALSE;
+	cloudPso.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
+	cloudPso.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_ALWAYS;
+	cloudPso.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+	cloudPso.NumRenderTargets = 1;
+	cloudPso.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
+	cloudPso.SampleDesc.Count = 1;
+	hr = device->CreateGraphicsPipelineState(&cloudPso, IID_PPV_ARGS(&m_psoCloud));
 	if (FAILED(hr)) {
-		printf("[Error] Clouds: cannot read ssao_vs.cso\n");
+		vsCloud->Release(); psCloud->Release(); psComp->Release();
 		return false;
 	}
-	hr = render->GetDevice()->CreateVertexShader(
-		psBlob->GetBufferPointer(), psBlob->GetBufferSize(), nullptr, &m_vsCloud);
-	psBlob->Release();
+
+	cloudPso.PS = { psComp->GetBufferPointer(), psComp->GetBufferSize() };
+	cloudPso.BlendState.RenderTarget[0].BlendEnable = TRUE;
+	cloudPso.BlendState.RenderTarget[0].SrcBlend = D3D12_BLEND_SRC_ALPHA;
+	cloudPso.BlendState.RenderTarget[0].DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
+	cloudPso.BlendState.RenderTarget[0].BlendOp = D3D12_BLEND_OP_ADD;
+	cloudPso.BlendState.RenderTarget[0].SrcBlendAlpha = D3D12_BLEND_ONE;
+	cloudPso.BlendState.RenderTarget[0].DestBlendAlpha = D3D12_BLEND_INV_SRC_ALPHA;
+	cloudPso.BlendState.RenderTarget[0].BlendOpAlpha = D3D12_BLEND_OP_ADD;
+	hr = device->CreateGraphicsPipelineState(&cloudPso, IID_PPV_ARGS(&m_psoComposite));
+	vsCloud->Release();
+	psCloud->Release();
+	psComp->Release();
 	if (FAILED(hr))
 		return false;
 
-	hr = D3DReadFileToBlob(L"cloud_ps.cso", &psBlob);
-	if (FAILED(hr)) {
-		printf("[Error] Clouds: cannot read cloud_ps.cso\n");
-		return false;
-	}
-	hr = render->GetDevice()->CreatePixelShader(
-		psBlob->GetBufferPointer(), psBlob->GetBufferSize(), nullptr, &m_psCloud);
-	psBlob->Release();
-	if (FAILED(hr))
-		return false;
-
-	hr = D3DReadFileToBlob(L"cloud_composite_ps.cso", &psBlob);
-	if (FAILED(hr)) {
-		printf("[Error] Clouds: cannot read cloud_composite_ps.cso\n");
-		return false;
-	}
-	hr = render->GetDevice()->CreatePixelShader(
-		psBlob->GetBufferPointer(), psBlob->GetBufferSize(), nullptr, &m_psComposite);
-	psBlob->Release();
-	if (FAILED(hr))
-		return false;
-
-	D3D11_BUFFER_DESC vbd;
-	ZeroMemory(&vbd, sizeof(vbd));
-	vbd.Usage = D3D11_USAGE_DYNAMIC;
-	vbd.ByteWidth = sizeof(CloudVertex) * MAX_QUADS * 6;
-	vbd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-	vbd.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-	hr = render->GetDevice()->CreateBuffer(&vbd, nullptr, &m_vb);
-	if (FAILED(hr))
-		return false;
-
-	D3D11_BUFFER_DESC cbd;
-	ZeroMemory(&cbd, sizeof(cbd));
-	cbd.ByteWidth = sizeof(CloudsCB);
-	cbd.Usage = D3D11_USAGE_DEFAULT;
-	cbd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
-	hr = render->GetDevice()->CreateBuffer(&cbd, nullptr, &m_cb);
-	return SUCCEEDED(hr);
-}
-
-bool Clouds::CreateStates(DXRender* render)
-{
-	D3D11_SAMPLER_DESC sd;
-	ZeroMemory(&sd, sizeof(sd));
-	sd.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
-	sd.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
-	sd.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
-	sd.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
-	sd.ComparisonFunc = D3D11_COMPARISON_NEVER;
-	sd.MinLOD = 0;
-	sd.MaxLOD = D3D11_FLOAT32_MAX;
-	HRESULT hr = render->GetDevice()->CreateSamplerState(&sd, &m_sampler);
-	if (FAILED(hr))
-		return false;
-
-	D3D11_RASTERIZER_DESC rd;
-	ZeroMemory(&rd, sizeof(rd));
-	rd.FillMode = D3D11_FILL_SOLID;
-	rd.CullMode = D3D11_CULL_NONE;
-	rd.DepthClipEnable = TRUE;
-	hr = render->GetDevice()->CreateRasterizerState(&rd, &m_rasterizer);
-	if (FAILED(hr))
-		return false;
-
-	D3D11_DEPTH_STENCIL_DESC ds;
-	ZeroMemory(&ds, sizeof(ds));
-	ds.DepthEnable = FALSE;
-	ds.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
-	ds.DepthFunc = D3D11_COMPARISON_ALWAYS;
-	hr = render->GetDevice()->CreateDepthStencilState(&ds, &m_depthOff);
-	if (FAILED(hr))
-		return false;
-
-	D3D11_BLEND_DESC additive;
-	ZeroMemory(&additive, sizeof(additive));
-	additive.RenderTarget[0].BlendEnable = TRUE;
-	additive.RenderTarget[0].SrcBlend = D3D11_BLEND_ONE;
-	additive.RenderTarget[0].DestBlend = D3D11_BLEND_ONE;
-	additive.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
-	additive.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_ONE;
-	additive.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_ONE;
-	additive.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
-	additive.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
-	hr = render->GetDevice()->CreateBlendState(&additive, &m_blendAdditive);
-	if (FAILED(hr))
-		return false;
-
-	D3D11_BLEND_DESC alpha;
-	ZeroMemory(&alpha, sizeof(alpha));
-	alpha.RenderTarget[0].BlendEnable = TRUE;
-	alpha.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;
-	alpha.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
-	alpha.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
-	alpha.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_ONE;
-	alpha.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
-	alpha.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
-	alpha.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
-	hr = render->GetDevice()->CreateBlendState(&alpha, &m_blendAlpha);
-	if (FAILED(hr))
-		return false;
-
-	D3D11_BLEND_DESC opaque;
-	ZeroMemory(&opaque, sizeof(opaque));
-	opaque.RenderTarget[0].BlendEnable = FALSE;
-	opaque.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
-	hr = render->GetDevice()->CreateBlendState(&opaque, &m_blendOpaque);
-	return SUCCEEDED(hr);
+	D3D12_SAMPLER_DESC sd = {};
+	sd.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
+	sd.AddressU = sd.AddressV = sd.AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+	sd.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
+	sd.MaxLOD = D3D12_FLOAT32_MAX;
+	m_samplerIndex = render->CreateSampler(sd);
+	return m_samplerIndex != UINT_MAX;
 }
 
 void Clouds::ReleaseTargets()
 {
-	if (m_cloudSRV) { m_cloudSRV->Release(); m_cloudSRV = nullptr; }
-	if (m_cloudRTV) { m_cloudRTV->Release(); m_cloudRTV = nullptr; }
 	if (m_cloudTex) { m_cloudTex->Release(); m_cloudTex = nullptr; }
+	m_cloudRtv = m_cloudSrv = UINT_MAX;
 	m_fullW = m_fullH = m_halfW = m_halfH = 0;
 }
 
@@ -233,56 +236,40 @@ bool Clouds::CreateTargets(DXRender* render)
 	m_halfW = (m_fullW > 1) ? (m_fullW / 2) : 1;
 	m_halfH = (m_fullH > 1) ? (m_fullH / 2) : 1;
 
-	D3D11_TEXTURE2D_DESC td;
-	ZeroMemory(&td, sizeof(td));
-	td.Width = m_halfW;
-	td.Height = m_halfH;
-	td.MipLevels = 1;
-	td.ArraySize = 1;
-	td.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-	td.SampleDesc.Count = 1;
-	td.Usage = D3D11_USAGE_DEFAULT;
-	td.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
-
-	HRESULT hr = render->GetDevice()->CreateTexture2D(&td, nullptr, &m_cloudTex);
+	HRESULT hr = render->CreateTexture2D(
+		m_halfW, m_halfH, DXGI_FORMAT_R8G8B8A8_UNORM,
+		D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET,
+		D3D12_RESOURCE_STATE_RENDER_TARGET,
+		&m_cloudTex);
 	if (FAILED(hr))
 		return false;
-	hr = render->GetDevice()->CreateRenderTargetView(m_cloudTex, nullptr, &m_cloudRTV);
-	if (FAILED(hr))
+	m_cloudState = D3D12_RESOURCE_STATE_RENDER_TARGET;
+	m_cloudRtv = render->AllocRtvIndex();
+	if (m_cloudRtv == UINT_MAX)
 		return false;
-	hr = render->GetDevice()->CreateShaderResourceView(m_cloudTex, nullptr, &m_cloudSRV);
-	return SUCCEEDED(hr);
+	render->GetDevice()->CreateRenderTargetView(m_cloudTex, nullptr, render->GetRtvCpu(m_cloudRtv));
+	m_cloudSrv = render->CreateTextureSrv(m_cloudTex, DXGI_FORMAT_R8G8B8A8_UNORM);
+	return m_cloudSrv != UINT_MAX;
 }
 
 bool Clouds::Init(DXRender* render, const char* particleTxdPath)
 {
 	(void)particleTxdPath;
 
-	m_vb = nullptr;
-	m_vsSun = nullptr;
-	m_psSun = nullptr;
-	m_layout = nullptr;
-	m_vsCloud = nullptr;
-	m_psCloud = nullptr;
-	m_psComposite = nullptr;
-	m_cb = nullptr;
-	m_sampler = nullptr;
-	m_rasterizer = nullptr;
-	m_depthOff = nullptr;
-	m_blendAdditive = nullptr;
-	m_blendAlpha = nullptr;
-	m_blendOpaque = nullptr;
+	m_rootSigSun = nullptr;
+	m_rootSigCloud = nullptr;
+	m_psoSun = nullptr;
+	m_psoCloud = nullptr;
+	m_psoComposite = nullptr;
+	m_samplerIndex = UINT_MAX;
 	m_cloudTex = nullptr;
-	m_cloudRTV = nullptr;
-	m_cloudSRV = nullptr;
+	m_cloudRtv = m_cloudSrv = UINT_MAX;
 	m_fullW = m_fullH = m_halfW = m_halfH = 0;
 	m_time = 0.0f;
 	m_wind = 0.25f;
 	m_ready = false;
 
 	if (!CreatePipeline(render))
-		return false;
-	if (!CreateStates(render))
 		return false;
 	if (!CreateTargets(render))
 		return false;
@@ -296,20 +283,11 @@ void Clouds::Cleanup()
 {
 	m_ready = false;
 	ReleaseTargets();
-	if (m_vb) { m_vb->Release(); m_vb = nullptr; }
-	if (m_vsSun) { m_vsSun->Release(); m_vsSun = nullptr; }
-	if (m_psSun) { m_psSun->Release(); m_psSun = nullptr; }
-	if (m_layout) { m_layout->Release(); m_layout = nullptr; }
-	if (m_vsCloud) { m_vsCloud->Release(); m_vsCloud = nullptr; }
-	if (m_psCloud) { m_psCloud->Release(); m_psCloud = nullptr; }
-	if (m_psComposite) { m_psComposite->Release(); m_psComposite = nullptr; }
-	if (m_cb) { m_cb->Release(); m_cb = nullptr; }
-	if (m_sampler) { m_sampler->Release(); m_sampler = nullptr; }
-	if (m_rasterizer) { m_rasterizer->Release(); m_rasterizer = nullptr; }
-	if (m_depthOff) { m_depthOff->Release(); m_depthOff = nullptr; }
-	if (m_blendAdditive) { m_blendAdditive->Release(); m_blendAdditive = nullptr; }
-	if (m_blendAlpha) { m_blendAlpha->Release(); m_blendAlpha = nullptr; }
-	if (m_blendOpaque) { m_blendOpaque->Release(); m_blendOpaque = nullptr; }
+	if (m_psoComposite) { m_psoComposite->Release(); m_psoComposite = nullptr; }
+	if (m_psoCloud) { m_psoCloud->Release(); m_psoCloud = nullptr; }
+	if (m_psoSun) { m_psoSun->Release(); m_psoSun = nullptr; }
+	if (m_rootSigCloud) { m_rootSigCloud->Release(); m_rootSigCloud = nullptr; }
+	if (m_rootSigSun) { m_rootSigSun->Release(); m_rootSigSun = nullptr; }
 }
 
 void Clouds::Update(float dt, Camera* camera)
@@ -355,46 +333,36 @@ bool Clouds::ProjectGtaPoint(Camera* camera, float gtaX, float gtaY, float gtaZ,
 	return true;
 }
 
-void Clouds::FlushBatch(DXRender* render, ID3D11BlendState* blend,
+void Clouds::FlushBatch(DXRender* render, ID3D12PipelineState* pso,
 	CloudVertex* verts, int vertCount)
 {
 	if (vertCount <= 0)
 		return;
 
-	ID3D11DeviceContext* ctx = render->GetDeviceContext();
+	UINT64 bytes = sizeof(CloudVertex) * (UINT64)vertCount;
+	D3D12_GPU_VIRTUAL_ADDRESS vbAddr = 0;
+	void* mapped = render->AllocFrameConstants(bytes, &vbAddr);
+	memcpy(mapped, verts, (size_t)bytes);
 
-	D3D11_MAPPED_SUBRESOURCE mapped;
-	HRESULT hr = ctx->Map(m_vb, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
-	if (FAILED(hr))
-		return;
-	memcpy(mapped.pData, verts, sizeof(CloudVertex) * (size_t)vertCount);
-	ctx->Unmap(m_vb, 0);
+	ID3D12GraphicsCommandList* cmd = render->GetCommandList();
+	D3D12_VERTEX_BUFFER_VIEW vbv = {};
+	vbv.BufferLocation = vbAddr;
+	vbv.SizeInBytes = (UINT)bytes;
+	vbv.StrideInBytes = sizeof(CloudVertex);
 
-	float bf[4] = { 0, 0, 0, 0 };
-	ctx->OMSetBlendState(blend, bf, 0xffffffff);
-	ctx->OMSetDepthStencilState(m_depthOff, 0);
-	ctx->RSSetState(m_rasterizer);
-
-	ctx->IASetInputLayout(m_layout);
-	ctx->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-	UINT stride = sizeof(CloudVertex);
-	UINT offset = 0;
-	ctx->IASetVertexBuffers(0, 1, &m_vb, &stride, &offset);
-	ctx->VSSetShader(m_vsSun, nullptr, 0);
-	ctx->PSSetShader(m_psSun, nullptr, 0);
-	ctx->Draw((UINT)vertCount, 0);
+	cmd->SetGraphicsRootSignature(m_rootSigSun);
+	cmd->SetPipelineState(pso);
+	cmd->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	cmd->IASetVertexBuffers(0, 1, &vbv);
+	cmd->DrawInstanced((UINT)vertCount, 1, 0, 0);
 }
 
-void Clouds::DrawFullscreen(ID3D11DeviceContext* ctx)
+void Clouds::DrawFullscreen(DXRender* render, ID3D12PipelineState* pso)
 {
-	ctx->IASetInputLayout(nullptr);
-	ctx->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-	UINT stride = 0, offset = 0;
-	ID3D11Buffer* nullVB = nullptr;
-	ctx->IASetVertexBuffers(0, 1, &nullVB, &stride, &offset);
-	ctx->IASetIndexBuffer(nullptr, DXGI_FORMAT_R32_UINT, 0);
-	ctx->VSSetShader(m_vsCloud, nullptr, 0);
-	ctx->Draw(3, 0);
+	ID3D12GraphicsCommandList* cmd = render->GetCommandList();
+	cmd->SetPipelineState(pso);
+	cmd->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	cmd->DrawInstanced(3, 1, 0, 0);
 }
 
 void Clouds::RenderSun(DXRender* render, Camera* camera, FXMVECTOR sunDirToward,
@@ -417,12 +385,9 @@ void Clouds::RenderSun(DXRender* render, Camera* camera, FXMVECTOR sunDirToward,
 		&sx, &sy, &szx, &szy))
 		return;
 
-	/* Equal pixel extents → circular disc (szx/szy differ by aspect). */
 	float unit = 0.5f * (szx + szy);
-	/* Extra padding so soft glow dies inside the quad, not on the square edge. */
 	float glowHalf = unit * 36.0f * SUN_SIZE;
 
-	/* Warmer / dimmer near the horizon so additive glow matches sunset. */
 	float elev = XMVectorGetY(sunDirToward);
 	float high = elev > 0.0f ? elev : 0.0f;
 	if (high > 1.0f) high = 1.0f;
@@ -439,8 +404,7 @@ void Clouds::RenderSun(DXRender* render, Camera* camera, FXMVECTOR sunDirToward,
 		screenW, screenH,
 		tintR * intensity, tintG * intensity, tintB * intensity, 1.0f);
 
-	FlushBatch(render, m_blendAdditive,
-		reinterpret_cast<CloudVertex*>(verts), vertCount);
+	FlushBatch(render, m_psoSun, reinterpret_cast<CloudVertex*>(verts), vertCount);
 }
 
 void Clouds::RenderVolumetric(DXRender* render, Camera* camera, FXMVECTOR sunDirToward)
@@ -451,10 +415,10 @@ void Clouds::RenderVolumetric(DXRender* render, Camera* camera, FXMVECTOR sunDir
 		if (!CreateTargets(render))
 			return;
 	}
-	if (!m_cloudRTV || !m_cloudSRV)
+	if (m_cloudRtv == UINT_MAX || m_cloudSrv == UINT_MAX)
 		return;
 
-	ID3D11DeviceContext* ctx = render->GetDeviceContext();
+	ID3D12GraphicsCommandList* cmd = render->GetCommandList();
 
 	XMMATRIX view = camera->GetView();
 	XMMATRIX proj = camera->GetProjection();
@@ -472,7 +436,6 @@ void Clouds::RenderVolumetric(DXRender* render, Camera* camera, FXMVECTOR sunDir
 	XMStoreFloat3(&sun, XMVector3Normalize(sunDirToward));
 	cb.SunDir = sun;
 	cb.Coverage = CLOUD_COVERAGE;
-
 	cb.SkyColor = XMFLOAT3(SKY_COLOR_R, SKY_COLOR_G, SKY_COLOR_B);
 	cb.DensityMult = CLOUD_DENSITY;
 	cb.CloudSilver = XMFLOAT3(1.15f, 1.08f, 0.98f);
@@ -482,44 +445,39 @@ void Clouds::RenderVolumetric(DXRender* render, Camera* camera, FXMVECTOR sunDir
 	cb.WindSpeed = CLOUD_WIND * (0.5f + m_wind);
 	cb.Ambient = CLOUD_AMBIENT;
 
-	ctx->UpdateSubresource(m_cb, 0, nullptr, &cb, 0, 0);
+	D3D12_GPU_VIRTUAL_ADDRESS cbAddr = 0;
+	void* ptr = render->AllocFrameConstants(sizeof(cb), &cbAddr);
+	memcpy(ptr, &cb, sizeof(cb));
 
-	float bf[4] = { 0, 0, 0, 0 };
-	ctx->OMSetDepthStencilState(m_depthOff, 0);
-	ctx->RSSetState(m_rasterizer);
-	ctx->VSSetConstantBuffers(0, 1, &m_cb);
-	ctx->PSSetConstantBuffers(0, 1, &m_cb);
+	if (m_cloudState != D3D12_RESOURCE_STATE_RENDER_TARGET) {
+		render->Transition(m_cloudTex, m_cloudState, D3D12_RESOURCE_STATE_RENDER_TARGET);
+		m_cloudState = D3D12_RESOURCE_STATE_RENDER_TARGET;
+	}
 
-	/* ---- Half-res raymarch ---- */
-	D3D11_VIEWPORT halfVP;
-	halfVP.TopLeftX = 0.0f;
-	halfVP.TopLeftY = 0.0f;
+	D3D12_VIEWPORT halfVP = {};
 	halfVP.Width = (float)m_halfW;
 	halfVP.Height = (float)m_halfH;
-	halfVP.MinDepth = 0.0f;
 	halfVP.MaxDepth = 1.0f;
-	ctx->RSSetViewports(1, &halfVP);
-
+	D3D12_RECT halfSc = { 0, 0, (LONG)m_halfW, (LONG)m_halfH };
+	D3D12_CPU_DESCRIPTOR_HANDLE cloudRtv = render->GetRtvCpu(m_cloudRtv);
 	float clearCloud[4] = { 0, 0, 0, 0 };
-	ctx->OMSetRenderTargets(1, &m_cloudRTV, nullptr);
-	ctx->ClearRenderTargetView(m_cloudRTV, clearCloud);
-	ctx->OMSetBlendState(m_blendOpaque, bf, 0xffffffff);
-	ctx->PSSetShader(m_psCloud, nullptr, 0);
-	DrawFullscreen(ctx);
+	cmd->OMSetRenderTargets(1, &cloudRtv, FALSE, nullptr);
+	cmd->ClearRenderTargetView(cloudRtv, clearCloud, 0, nullptr);
+	cmd->RSSetViewports(1, &halfVP);
+	cmd->RSSetScissorRects(1, &halfSc);
+	cmd->SetGraphicsRootSignature(m_rootSigCloud);
+	cmd->SetGraphicsRootConstantBufferView(0, cbAddr);
+	DrawFullscreen(render, m_psoCloud);
 
-	/* ---- Upsample + alpha blend onto scene ---- */
-	ID3D11ShaderResourceView* nullSRV = nullptr;
-	ctx->PSSetShaderResources(0, 1, &nullSRV);
+	render->Transition(m_cloudTex, m_cloudState, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+	m_cloudState = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+
 	render->RestoreMainTargets();
-	ctx->OMSetDepthStencilState(m_depthOff, 0);
-	ctx->RSSetState(m_rasterizer);
-	ctx->OMSetBlendState(m_blendAlpha, bf, 0xffffffff);
-	ctx->PSSetShader(m_psComposite, nullptr, 0);
-	ctx->PSSetShaderResources(0, 1, &m_cloudSRV);
-	ctx->PSSetSamplers(0, 1, &m_sampler);
-	DrawFullscreen(ctx);
-
-	ctx->PSSetShaderResources(0, 1, &nullSRV);
+	cmd->SetGraphicsRootSignature(m_rootSigCloud);
+	cmd->SetGraphicsRootConstantBufferView(0, cbAddr);
+	cmd->SetGraphicsRootDescriptorTable(1, render->GetSrvGpu(m_cloudSrv));
+	cmd->SetGraphicsRootDescriptorTable(2, render->GetSamplerGpu(m_samplerIndex));
+	DrawFullscreen(render, m_psoComposite);
 }
 
 void Clouds::Render(DXRender* render, Camera* camera, FXMVECTOR sunDirToward, bool drawClouds)

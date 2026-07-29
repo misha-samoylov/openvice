@@ -1,793 +1,1103 @@
 #include "DXRender.hpp"
 
+#include <DirectXTex.h>
+
+#include <stdio.h>
 #include <string.h>
+#include <algorithm>
 
-ID3D11Device *DXRender::GetDevice()
+using namespace DirectX;
+
+static void SetDebugName(ID3D12Object* obj, const char* name)
 {
-	return m_pDevice;
+#if defined(_DEBUG)
+	if (obj && name)
+		obj->SetPrivateData(WKPDID_D3DDebugObjectName, (UINT)strlen(name), name);
+#else
+	(void)obj;
+	(void)name;
+#endif
 }
 
-ID3D11DeviceContext *DXRender::GetDeviceContext()
+D3D12_CPU_DESCRIPTOR_HANDLE DXRender::GetBackBufferRtv() const
 {
-	return m_pDeviceContext;
+	return GetRtvCpu(m_backBufferRtvIndices[m_frameIndex]);
 }
 
-HRESULT DXRender::CreateRasterizerStates()
+D3D12_CPU_DESCRIPTOR_HANDLE DXRender::GetDsv() const
 {
-	HRESULT hr;
-	D3D11_RASTERIZER_DESC desc;
-	ZeroMemory(&desc, sizeof(desc));
-	desc.FillMode = D3D11_FILL_SOLID;
-	desc.CullMode = D3D11_CULL_FRONT;
-	desc.DepthClipEnable = TRUE;
-	desc.MultisampleEnable = TRUE;
-	hr = m_pDevice->CreateRasterizerState(&desc, &m_pRSCullFront);
-	if (FAILED(hr))
-		return hr;
-
-	desc.CullMode = D3D11_CULL_NONE;
-	hr = m_pDevice->CreateRasterizerState(&desc, &m_pRSCullNone);
-	if (FAILED(hr))
-		return hr;
-
-	desc.FillMode = D3D11_FILL_WIREFRAME;
-	desc.CullMode = D3D11_CULL_NONE;
-	hr = m_pDevice->CreateRasterizerState(&desc, &m_pRSWireframe);
-	if (FAILED(hr))
-		return hr;
-
-	m_pRasterizerState = m_pRSCullFront;
-	m_pDeviceContext->RSSetState(m_pRasterizerState);
-	return S_OK;
+	return GetDsvCpu(m_depthDsvIndex);
 }
+
+D3D12_VIEWPORT DXRender::MakeViewport() const
+{
+	D3D12_VIEWPORT vp = {};
+	vp.Width = (float)m_width;
+	vp.Height = (float)m_height;
+	vp.MinDepth = 0.0f;
+	vp.MaxDepth = 1.0f;
+	return vp;
+}
+
+D3D12_RECT DXRender::MakeScissor() const
+{
+	D3D12_RECT r = { 0, 0, (LONG)m_width, (LONG)m_height };
+	return r;
+}
+
+void DXRender::SetOpaqueState() { m_blendMode = BlendPassMode::Opaque; }
+void DXRender::SetCutoutAlphaState() { m_blendMode = BlendPassMode::Cutout; }
+void DXRender::SetSoftAlphaState() { m_blendMode = BlendPassMode::SoftAlpha; }
 
 HRESULT DXRender::ChangeRasterizerStateToWireframe()
 {
-	m_pRasterizerState = m_pRSWireframe;
-	m_pDeviceContext->RSSetState(m_pRasterizerState);
+	m_rasterMode = RasterCullMode::Wireframe;
 	return S_OK;
 }
 
 HRESULT DXRender::ChangeRasterizerStateToSolid()
 {
-	m_pRasterizerState = m_pRSCullFront;
-	m_pDeviceContext->RSSetState(m_pRasterizerState);
+	m_rasterMode = m_solidRasterMode;
 	return S_OK;
 }
 
+void DXRender::ApplyRasterizerState() {}
+
 void DXRender::SetCullNone()
 {
-	/* Keep F1 wireframe when vehicle temporarily requests cull-none. */
-	if (m_pRasterizerState == m_pRSWireframe)
-		m_pDeviceContext->RSSetState(m_pRSWireframe);
-	else
-		m_pDeviceContext->RSSetState(m_pRSCullNone);
+	if (m_rasterMode != RasterCullMode::Wireframe)
+		m_rasterMode = RasterCullMode::CullNone;
+	m_solidRasterMode = RasterCullMode::CullNone;
 }
 
 void DXRender::SetCullFront()
 {
-	if (m_pRasterizerState == m_pRSWireframe)
-		m_pDeviceContext->RSSetState(m_pRSWireframe);
-	else
-		m_pDeviceContext->RSSetState(m_pRSCullFront);
+	if (m_rasterMode != RasterCullMode::Wireframe)
+		m_rasterMode = RasterCullMode::CullFront;
+	m_solidRasterMode = RasterCullMode::CullFront;
 }
 
 void DXRender::SetVehicleRasterizer(bool wireframe)
 {
-	m_pDeviceContext->RSSetState(wireframe ? m_pRSWireframe : m_pRSCullNone);
+	m_rasterMode = wireframe ? RasterCullMode::Wireframe : RasterCullMode::CullNone;
+	if (!wireframe)
+		m_solidRasterMode = RasterCullMode::CullNone;
 }
 
-void DXRender::ApplyRasterizerState()
+UINT DXRender::AllocSrvIndex()
 {
-	if (m_pRasterizerState)
-		m_pDeviceContext->RSSetState(m_pRasterizerState);
+	if (m_srvCount >= kSrvHeapSize) {
+		printf("Error: SRV heap exhausted (%u / %u)\n", m_srvCount, kSrvHeapSize);
+		return UINT_MAX;
+	}
+	return m_srvCount++;
 }
 
-void DXRender::InitViewport(HWND hWnd)
+UINT DXRender::AllocRtvIndex()
 {
-	RECT rc;
-	GetClientRect(hWnd, &rc);
-	m_width = rc.right - rc.left;
-	m_height = rc.bottom - rc.top;
+	if (m_rtvCount >= kRtvHeapSize) {
+		printf("Error: RTV heap exhausted\n");
+		return UINT_MAX;
+	}
+	return m_rtvCount++;
+}
 
-	D3D11_VIEWPORT vp;
-	vp.Width = (FLOAT)m_width;
-	vp.Height = (FLOAT)m_height;
-	vp.MinDepth = 0.0f;
-	vp.MaxDepth = 1.0f;
-	vp.TopLeftX = 0;
-	vp.TopLeftY = 0;
+UINT DXRender::AllocDsvIndex()
+{
+	if (m_dsvCount >= kDsvHeapSize) {
+		printf("Error: DSV heap exhausted\n");
+		return UINT_MAX;
+	}
+	return m_dsvCount++;
+}
 
-	/* connect viewport to device context */
-	UINT countViewports = 1;
-	m_pDeviceContext->RSSetViewports(countViewports, &vp);
+D3D12_CPU_DESCRIPTOR_HANDLE DXRender::GetSrvCpu(UINT index) const
+{
+	D3D12_CPU_DESCRIPTOR_HANDLE h = m_srvHeap->GetCPUDescriptorHandleForHeapStart();
+	h.ptr += (SIZE_T)index * m_srvDescriptorSize;
+	return h;
+}
+
+D3D12_GPU_DESCRIPTOR_HANDLE DXRender::GetSrvGpu(UINT index) const
+{
+	D3D12_GPU_DESCRIPTOR_HANDLE h = m_srvHeap->GetGPUDescriptorHandleForHeapStart();
+	h.ptr += (SIZE_T)index * m_srvDescriptorSize;
+	return h;
+}
+
+D3D12_CPU_DESCRIPTOR_HANDLE DXRender::GetRtvCpu(UINT index) const
+{
+	D3D12_CPU_DESCRIPTOR_HANDLE h = m_rtvHeap->GetCPUDescriptorHandleForHeapStart();
+	h.ptr += (SIZE_T)index * m_rtvDescriptorSize;
+	return h;
+}
+
+D3D12_CPU_DESCRIPTOR_HANDLE DXRender::GetDsvCpu(UINT index) const
+{
+	D3D12_CPU_DESCRIPTOR_HANDLE h = m_dsvHeap->GetCPUDescriptorHandleForHeapStart();
+	h.ptr += (SIZE_T)index * m_dsvDescriptorSize;
+	return h;
+}
+
+D3D12_CPU_DESCRIPTOR_HANDLE DXRender::GetSamplerCpu(UINT index) const
+{
+	D3D12_CPU_DESCRIPTOR_HANDLE h = m_samplerHeap->GetCPUDescriptorHandleForHeapStart();
+	h.ptr += (SIZE_T)index * m_samplerDescriptorSize;
+	return h;
+}
+
+D3D12_GPU_DESCRIPTOR_HANDLE DXRender::GetSamplerGpu(UINT index) const
+{
+	D3D12_GPU_DESCRIPTOR_HANDLE h = m_samplerHeap->GetGPUDescriptorHandleForHeapStart();
+	h.ptr += (SIZE_T)index * m_samplerDescriptorSize;
+	return h;
+}
+
+UINT DXRender::CreateTextureSrv(ID3D12Resource* resource, DXGI_FORMAT format)
+{
+	UINT index = AllocSrvIndex();
+	if (index == UINT_MAX || !resource)
+		return UINT_MAX;
+
+	D3D12_RESOURCE_DESC rd = resource->GetDesc();
+	D3D12_SHADER_RESOURCE_VIEW_DESC srv = {};
+	srv.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+	srv.Format = (format != DXGI_FORMAT_UNKNOWN) ? format : rd.Format;
+	srv.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+	srv.Texture2D.MipLevels = rd.MipLevels ? rd.MipLevels : 1;
+	m_device->CreateShaderResourceView(resource, &srv, GetSrvCpu(index));
+	return index;
+}
+
+UINT DXRender::CreateTexture2DArraySrv(ID3D12Resource* resource, DXGI_FORMAT format, UINT arraySize)
+{
+	UINT index = AllocSrvIndex();
+	if (index == UINT_MAX || !resource)
+		return UINT_MAX;
+
+	D3D12_SHADER_RESOURCE_VIEW_DESC srv = {};
+	srv.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+	srv.Format = format;
+	srv.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2DARRAY;
+	srv.Texture2DArray.MipLevels = 1;
+	srv.Texture2DArray.ArraySize = arraySize;
+	m_device->CreateShaderResourceView(resource, &srv, GetSrvCpu(index));
+	return index;
+}
+
+UINT DXRender::CreateSampler(const D3D12_SAMPLER_DESC& desc)
+{
+	if (m_samplerCount >= kSamplerHeapSize) {
+		printf("Error: sampler heap exhausted\n");
+		return UINT_MAX;
+	}
+	UINT index = m_samplerCount++;
+	m_device->CreateSampler(&desc, GetSamplerCpu(index));
+	return index;
+}
+
+D3D12_CPU_DESCRIPTOR_HANDLE DXRender::CreateRtv(ID3D12Resource* resource, DXGI_FORMAT format)
+{
+	UINT index = AllocRtvIndex();
+	D3D12_CPU_DESCRIPTOR_HANDLE cpu = GetRtvCpu(index);
+	if (format == DXGI_FORMAT_UNKNOWN) {
+		m_device->CreateRenderTargetView(resource, nullptr, cpu);
+	} else {
+		D3D12_RENDER_TARGET_VIEW_DESC rtv = {};
+		rtv.Format = format;
+		rtv.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
+		m_device->CreateRenderTargetView(resource, &rtv, cpu);
+	}
+	return cpu;
+}
+
+D3D12_CPU_DESCRIPTOR_HANDLE DXRender::CreateDsv(ID3D12Resource* resource, const D3D12_DEPTH_STENCIL_VIEW_DESC* desc)
+{
+	UINT index = AllocDsvIndex();
+	D3D12_CPU_DESCRIPTOR_HANDLE cpu = GetDsvCpu(index);
+	m_device->CreateDepthStencilView(resource, desc, cpu);
+	return cpu;
+}
+
+void DXRender::BindDescriptorHeaps()
+{
+	ID3D12DescriptorHeap* heaps[] = { m_srvHeap.Get(), m_samplerHeap.Get() };
+	m_commandList->SetDescriptorHeaps(2, heaps);
+}
+
+void DXRender::Transition(ID3D12Resource* resource, D3D12_RESOURCE_STATES before, D3D12_RESOURCE_STATES after)
+{
+	if (!resource || before == after)
+		return;
+	D3D12_RESOURCE_BARRIER b = {};
+	b.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+	b.Transition.pResource = resource;
+	b.Transition.StateBefore = before;
+	b.Transition.StateAfter = after;
+	b.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+	m_commandList->ResourceBarrier(1, &b);
+}
+
+void DXRender::DeferRelease(IUnknown* obj)
+{
+	if (!obj)
+		return;
+	DeferredRelease d;
+	d.fenceValue = m_fenceValue;
+	d.obj = obj;
+	m_deferred.push_back(d);
+}
+
+void DXRender::ProcessDeferredReleases(UINT64 completedFence)
+{
+	size_t write = 0;
+	for (size_t i = 0; i < m_deferred.size(); i++) {
+		if (m_deferred[i].fenceValue <= completedFence) {
+			m_deferred[i].obj->Release();
+		} else {
+			m_deferred[write++] = m_deferred[i];
+		}
+	}
+	m_deferred.resize(write);
+}
+
+void DXRender::WaitForGpu()
+{
+	const UINT64 fenceToWait = ++m_fenceValue;
+	m_queue->Signal(m_fence.Get(), fenceToWait);
+	if (m_fence->GetCompletedValue() < fenceToWait) {
+		m_fence->SetEventOnCompletion(fenceToWait, m_fenceEvent);
+		WaitForSingleObject(m_fenceEvent, INFINITE);
+	}
+	ProcessDeferredReleases(m_fence->GetCompletedValue());
+}
+
+HRESULT DXRender::CreateDevice()
+{
+	UINT dxgiFactoryFlags = 0;
+#if defined(_DEBUG)
+	{
+		ComPtr<ID3D12Debug> debug;
+		if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&debug)))) {
+			debug->EnableDebugLayer();
+			dxgiFactoryFlags |= DXGI_CREATE_FACTORY_DEBUG;
+		}
+	}
+#endif
+
+	ComPtr<IDXGIFactory4> factory;
+	HRESULT hr = CreateDXGIFactory2(dxgiFactoryFlags, IID_PPV_ARGS(&factory));
+	if (FAILED(hr))
+		return hr;
+
+	ComPtr<IDXGIAdapter1> adapter;
+	for (UINT i = 0; factory->EnumAdapters1(i, &adapter) != DXGI_ERROR_NOT_FOUND; i++) {
+		DXGI_ADAPTER_DESC1 desc;
+		adapter->GetDesc1(&desc);
+		if (desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE)
+			continue;
+		if (SUCCEEDED(D3D12CreateDevice(adapter.Get(), D3D_FEATURE_LEVEL_12_0, _uuidof(ID3D12Device), nullptr)))
+			break;
+		adapter.Reset();
+	}
+
+	if (!adapter) {
+		printf("Error: no D3D12 adapter\n");
+		return E_FAIL;
+	}
+
+	hr = D3D12CreateDevice(adapter.Get(), D3D_FEATURE_LEVEL_12_0, IID_PPV_ARGS(&m_device));
+	if (FAILED(hr)) {
+		printf("Error: D3D12CreateDevice failed\n");
+		return hr;
+	}
+	SetDebugName(m_device.Get(), "DXRenderDevice");
+
+	D3D12_COMMAND_QUEUE_DESC qd = {};
+	qd.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
+	hr = m_device->CreateCommandQueue(&qd, IID_PPV_ARGS(&m_queue));
+	if (FAILED(hr))
+		return hr;
+
+	hr = m_device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&m_fence));
+	if (FAILED(hr))
+		return hr;
+	m_fenceEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
+	if (!m_fenceEvent)
+		return HRESULT_FROM_WIN32(GetLastError());
+
+	return S_OK;
+}
+
+HRESULT DXRender::CreateHeaps()
+{
+	D3D12_DESCRIPTOR_HEAP_DESC rtvDesc = {};
+	rtvDesc.NumDescriptors = kRtvHeapSize;
+	rtvDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
+	HRESULT hr = m_device->CreateDescriptorHeap(&rtvDesc, IID_PPV_ARGS(&m_rtvHeap));
+	if (FAILED(hr))
+		return hr;
+
+	D3D12_DESCRIPTOR_HEAP_DESC dsvDesc = {};
+	dsvDesc.NumDescriptors = kDsvHeapSize;
+	dsvDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
+	hr = m_device->CreateDescriptorHeap(&dsvDesc, IID_PPV_ARGS(&m_dsvHeap));
+	if (FAILED(hr))
+		return hr;
+
+	D3D12_DESCRIPTOR_HEAP_DESC srvDesc = {};
+	srvDesc.NumDescriptors = kSrvHeapSize;
+	srvDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+	srvDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+	hr = m_device->CreateDescriptorHeap(&srvDesc, IID_PPV_ARGS(&m_srvHeap));
+	if (FAILED(hr))
+		return hr;
+
+	D3D12_DESCRIPTOR_HEAP_DESC sampDesc = {};
+	sampDesc.NumDescriptors = kSamplerHeapSize;
+	sampDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER;
+	sampDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+	hr = m_device->CreateDescriptorHeap(&sampDesc, IID_PPV_ARGS(&m_samplerHeap));
+	if (FAILED(hr))
+		return hr;
+
+	m_rtvDescriptorSize = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+	m_dsvDescriptorSize = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
+	m_srvDescriptorSize = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+	m_samplerDescriptorSize = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
+	return S_OK;
+}
+
+HRESULT DXRender::CreateSwapChain(HWND hWnd)
+{
+	ComPtr<IDXGIFactory4> factory;
+	HRESULT hr = CreateDXGIFactory2(0, IID_PPV_ARGS(&factory));
+	if (FAILED(hr))
+		return hr;
+
+	DXGI_SWAP_CHAIN_DESC1 sd = {};
+	sd.BufferCount = kFrameCount;
+	sd.Width = m_width;
+	sd.Height = m_height;
+	sd.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+	sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+	sd.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+	sd.SampleDesc.Count = 1;
+
+	ComPtr<IDXGISwapChain1> swap1;
+	hr = factory->CreateSwapChainForHwnd(m_queue.Get(), hWnd, &sd, nullptr, nullptr, &swap1);
+	if (FAILED(hr)) {
+		printf("Error: CreateSwapChainForHwnd failed (0x%08X)\n", (unsigned)hr);
+		return hr;
+	}
+	factory->MakeWindowAssociation(hWnd, DXGI_MWA_NO_ALT_ENTER);
+	hr = swap1.As(&m_swapChain);
+	if (FAILED(hr))
+		return hr;
+
+	m_frameIndex = m_swapChain->GetCurrentBackBufferIndex();
+	return S_OK;
+}
+
+HRESULT DXRender::CreateFrameResources()
+{
+	for (UINT i = 0; i < kFrameCount; i++) {
+		HRESULT hr = m_swapChain->GetBuffer(i, IID_PPV_ARGS(&m_renderTargets[i]));
+		if (FAILED(hr))
+			return hr;
+		m_backBufferRtvIndices[i] = AllocRtvIndex();
+		m_device->CreateRenderTargetView(m_renderTargets[i].Get(), nullptr, GetRtvCpu(m_backBufferRtvIndices[i]));
+		m_backBufferState[i] = D3D12_RESOURCE_STATE_PRESENT;
+
+		hr = m_device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&m_frames[i].allocator));
+		if (FAILED(hr))
+			return hr;
+	}
+
+	HRESULT hr = m_device->CreateCommandList(
+		0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_frames[m_frameIndex].allocator.Get(),
+		nullptr, IID_PPV_ARGS(&m_commandList));
+	if (FAILED(hr))
+		return hr;
+	m_commandList->Close();
+
+	hr = m_device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&m_uploadAllocator));
+	if (FAILED(hr))
+		return hr;
+	hr = m_device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_uploadAllocator.Get(),
+		nullptr, IID_PPV_ARGS(&m_uploadList));
+	if (FAILED(hr))
+		return hr;
+	m_uploadList->Close();
+	m_uploadOpen = false;
+	return S_OK;
+}
+
+HRESULT DXRender::CreateDepth()
+{
+	D3D12_CLEAR_VALUE clear = {};
+	clear.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+	clear.DepthStencil.Depth = 1.0f;
+
+	D3D12_HEAP_PROPERTIES heap = {};
+	heap.Type = D3D12_HEAP_TYPE_DEFAULT;
+
+	D3D12_RESOURCE_DESC desc = {};
+	desc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+	desc.Width = m_width;
+	desc.Height = m_height;
+	desc.DepthOrArraySize = 1;
+	desc.MipLevels = 1;
+	desc.Format = DXGI_FORMAT_R24G8_TYPELESS;
+	desc.SampleDesc.Count = 1;
+	desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
+
+	HRESULT hr = m_device->CreateCommittedResource(
+		&heap, D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_DEPTH_WRITE,
+		&clear, IID_PPV_ARGS(&m_depth));
+	if (FAILED(hr))
+		return hr;
+	SetDebugName(m_depth.Get(), "SceneDepth");
+
+	D3D12_DEPTH_STENCIL_VIEW_DESC dsv = {};
+	dsv.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+	dsv.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
+	m_depthDsvIndex = AllocDsvIndex();
+	m_device->CreateDepthStencilView(m_depth.Get(), &dsv, GetDsvCpu(m_depthDsvIndex));
+
+	D3D12_SHADER_RESOURCE_VIEW_DESC srv = {};
+	srv.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+	srv.Format = DXGI_FORMAT_R24_UNORM_X8_TYPELESS;
+	srv.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+	srv.Texture2D.MipLevels = 1;
+	m_depthSrvIndex = AllocSrvIndex();
+	m_device->CreateShaderResourceView(m_depth.Get(), &srv, GetSrvCpu(m_depthSrvIndex));
+	m_depthState = D3D12_RESOURCE_STATE_DEPTH_WRITE;
+	return S_OK;
+}
+
+HRESULT DXRender::CreateUploadRing()
+{
+	D3D12_HEAP_PROPERTIES heap = {};
+	heap.Type = D3D12_HEAP_TYPE_UPLOAD;
+
+	D3D12_RESOURCE_DESC desc = {};
+	desc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+	desc.Width = kUploadRingSize * kFrameCount;
+	desc.Height = 1;
+	desc.DepthOrArraySize = 1;
+	desc.MipLevels = 1;
+	desc.SampleDesc.Count = 1;
+	desc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+
+	HRESULT hr = m_device->CreateCommittedResource(
+		&heap, D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_GENERIC_READ,
+		nullptr, IID_PPV_ARGS(&m_uploadRing));
+	if (FAILED(hr))
+		return hr;
+
+	hr = m_uploadRing->Map(0, nullptr, (void**)&m_uploadMapped);
+	return hr;
+}
+
+HRESULT DXRender::CreateDefaultBuffer(const void* data, UINT64 size, ID3D12Resource** outResource)
+{
+	if (!outResource || size == 0)
+		return E_INVALIDARG;
+	*outResource = nullptr;
+
+	D3D12_HEAP_PROPERTIES defaultHeap = {};
+	defaultHeap.Type = D3D12_HEAP_TYPE_DEFAULT;
+	D3D12_RESOURCE_DESC desc = {};
+	desc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+	desc.Width = size;
+	desc.Height = 1;
+	desc.DepthOrArraySize = 1;
+	desc.MipLevels = 1;
+	desc.SampleDesc.Count = 1;
+	desc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+
+	ComPtr<ID3D12Resource> buffer;
+	HRESULT hr = m_device->CreateCommittedResource(
+		&defaultHeap, D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_COPY_DEST,
+		nullptr, IID_PPV_ARGS(&buffer));
+	if (FAILED(hr))
+		return hr;
+
+	if (data) {
+		D3D12_HEAP_PROPERTIES uploadHeap = {};
+		uploadHeap.Type = D3D12_HEAP_TYPE_UPLOAD;
+		ComPtr<ID3D12Resource> upload;
+		hr = m_device->CreateCommittedResource(
+			&uploadHeap, D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_GENERIC_READ,
+			nullptr, IID_PPV_ARGS(&upload));
+		if (FAILED(hr))
+			return hr;
+
+		void* mapped = nullptr;
+		upload->Map(0, nullptr, &mapped);
+		memcpy(mapped, data, (size_t)size);
+		upload->Unmap(0, nullptr);
+
+		if (!m_uploadOpen) {
+			m_uploadAllocator->Reset();
+			m_uploadList->Reset(m_uploadAllocator.Get(), nullptr);
+			m_uploadOpen = true;
+		}
+		m_uploadList->CopyBufferRegion(buffer.Get(), 0, upload.Get(), 0, size);
+		D3D12_RESOURCE_BARRIER b = {};
+		b.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+		b.Transition.pResource = buffer.Get();
+		b.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_DEST;
+		b.Transition.StateAfter = D3D12_RESOURCE_STATE_COMMON;
+		b.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+		m_uploadList->ResourceBarrier(1, &b);
+		m_uploadKeepAlive.push_back(upload);
+	}
+
+	*outResource = buffer.Detach();
+	return S_OK;
+}
+
+HRESULT DXRender::CreateTexture2D(
+	UINT width, UINT height, DXGI_FORMAT format,
+	D3D12_RESOURCE_FLAGS flags, D3D12_RESOURCE_STATES initialState,
+	ID3D12Resource** outResource, UINT arraySize, UINT sampleCount)
+{
+	if (!outResource)
+		return E_INVALIDARG;
+
+	D3D12_HEAP_PROPERTIES heap = {};
+	heap.Type = D3D12_HEAP_TYPE_DEFAULT;
+
+	D3D12_RESOURCE_DESC desc = {};
+	desc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+	desc.Width = width;
+	desc.Height = height;
+	desc.DepthOrArraySize = (UINT16)arraySize;
+	desc.MipLevels = 1;
+	desc.Format = format;
+	desc.SampleDesc.Count = sampleCount;
+	desc.Flags = flags;
+
+	D3D12_CLEAR_VALUE clearStorage = {};
+	D3D12_CLEAR_VALUE* clear = nullptr;
+	if (flags & D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET) {
+		clearStorage.Format = format;
+		clear = &clearStorage;
+	} else if (flags & D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL) {
+		clearStorage.Format = format;
+		if (format == DXGI_FORMAT_R24G8_TYPELESS || format == DXGI_FORMAT_D24_UNORM_S8_UINT)
+			clearStorage.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+		clearStorage.DepthStencil.Depth = 1.0f;
+		clear = &clearStorage;
+	}
+
+	return m_device->CreateCommittedResource(
+		&heap, D3D12_HEAP_FLAG_NONE, &desc, initialState, clear, IID_PPV_ARGS(outResource));
+}
+
+HRESULT DXRender::UploadTexture2D(
+	ID3D12Resource* dest, const void* data, UINT rowPitch, UINT height, DXGI_FORMAT format)
+{
+	(void)format;
+	if (!dest || !data)
+		return E_INVALIDARG;
+
+	D3D12_RESOURCE_DESC desc = dest->GetDesc();
+	UINT64 required = 0;
+	m_device->GetCopyableFootprints(&desc, 0, 1, 0, nullptr, nullptr, nullptr, &required);
+
+	D3D12_HEAP_PROPERTIES uploadHeap = {};
+	uploadHeap.Type = D3D12_HEAP_TYPE_UPLOAD;
+	D3D12_RESOURCE_DESC bufDesc = {};
+	bufDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+	bufDesc.Width = required;
+	bufDesc.Height = 1;
+	bufDesc.DepthOrArraySize = 1;
+	bufDesc.MipLevels = 1;
+	bufDesc.SampleDesc.Count = 1;
+	bufDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+
+	ComPtr<ID3D12Resource> upload;
+	HRESULT hr = m_device->CreateCommittedResource(
+		&uploadHeap, D3D12_HEAP_FLAG_NONE, &bufDesc, D3D12_RESOURCE_STATE_GENERIC_READ,
+		nullptr, IID_PPV_ARGS(&upload));
+	if (FAILED(hr))
+		return hr;
+
+	D3D12_PLACED_SUBRESOURCE_FOOTPRINT layout = {};
+	UINT numRows = 0;
+	UINT64 rowSize = 0;
+	UINT64 total = 0;
+	m_device->GetCopyableFootprints(&desc, 0, 1, 0, &layout, &numRows, &rowSize, &total);
+
+	UINT8* mapped = nullptr;
+	upload->Map(0, nullptr, (void**)&mapped);
+	const UINT8* src = (const UINT8*)data;
+	for (UINT y = 0; y < height && y < numRows; y++) {
+		memcpy(mapped + layout.Offset + y * layout.Footprint.RowPitch,
+			src + y * rowPitch, (rowPitch < (UINT)rowSize) ? rowPitch : (UINT)rowSize);
+	}
+	upload->Unmap(0, nullptr);
+
+	if (!m_uploadOpen) {
+		m_uploadAllocator->Reset();
+		m_uploadList->Reset(m_uploadAllocator.Get(), nullptr);
+		m_uploadOpen = true;
+	}
+
+	D3D12_TEXTURE_COPY_LOCATION dstLoc = {};
+	dstLoc.pResource = dest;
+	dstLoc.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+	dstLoc.SubresourceIndex = 0;
+
+	D3D12_TEXTURE_COPY_LOCATION srcLoc = {};
+	srcLoc.pResource = upload.Get();
+	srcLoc.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+	srcLoc.PlacedFootprint = layout;
+
+	m_uploadList->CopyTextureRegion(&dstLoc, 0, 0, 0, &srcLoc, nullptr);
+	m_uploadKeepAlive.push_back(upload);
+	return S_OK;
+}
+
+HRESULT DXRender::CreateGpuTextureFromDdsMemory(const void* ddsData, size_t ddsSize, GpuTexture* outTex)
+{
+	if (!ddsData || !outTex || ddsSize == 0)
+		return E_INVALIDARG;
+	outTex->resource = nullptr;
+	outTex->srvIndex = UINT_MAX;
+
+	TexMetadata meta;
+	ScratchImage image;
+	HRESULT hr = LoadFromDDSMemory((const uint8_t*)ddsData, ddsSize, DDS_FLAGS_NONE, &meta, image);
+	if (FAILED(hr)) {
+		printf("[Error] LoadFromDDSMemory failed (0x%08X, %zu bytes)\n", (unsigned)hr, ddsSize);
+		return hr;
+	}
+
+	/* Flatten exotic TXD layouts to a single 2D mip chain (VC ground/props). */
+	if (meta.IsCubemap() || meta.dimension == TEX_DIMENSION_TEXTURE3D || meta.arraySize > 1) {
+		ScratchImage flattened;
+		hr = flattened.Initialize2D(meta.format, meta.width, meta.height, 1, meta.mipLevels);
+		if (FAILED(hr))
+			return hr;
+		for (size_t mip = 0; mip < meta.mipLevels; mip++) {
+			const Image* src = image.GetImage(mip, 0, 0);
+			const Image* dst = flattened.GetImage(mip, 0, 0);
+			if (!src || !dst)
+				return E_FAIL;
+			memcpy(dst->pixels, src->pixels, src->slicePitch);
+		}
+		image = std::move(flattened);
+		meta = image.GetMetadata();
+	}
+
+	D3D12_HEAP_PROPERTIES heap = {};
+	heap.Type = D3D12_HEAP_TYPE_DEFAULT;
+
+	D3D12_RESOURCE_DESC desc = {};
+	desc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+	desc.Width = (UINT64)meta.width;
+	desc.Height = (UINT)meta.height;
+	desc.DepthOrArraySize = 1;
+	desc.MipLevels = (UINT16)meta.mipLevels;
+	desc.Format = meta.format;
+	desc.SampleDesc.Count = 1;
+	desc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+
+	ComPtr<ID3D12Resource> tex;
+	hr = m_device->CreateCommittedResource(
+		&heap, D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_COPY_DEST,
+		nullptr, IID_PPV_ARGS(&tex));
+	if (FAILED(hr))
+		return hr;
+
+	const UINT numSubresources = (UINT)meta.mipLevels;
+	if (numSubresources == 0 || image.GetImageCount() < numSubresources)
+		return E_FAIL;
+
+	std::vector<D3D12_PLACED_SUBRESOURCE_FOOTPRINT> layouts(numSubresources);
+	std::vector<UINT> numRows(numSubresources);
+	std::vector<UINT64> rowSizes(numSubresources);
+	UINT64 totalBytes = 0;
+	m_device->GetCopyableFootprints(&desc, 0, numSubresources, 0,
+		layouts.data(), numRows.data(), rowSizes.data(), &totalBytes);
+
+	D3D12_HEAP_PROPERTIES uploadHeap = {};
+	uploadHeap.Type = D3D12_HEAP_TYPE_UPLOAD;
+	D3D12_RESOURCE_DESC bufDesc = {};
+	bufDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+	bufDesc.Width = totalBytes;
+	bufDesc.Height = 1;
+	bufDesc.DepthOrArraySize = 1;
+	bufDesc.MipLevels = 1;
+	bufDesc.SampleDesc.Count = 1;
+	bufDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+
+	ComPtr<ID3D12Resource> upload;
+	hr = m_device->CreateCommittedResource(
+		&uploadHeap, D3D12_HEAP_FLAG_NONE, &bufDesc, D3D12_RESOURCE_STATE_GENERIC_READ,
+		nullptr, IID_PPV_ARGS(&upload));
+	if (FAILED(hr))
+		return hr;
+
+	UINT8* mapped = nullptr;
+	upload->Map(0, nullptr, (void**)&mapped);
+	memset(mapped, 0, (size_t)totalBytes);
+
+	for (UINT mip = 0; mip < numSubresources; mip++) {
+		const Image* img = image.GetImage(mip, 0, 0);
+		if (!img)
+			return E_FAIL;
+		const UINT rows = numRows[mip];
+		const size_t copyCols = (size_t)((rowSizes[mip] < img->rowPitch) ? rowSizes[mip] : img->rowPitch);
+		for (UINT y = 0; y < rows; y++) {
+			if ((size_t)y * img->rowPitch + copyCols > img->slicePitch)
+				break;
+			memcpy(
+				mapped + layouts[mip].Offset + (UINT64)y * layouts[mip].Footprint.RowPitch,
+				img->pixels + (size_t)y * img->rowPitch,
+				copyCols);
+		}
+	}
+	upload->Unmap(0, nullptr);
+
+	if (!m_uploadOpen) {
+		m_uploadAllocator->Reset();
+		m_uploadList->Reset(m_uploadAllocator.Get(), nullptr);
+		m_uploadOpen = true;
+	}
+
+	for (UINT mip = 0; mip < numSubresources; mip++) {
+		D3D12_TEXTURE_COPY_LOCATION dstLoc = {};
+		dstLoc.pResource = tex.Get();
+		dstLoc.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+		dstLoc.SubresourceIndex = mip;
+
+		D3D12_TEXTURE_COPY_LOCATION srcLoc = {};
+		srcLoc.pResource = upload.Get();
+		srcLoc.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+		srcLoc.PlacedFootprint = layouts[mip];
+		m_uploadList->CopyTextureRegion(&dstLoc, 0, 0, 0, &srcLoc, nullptr);
+	}
+
+	D3D12_RESOURCE_BARRIER b = {};
+	b.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+	b.Transition.pResource = tex.Get();
+	b.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_DEST;
+	b.Transition.StateAfter = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+	b.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+	m_uploadList->ResourceBarrier(1, &b);
+	m_uploadKeepAlive.push_back(upload);
+
+	outTex->srvIndex = CreateTextureSrv(tex.Get(), meta.format);
+	if (outTex->srvIndex == UINT_MAX) {
+		printf("[Error] CreateGpuTextureFromDdsMemory: SRV alloc failed (used %u)\n", m_srvCount);
+		return E_FAIL;
+	}
+	outTex->resource = tex.Detach();
+	return S_OK;
+}
+
+HRESULT DXRender::CreateGpuTextureFromPixels(
+	const void* pixels, UINT width, UINT height, UINT rowPitch,
+	DXGI_FORMAT format, GpuTexture* outTex)
+{
+	if (!pixels || !outTex || width == 0 || height == 0 || rowPitch == 0)
+		return E_INVALIDARG;
+	outTex->resource = nullptr;
+	outTex->srvIndex = UINT_MAX;
+
+	ID3D12Resource* tex = nullptr;
+	HRESULT hr = CreateTexture2D(
+		width, height, format, D3D12_RESOURCE_FLAG_NONE,
+		D3D12_RESOURCE_STATE_COPY_DEST, &tex);
+	if (FAILED(hr))
+		return hr;
+
+	hr = UploadTexture2D(tex, pixels, rowPitch, height, format);
+	if (FAILED(hr)) {
+		tex->Release();
+		return hr;
+	}
+
+	/* Transition to shader resource on the upload list. */
+	if (!m_uploadOpen) {
+		m_uploadAllocator->Reset();
+		m_uploadList->Reset(m_uploadAllocator.Get(), nullptr);
+		m_uploadOpen = true;
+	}
+	D3D12_RESOURCE_BARRIER b = {};
+	b.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+	b.Transition.pResource = tex;
+	b.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_DEST;
+	b.Transition.StateAfter = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+	b.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+	m_uploadList->ResourceBarrier(1, &b);
+
+	outTex->srvIndex = CreateTextureSrv(tex, format);
+	if (outTex->srvIndex == UINT_MAX) {
+		tex->Release();
+		return E_FAIL;
+	}
+	outTex->resource = tex;
+	return S_OK;
+}
+
+void DXRender::FlushUploads()
+{
+	if (!m_uploadOpen)
+		return;
+	m_uploadList->Close();
+	m_uploadOpen = false;
+	ID3D12CommandList* lists[] = { m_uploadList.Get() };
+	m_queue->ExecuteCommandLists(1, lists);
+	WaitForGpu();
+	m_uploadKeepAlive.clear();
+}
+
+void* DXRender::AllocFrameConstants(UINT64 size, D3D12_GPU_VIRTUAL_ADDRESS* outGpuAddress)
+{
+	UINT64 aligned = (size + 255ull) & ~255ull;
+	FrameContext& frame = m_frames[m_frameIndex];
+
+	/* Prefer the per-frame ring slice. Never wrap — that corrupts in-flight CBs. */
+	if (frame.uploadOffset + aligned <= kUploadRingSize) {
+		UINT64 offset = (UINT64)m_frameIndex * kUploadRingSize + frame.uploadOffset;
+		frame.uploadOffset += aligned;
+		if (outGpuAddress)
+			*outGpuAddress = m_uploadRing->GetGPUVirtualAddress() + offset;
+		return m_uploadMapped + offset;
+	}
+
+	/* Overflow: dedicated UPLOAD chunk for the rest of this frame. */
+	if (!frame.overflowMapped || frame.overflowOffset + aligned > frame.overflowSize) {
+		const UINT64 chunk = (std::max)(aligned, (UINT64)(4 * 1024 * 1024));
+		D3D12_HEAP_PROPERTIES heap = {};
+		heap.Type = D3D12_HEAP_TYPE_UPLOAD;
+		D3D12_RESOURCE_DESC desc = {};
+		desc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+		desc.Width = chunk;
+		desc.Height = 1;
+		desc.DepthOrArraySize = 1;
+		desc.MipLevels = 1;
+		desc.SampleDesc.Count = 1;
+		desc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+
+		ComPtr<ID3D12Resource> buf;
+		if (FAILED(m_device->CreateCommittedResource(
+			&heap, D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_GENERIC_READ,
+			nullptr, IID_PPV_ARGS(&buf)))) {
+			printf("[Error] AllocFrameConstants: overflow upload failed\n");
+			if (outGpuAddress)
+				*outGpuAddress = 0;
+			return nullptr;
+		}
+
+		void* mapped = nullptr;
+		buf->Map(0, nullptr, &mapped);
+		frame.overflowMapped = (UINT8*)mapped;
+		frame.overflowSize = chunk;
+		frame.overflowOffset = 0;
+		frame.overflowGpuBase = buf->GetGPUVirtualAddress();
+		frame.overflowUploads.push_back(buf);
+
+		static bool s_logged = false;
+		if (!s_logged) {
+			printf("[Warn] Frame constant ring full (%llu MB) — using overflow uploads\n",
+				(unsigned long long)(kUploadRingSize / (1024 * 1024)));
+			s_logged = true;
+		}
+	}
+
+	UINT64 off = frame.overflowOffset;
+	frame.overflowOffset += aligned;
+	if (outGpuAddress)
+		*outGpuAddress = frame.overflowGpuBase + off;
+	return frame.overflowMapped + off;
 }
 
 void DXRender::RestoreMainTargets()
 {
-	m_pDeviceContext->OMSetRenderTargets(1, &m_pSceneRTV, m_pDepthStencilView);
-
-	D3D11_VIEWPORT vp;
-	vp.Width = (FLOAT)m_width;
-	vp.Height = (FLOAT)m_height;
-	vp.MinDepth = 0.0f;
-	vp.MaxDepth = 1.0f;
-	vp.TopLeftX = 0;
-	vp.TopLeftY = 0;
-	m_pDeviceContext->RSSetViewports(1, &vp);
+	D3D12_CPU_DESCRIPTOR_HANDLE rtv = GetBackBufferRtv();
+	D3D12_CPU_DESCRIPTOR_HANDLE dsv = GetDsv();
+	if (m_depthState != D3D12_RESOURCE_STATE_DEPTH_WRITE) {
+		Transition(m_depth.Get(), m_depthState, D3D12_RESOURCE_STATE_DEPTH_WRITE);
+		m_depthState = D3D12_RESOURCE_STATE_DEPTH_WRITE;
+	}
+	m_commandList->OMSetRenderTargets(1, &rtv, FALSE, &dsv);
+	D3D12_VIEWPORT vp = MakeViewport();
+	D3D12_RECT sc = MakeScissor();
+	m_commandList->RSSetViewports(1, &vp);
+	m_commandList->RSSetScissorRects(1, &sc);
 }
 
 void DXRender::BindColorTargetOnly()
 {
-	m_pDeviceContext->OMSetRenderTargets(1, &m_pSceneRTV, nullptr);
-
-	D3D11_VIEWPORT vp;
-	vp.Width = (FLOAT)m_width;
-	vp.Height = (FLOAT)m_height;
-	vp.MinDepth = 0.0f;
-	vp.MaxDepth = 1.0f;
-	vp.TopLeftX = 0;
-	vp.TopLeftY = 0;
-	m_pDeviceContext->RSSetViewports(1, &vp);
+	D3D12_CPU_DESCRIPTOR_HANDLE rtv = GetBackBufferRtv();
+	m_commandList->OMSetRenderTargets(1, &rtv, FALSE, nullptr);
+	D3D12_VIEWPORT vp = MakeViewport();
+	D3D12_RECT sc = MakeScissor();
+	m_commandList->RSSetViewports(1, &vp);
+	m_commandList->RSSetScissorRects(1, &sc);
 }
 
 void DXRender::BindBackBufferOnly()
 {
-	m_pDeviceContext->OMSetRenderTargets(1, &m_pBackBufferRTV, nullptr);
-
-	D3D11_VIEWPORT vp;
-	vp.Width = (FLOAT)m_width;
-	vp.Height = (FLOAT)m_height;
-	vp.MinDepth = 0.0f;
-	vp.MaxDepth = 1.0f;
-	vp.TopLeftX = 0;
-	vp.TopLeftY = 0;
-	m_pDeviceContext->RSSetViewports(1, &vp);
+	BindColorTargetOnly();
 }
 
-void DXRender::ResolveMSAA()
-{
-	if (m_msaaCount <= 1 || !m_ownsSceneColor)
-		return;
-
-	m_pDeviceContext->ResolveSubresource(
-		m_pBackBuffer, 0,
-		m_pSceneColor, 0,
-		DXGI_FORMAT_R8G8B8A8_UNORM);
-}
+void DXRender::ResolveMSAA() {}
 
 void DXRender::ResolveDepthForSSAO()
 {
-	if (m_msaaCount <= 1 || !m_pDepthResolvePS || !m_pDepthMSAA_SRV)
-		return;
-
-	ID3D11RenderTargetView* nullRTV = nullptr;
-	m_pDeviceContext->OMSetRenderTargets(1, &nullRTV, nullptr);
-
-	m_pDeviceContext->OMSetRenderTargets(1, &m_pResolvedDepthRTV, nullptr);
-
-	D3D11_VIEWPORT vp;
-	vp.Width = (FLOAT)m_width;
-	vp.Height = (FLOAT)m_height;
-	vp.MinDepth = 0.0f;
-	vp.MaxDepth = 1.0f;
-	vp.TopLeftX = 0;
-	vp.TopLeftY = 0;
-	m_pDeviceContext->RSSetViewports(1, &vp);
-
-	float blendFactor[4] = { 0, 0, 0, 0 };
-	m_pDeviceContext->OMSetBlendState(m_pBlendStateOpaque, blendFactor, 0xffffffff);
-	m_pDeviceContext->OMSetDepthStencilState(m_pDepthStateSoftAlpha, 0); /* depth write off; no DSV bound */
-	m_pDeviceContext->RSSetState(m_pRSCullNone);
-
-	m_pDeviceContext->IASetInputLayout(nullptr);
-	m_pDeviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-	UINT stride = 0, offset = 0;
-	ID3D11Buffer* nullVB = nullptr;
-	m_pDeviceContext->IASetVertexBuffers(0, 1, &nullVB, &stride, &offset);
-	m_pDeviceContext->IASetIndexBuffer(nullptr, DXGI_FORMAT_R32_UINT, 0);
-	m_pDeviceContext->VSSetShader(m_pDepthResolveVS, nullptr, 0);
-	m_pDeviceContext->PSSetShader(m_pDepthResolvePS, nullptr, 0);
-	m_pDeviceContext->PSSetShaderResources(0, 1, &m_pDepthMSAA_SRV);
-	m_pDeviceContext->Draw(3, 0);
-
-	ID3D11ShaderResourceView* nullSRV = nullptr;
-	m_pDeviceContext->PSSetShaderResources(0, 1, &nullSRV);
-	m_pDeviceContext->OMSetRenderTargets(1, &nullRTV, nullptr);
-	ApplyRasterizerState();
-	SetOpaqueState();
-}
-
-UINT DXRender::PickMSAACount(DXGI_FORMAT format)
-{
-	UINT quality = 0;
-	HRESULT hr = m_pDevice->CheckMultisampleQualityLevels(format, kDesiredMSAA, &quality);
-	if (SUCCEEDED(hr) && quality > 0)
-		return kDesiredMSAA;
-
-	hr = m_pDevice->CheckMultisampleQualityLevels(format, 2, &quality);
-	if (SUCCEEDED(hr) && quality > 0)
-		return 2;
-
-	return 1;
-}
-
-HRESULT DXRender::CreateBackBuffer()
-{
-	HRESULT hr = m_pSwapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), (LPVOID*)&m_pBackBuffer);
-
-	if (FAILED(hr)) {
-		printf("Error: cannot create backbuffer\n");
-		m_pBackBuffer = nullptr;
-		return hr;
+	/* Single-sample depth: just transition to SRV for sampling. */
+	if (m_depthState != D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE) {
+		Transition(m_depth.Get(), m_depthState, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+		m_depthState = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
 	}
-
-	hr = m_pDevice->CreateRenderTargetView(m_pBackBuffer, NULL, &m_pBackBufferRTV);
-
-	if (FAILED(hr)) {
-		printf("Error: cannot create render target view\n");
-		m_pBackBuffer->Release();
-		m_pBackBuffer = nullptr;
-		return hr;
-	}
-
-	return hr;
-}
-
-HRESULT DXRender::CreateMSAAColor()
-{
-	m_ownsSceneColor = false;
-	m_pSceneColor = nullptr;
-	m_pSceneRTV = nullptr;
-
-	if (m_msaaCount <= 1) {
-		m_pSceneColor = m_pBackBuffer;
-		m_pSceneRTV = m_pBackBufferRTV;
-		return S_OK;
-	}
-
-	D3D11_TEXTURE2D_DESC td;
-	ZeroMemory(&td, sizeof(td));
-	td.Width = m_width;
-	td.Height = m_height;
-	td.MipLevels = 1;
-	td.ArraySize = 1;
-	td.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-	td.SampleDesc.Count = m_msaaCount;
-	td.SampleDesc.Quality = m_msaaQuality;
-	td.Usage = D3D11_USAGE_DEFAULT;
-	td.BindFlags = D3D11_BIND_RENDER_TARGET;
-
-	HRESULT hr = m_pDevice->CreateTexture2D(&td, nullptr, &m_pSceneColor);
-	if (FAILED(hr))
-		return hr;
-
-	hr = m_pDevice->CreateRenderTargetView(m_pSceneColor, nullptr, &m_pSceneRTV);
-	if (FAILED(hr)) {
-		m_pSceneColor->Release();
-		m_pSceneColor = nullptr;
-		return hr;
-	}
-
-	m_ownsSceneColor = true;
-	return S_OK;
-}
-
-HRESULT DXRender::CreateDepthResolveResources()
-{
-	m_ownsResolvedDepth = false;
-	m_pResolvedDepth = nullptr;
-	m_pResolvedDepthRTV = nullptr;
-	m_pDepthMSAA_SRV = nullptr;
-	m_pDepthResolveVS = nullptr;
-	m_pDepthResolvePS = nullptr;
-
-	if (m_msaaCount <= 1) {
-		/* Single-sample depth is already an SRV. */
-		m_ownsResolvedDepth = false;
-		return S_OK;
-	}
-
-	D3D11_TEXTURE2D_DESC td;
-	ZeroMemory(&td, sizeof(td));
-	td.Width = m_width;
-	td.Height = m_height;
-	td.MipLevels = 1;
-	td.ArraySize = 1;
-	td.Format = DXGI_FORMAT_R32_FLOAT;
-	td.SampleDesc.Count = 1;
-	td.SampleDesc.Quality = 0;
-	td.Usage = D3D11_USAGE_DEFAULT;
-	td.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
-
-	HRESULT hr = m_pDevice->CreateTexture2D(&td, nullptr, &m_pResolvedDepth);
-	if (FAILED(hr))
-		return hr;
-
-	hr = m_pDevice->CreateRenderTargetView(m_pResolvedDepth, nullptr, &m_pResolvedDepthRTV);
-	if (FAILED(hr))
-		return hr;
-
-	D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc;
-	ZeroMemory(&srvDesc, sizeof(srvDesc));
-	srvDesc.Format = DXGI_FORMAT_R32_FLOAT;
-	srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
-	srvDesc.Texture2D.MipLevels = 1;
-	hr = m_pDevice->CreateShaderResourceView(m_pResolvedDepth, &srvDesc, &m_pDepthSRV);
-	if (FAILED(hr))
-		return hr;
-
-	ZeroMemory(&srvDesc, sizeof(srvDesc));
-	srvDesc.Format = DXGI_FORMAT_R24_UNORM_X8_TYPELESS;
-	srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2DMS;
-	hr = m_pDevice->CreateShaderResourceView(m_pDepthStencil, &srvDesc, &m_pDepthMSAA_SRV);
-	if (FAILED(hr))
-		return hr;
-
-	/* Fullscreen triangle VS + MSAA depth sample-0 resolve PS (sample count baked in). */
-	char resolvePS[512];
-	sprintf_s(resolvePS,
-		"Texture2DMS<float, %u> DepthMS : register(t0);\n"
-		"float4 main(float4 pos : SV_POSITION) : SV_TARGET {\n"
-		"  return DepthMS.Load(int2(pos.xy), 0).r;\n"
-		"}\n",
-		m_msaaCount);
-
-	static const char* resolveVS =
-		"struct VSOut { float4 pos : SV_POSITION; };\n"
-		"VSOut main(uint id : SV_VertexID) {\n"
-		"  VSOut o;\n"
-		"  float2 uv = float2((id << 1) & 2, id & 2);\n"
-		"  o.pos = float4(uv * float2(2, -2) + float2(-1, 1), 0, 1);\n"
-		"  return o;\n"
-		"}\n";
-
-	ID3DBlob* blob = nullptr;
-	ID3DBlob* err = nullptr;
-	hr = D3DCompile(resolveVS, strlen(resolveVS), nullptr, nullptr, nullptr,
-		"main", "vs_5_0", 0, 0, &blob, &err);
-	if (FAILED(hr)) {
-		if (err) {
-			printf("Error: depth resolve VS: %s\n", (char*)err->GetBufferPointer());
-			err->Release();
-		}
-		return hr;
-	}
-	hr = m_pDevice->CreateVertexShader(blob->GetBufferPointer(), blob->GetBufferSize(), nullptr, &m_pDepthResolveVS);
-	blob->Release();
-	if (FAILED(hr))
-		return hr;
-
-	hr = D3DCompile(resolvePS, strlen(resolvePS), nullptr, nullptr, nullptr,
-		"main", "ps_5_0", 0, 0, &blob, &err);
-	if (FAILED(hr)) {
-		if (err) {
-			printf("Error: depth resolve PS: %s\n", (char*)err->GetBufferPointer());
-			err->Release();
-		}
-		return hr;
-	}
-	hr = m_pDevice->CreatePixelShader(blob->GetBufferPointer(), blob->GetBufferSize(), nullptr, &m_pDepthResolvePS);
-	blob->Release();
-	if (FAILED(hr))
-		return hr;
-
-	m_ownsResolvedDepth = true;
-	return S_OK;
-}
-
-HRESULT DXRender::CreateDepthStencil(HWND hWnd)
-{
-	HRESULT hr;
-
-	RECT rc;
-	GetClientRect(hWnd, &rc);
-	UINT width = rc.right - rc.left;
-	UINT height = rc.bottom - rc.top;
-
-	/*
-	 * Typeless depth so the same buffer can be a DSV while drawing and an SRV
-	 * for SSAO / other post effects (unbind DSV before sampling).
-	 */
-	D3D11_TEXTURE2D_DESC descDepth;
-	ZeroMemory(&descDepth, sizeof(descDepth));
-	descDepth.Width = width;
-	descDepth.Height = height;
-	descDepth.MipLevels = 1;
-	descDepth.ArraySize = 1;
-	descDepth.Format = DXGI_FORMAT_R24G8_TYPELESS;
-	descDepth.SampleDesc.Count = m_msaaCount;
-	descDepth.SampleDesc.Quality = m_msaaQuality;
-	descDepth.Usage = D3D11_USAGE_DEFAULT;
-	descDepth.BindFlags = D3D11_BIND_DEPTH_STENCIL | D3D11_BIND_SHADER_RESOURCE;
-	descDepth.CPUAccessFlags = 0;
-	descDepth.MiscFlags = 0;
-
-	hr = m_pDevice->CreateTexture2D(&descDepth, NULL, &m_pDepthStencil);
-	if (FAILED(hr))
-		return hr;
-
-	D3D11_DEPTH_STENCIL_VIEW_DESC descDSV;
-	ZeroMemory(&descDSV, sizeof(descDSV));
-	descDSV.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
-	if (m_msaaCount > 1)
-		descDSV.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2DMS;
-	else {
-		descDSV.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
-		descDSV.Texture2D.MipSlice = 0;
-	}
-
-	hr = m_pDevice->CreateDepthStencilView(m_pDepthStencil, &descDSV, &m_pDepthStencilView);
-	if (FAILED(hr))
-		return hr;
-
-	if (m_msaaCount <= 1) {
-		D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc;
-		ZeroMemory(&srvDesc, sizeof(srvDesc));
-		srvDesc.Format = DXGI_FORMAT_R24_UNORM_X8_TYPELESS;
-		srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
-		srvDesc.Texture2D.MipLevels = 1;
-		hr = m_pDevice->CreateShaderResourceView(m_pDepthStencil, &srvDesc, &m_pDepthSRV);
-	}
-	return hr;
-}
-
-HRESULT DXRender::CreateBlendStates()
-{
-	HRESULT hr;
-
-	D3D11_BLEND_DESC opaqueDesc;
-	ZeroMemory(&opaqueDesc, sizeof(opaqueDesc));
-	opaqueDesc.RenderTarget[0].BlendEnable = FALSE;
-	opaqueDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
-	hr = m_pDevice->CreateBlendState(&opaqueDesc, &m_pBlendStateOpaque);
-	if (FAILED(hr))
-		return hr;
-
-	D3D11_RENDER_TARGET_BLEND_DESC rtbd;
-	ZeroMemory(&rtbd, sizeof(rtbd));
-	rtbd.BlendEnable = TRUE;
-	rtbd.SrcBlend = D3D11_BLEND_SRC_ALPHA;
-	rtbd.DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
-	rtbd.BlendOp = D3D11_BLEND_OP_ADD;
-	rtbd.SrcBlendAlpha = D3D11_BLEND_ONE;
-	rtbd.DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
-	rtbd.BlendOpAlpha = D3D11_BLEND_OP_ADD;
-	rtbd.RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
-
-	D3D11_BLEND_DESC blendDesc;
-	ZeroMemory(&blendDesc, sizeof(blendDesc));
-	blendDesc.RenderTarget[0] = rtbd;
-
-	hr = m_pDevice->CreateBlendState(&blendDesc, &m_pBlendStateTransparency);
-	if (FAILED(hr))
-		return hr;
-
-	/* Cutout: no color blend — filtered alpha drives MSAA coverage instead. */
-	D3D11_BLEND_DESC cutoutDesc;
-	ZeroMemory(&cutoutDesc, sizeof(cutoutDesc));
-	cutoutDesc.AlphaToCoverageEnable = TRUE;
-	cutoutDesc.RenderTarget[0].BlendEnable = FALSE;
-	cutoutDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
-	hr = m_pDevice->CreateBlendState(&cutoutDesc, &m_pBlendStateCutout);
-	return hr;
-}
-
-HRESULT DXRender::CreateDepthStencilStates()
-{
-	HRESULT hr;
-
-	D3D11_DEPTH_STENCIL_DESC opaqueDs;
-	ZeroMemory(&opaqueDs, sizeof(opaqueDs));
-	opaqueDs.DepthEnable = TRUE;
-	opaqueDs.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
-	opaqueDs.DepthFunc = D3D11_COMPARISON_LESS;
-	hr = m_pDevice->CreateDepthStencilState(&opaqueDs, &m_pDepthStateOpaque);
-	if (FAILED(hr))
-		return hr;
-
-	/* Cutout alpha (trees/fences): solid texels write depth after PS clip. */
-	D3D11_DEPTH_STENCIL_DESC cutoutDs;
-	ZeroMemory(&cutoutDs, sizeof(cutoutDs));
-	cutoutDs.DepthEnable = TRUE;
-	cutoutDs.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
-	cutoutDs.DepthFunc = D3D11_COMPARISON_LESS;
-	hr = m_pDevice->CreateDepthStencilState(&cutoutDs, &m_pDepthStateCutout);
-	if (FAILED(hr))
-		return hr;
-
-	/* Soft alpha (glass): test only — do not occlude other translucent geometry. */
-	D3D11_DEPTH_STENCIL_DESC softDs;
-	ZeroMemory(&softDs, sizeof(softDs));
-	softDs.DepthEnable = TRUE;
-	softDs.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
-	softDs.DepthFunc = D3D11_COMPARISON_LESS;
-	hr = m_pDevice->CreateDepthStencilState(&softDs, &m_pDepthStateSoftAlpha);
-	return hr;
-}
-
-void DXRender::SetOpaqueState()
-{
-	float blendFactor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
-	m_pDeviceContext->OMSetBlendState(m_pBlendStateOpaque, blendFactor, 0xffffffff);
-	m_pDeviceContext->OMSetDepthStencilState(m_pDepthStateOpaque, 0);
-}
-
-void DXRender::SetCutoutAlphaState()
-{
-	float blendFactor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
-	m_pDeviceContext->OMSetBlendState(m_pBlendStateCutout, blendFactor, 0xffffffff);
-	m_pDeviceContext->OMSetDepthStencilState(m_pDepthStateCutout, 0);
-}
-
-void DXRender::SetSoftAlphaState()
-{
-	float blendFactor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
-	m_pDeviceContext->OMSetBlendState(m_pBlendStateTransparency, blendFactor, 0xffffffff);
-	m_pDeviceContext->OMSetDepthStencilState(m_pDepthStateSoftAlpha, 0);
 }
 
 HRESULT DXRender::Init(HWND hWnd, bool vsync)
 {
 	m_vsync = vsync;
+	m_hWnd = hWnd;
 	m_width = 0;
 	m_height = 0;
-	m_msaaCount = 1;
-	m_msaaQuality = 0;
-	m_ownsSceneColor = false;
-	m_ownsResolvedDepth = false;
-	m_pRasterizerState = nullptr;
-	m_pRSCullFront = nullptr;
-	m_pRSCullNone = nullptr;
-	m_pRSWireframe = nullptr;
-	m_pDepthStencil = nullptr;
-	m_pDepthStencilView = nullptr;
-	m_pDepthSRV = nullptr;
-	m_pDepthMSAA_SRV = nullptr;
-	m_pResolvedDepth = nullptr;
-	m_pResolvedDepthRTV = nullptr;
-	m_pDepthResolveVS = nullptr;
-	m_pDepthResolvePS = nullptr;
-	m_pBackBuffer = nullptr;
-	m_pBackBufferRTV = nullptr;
-	m_pSceneColor = nullptr;
-	m_pSceneRTV = nullptr;
-	m_pBlendStateOpaque = nullptr;
-	m_pBlendStateTransparency = nullptr;
-	m_pBlendStateCutout = nullptr;
+	m_rtvCount = 0;
+	m_dsvCount = 0;
+	m_srvCount = 0;
+	m_samplerCount = 0;
+	m_rasterMode = RasterCullMode::CullFront;
+	m_solidRasterMode = RasterCullMode::CullFront;
+	m_blendMode = BlendPassMode::Opaque;
 
 	RECT rc;
 	GetClientRect(hWnd, &rc);
-	UINT width = rc.right - rc.left;
-	UINT height = rc.bottom - rc.top;
-	m_width = width;
-	m_height = height;
+	m_width = rc.right - rc.left;
+	m_height = rc.bottom - rc.top;
 
-	/* Non-MSAA swap chain — scene renders to an MSAA offscreen target, then resolves here. */
-	DXGI_SWAP_CHAIN_DESC sd;
-	ZeroMemory(&sd, sizeof(sd));
-	sd.BufferCount = 1;
-	sd.BufferDesc.Width = width;
-	sd.BufferDesc.Height = height;
-	sd.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-	sd.BufferDesc.RefreshRate.Numerator = 60;
-	sd.BufferDesc.RefreshRate.Denominator = 1;
-	sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-	sd.OutputWindow = hWnd;
-	sd.SampleDesc.Count = 1;
-	sd.SampleDesc.Quality = 0;
-	sd.Windowed = TRUE;
-
-	D3D_FEATURE_LEVEL featureLevels[] = {
-		D3D_FEATURE_LEVEL_11_0
-	};
-
-	UINT arraySize = ARRAYSIZE(featureLevels);
-
-	HRESULT hr = D3D11CreateDeviceAndSwapChain(
-		NULL,
-		D3D_DRIVER_TYPE_HARDWARE,
-		NULL,
-		0,
-		featureLevels,
-		arraySize,
-		D3D11_SDK_VERSION,
-		&sd,
-		&m_pSwapChain,
-		&m_pDevice,
-		NULL,
-		&m_pDeviceContext
-	);
-
-	if (FAILED(hr)) {
-		printf("Error: cannot CreateDeviceAndSwapChain\n");
+	HRESULT hr = CreateDevice();
+	if (FAILED(hr))
 		return hr;
-	}
-
-	m_msaaCount = PickMSAACount(DXGI_FORMAT_R8G8B8A8_UNORM);
-	m_msaaQuality = 0;
-	printf("[Info] MSAA %ux\n", m_msaaCount);
-
-	hr = CreateBackBuffer();
-
-	if (FAILED(hr)) {
-		printf("Error: cannot CreateBackBuffer\n");
+	hr = CreateHeaps();
+	if (FAILED(hr))
 		return hr;
-	}
-
-	hr = CreateMSAAColor();
-
-	if (FAILED(hr)) {
-		printf("Error: cannot CreateMSAAColor\n");
+	hr = CreateSwapChain(hWnd);
+	if (FAILED(hr))
 		return hr;
-	}
-
-	hr = CreateDepthStencil(hWnd);
-
-	if (FAILED(hr)) {
-		printf("Error: cannot CreateDepthStencil\n");
+	hr = CreateFrameResources();
+	if (FAILED(hr))
 		return hr;
-	}
-
-	hr = CreateDepthResolveResources();
-
-	if (FAILED(hr)) {
-		printf("Error: cannot CreateDepthResolveResources\n");
+	hr = CreateDepth();
+	if (FAILED(hr))
 		return hr;
-	}
-
-	hr = CreateBlendStates();
-
-	if (FAILED(hr)) {
-		printf("Error: cannot CreateBlendStates\n");
+	hr = CreateUploadRing();
+	if (FAILED(hr))
 		return hr;
-	}
 
-	hr = CreateDepthStencilStates();
-
-	if (FAILED(hr)) {
-		printf("Error: cannot CreateDepthStencilStates\n");
-		return hr;
-	}
-
-	m_pDeviceContext->OMSetRenderTargets(1, &m_pSceneRTV, m_pDepthStencilView);
-
-	InitViewport(hWnd);
-
-	hr = CreateRasterizerStates();
-
-	if (FAILED(hr)) {
-		printf("Error: cannot CreateRasterizerStates\n");
-		return hr;
-	}
-
-	return hr;
+	printf("[Info] DX12 FL 12_0, %ux%u, no MSAA\n", m_width, m_height);
+	return S_OK;
 }
 
 void DXRender::Cleanup()
 {
-	if (m_pDeviceContext) 
-		m_pDeviceContext->ClearState();
+	WaitForGpu();
+	ProcessDeferredReleases(UINT64_MAX);
 
-	if (m_pDepthResolvePS) {
-		m_pDepthResolvePS->Release();
-		m_pDepthResolvePS = nullptr;
-	}
-	if (m_pDepthResolveVS) {
-		m_pDepthResolveVS->Release();
-		m_pDepthResolveVS = nullptr;
-	}
-	if (m_pDepthMSAA_SRV) {
-		m_pDepthMSAA_SRV->Release();
-		m_pDepthMSAA_SRV = nullptr;
-	}
-	if (m_ownsResolvedDepth && m_pDepthSRV) {
-		m_pDepthSRV->Release();
-		m_pDepthSRV = nullptr;
-	} else if (!m_ownsResolvedDepth && m_pDepthSRV) {
-		m_pDepthSRV->Release();
-		m_pDepthSRV = nullptr;
-	}
-	if (m_pResolvedDepthRTV) {
-		m_pResolvedDepthRTV->Release();
-		m_pResolvedDepthRTV = nullptr;
-	}
-	if (m_pResolvedDepth) {
-		m_pResolvedDepth->Release();
-		m_pResolvedDepth = nullptr;
+	if (m_uploadMapped && m_uploadRing) {
+		m_uploadRing->Unmap(0, nullptr);
+		m_uploadMapped = nullptr;
 	}
 
-	if (m_pDepthStencilView) {
-		m_pDepthStencilView->Release();
-		m_pDepthStencilView = nullptr;
+	m_uploadKeepAlive.clear();
+	m_uploadList.Reset();
+	m_uploadAllocator.Reset();
+	m_uploadRing.Reset();
+	m_commandList.Reset();
+
+	for (UINT i = 0; i < kFrameCount; i++) {
+		m_frames[i].overflowUploads.clear();
+		m_frames[i].overflowMapped = nullptr;
+		m_frames[i].allocator.Reset();
+		m_renderTargets[i].Reset();
 	}
-
-	if (m_pDepthStencil) {
-		m_pDepthStencil->Release();
-		m_pDepthStencil = nullptr;
+	m_depth.Reset();
+	m_srvHeap.Reset();
+	m_samplerHeap.Reset();
+	m_rtvHeap.Reset();
+	m_dsvHeap.Reset();
+	m_swapChain.Reset();
+	m_queue.Reset();
+	m_fence.Reset();
+	if (m_fenceEvent) {
+		CloseHandle(m_fenceEvent);
+		m_fenceEvent = nullptr;
 	}
+	m_device.Reset();
+}
 
-	if (m_ownsSceneColor) {
-		if (m_pSceneRTV) {
-			m_pSceneRTV->Release();
-			m_pSceneRTV = nullptr;
-		}
-		if (m_pSceneColor) {
-			m_pSceneColor->Release();
-			m_pSceneColor = nullptr;
-		}
-	} else {
-		m_pSceneRTV = nullptr;
-		m_pSceneColor = nullptr;
+void DXRender::MoveToNextFrame()
+{
+	FrameContext& frame = m_frames[m_frameIndex];
+	frame.fenceValue = ++m_fenceValue;
+	m_queue->Signal(m_fence.Get(), frame.fenceValue);
+
+	m_frameIndex = m_swapChain->GetCurrentBackBufferIndex();
+	FrameContext& next = m_frames[m_frameIndex];
+	if (m_fence->GetCompletedValue() < next.fenceValue) {
+		m_fence->SetEventOnCompletion(next.fenceValue, m_fenceEvent);
+		WaitForSingleObject(m_fenceEvent, INFINITE);
 	}
-
-	if (m_pBackBufferRTV) {
-		m_pBackBufferRTV->Release();
-		m_pBackBufferRTV = nullptr;
-	}
-
-	if (m_pBackBuffer) {
-		m_pBackBuffer->Release();
-		m_pBackBuffer = nullptr;
-	}
-
-	if (m_pSwapChain) 
-		m_pSwapChain->Release();
-
-	if (m_pRSCullFront)
-		m_pRSCullFront->Release();
-	if (m_pRSCullNone)
-		m_pRSCullNone->Release();
-	if (m_pRSWireframe)
-		m_pRSWireframe->Release();
-	m_pRasterizerState = nullptr;
-
-	if (m_pBlendStateOpaque) {
-		m_pBlendStateOpaque->Release();
-		m_pBlendStateOpaque = nullptr;
-	}
-
-	if (m_pBlendStateTransparency) {
-		m_pBlendStateTransparency->Release();
-		m_pBlendStateTransparency = nullptr;
-	}
-
-	if (m_pBlendStateCutout) {
-		m_pBlendStateCutout->Release();
-		m_pBlendStateCutout = nullptr;
-	}
-
-	if (m_pDepthStateOpaque)
-		m_pDepthStateOpaque->Release();
-
-	if (m_pDepthStateCutout)
-		m_pDepthStateCutout->Release();
-
-	if (m_pDepthStateSoftAlpha)
-		m_pDepthStateSoftAlpha->Release();
-
-	if (m_pDeviceContext) 
-		m_pDeviceContext->Release();
-
-	if (m_pDevice) 
-		m_pDevice->Release();
+	ProcessDeferredReleases(m_fence->GetCompletedValue());
+	next.uploadOffset = 0;
+	next.overflowUploads.clear();
+	next.overflowMapped = nullptr;
+	next.overflowSize = 0;
+	next.overflowOffset = 0;
+	next.overflowGpuBase = 0;
 }
 
 void DXRender::RenderStart()
 {
-	float clearColor[4] = { 0.49804f, 0.78431f, 0.94510f, 1.0f };
-	m_pDeviceContext->ClearRenderTargetView(m_pSceneRTV, clearColor);
-	m_pDeviceContext->ClearDepthStencilView(m_pDepthStencilView, D3D11_CLEAR_DEPTH, 1.0f, 0);
+	FlushUploads();
+
+	FrameContext& frame = m_frames[m_frameIndex];
+	frame.allocator->Reset();
+	m_commandList->Reset(frame.allocator.Get(), nullptr);
+	BindDescriptorHeaps();
+
+	if (m_backBufferState[m_frameIndex] != D3D12_RESOURCE_STATE_RENDER_TARGET) {
+		Transition(m_renderTargets[m_frameIndex].Get(),
+			m_backBufferState[m_frameIndex], D3D12_RESOURCE_STATE_RENDER_TARGET);
+		m_backBufferState[m_frameIndex] = D3D12_RESOURCE_STATE_RENDER_TARGET;
+	}
+	if (m_depthState != D3D12_RESOURCE_STATE_DEPTH_WRITE) {
+		Transition(m_depth.Get(), m_depthState, D3D12_RESOURCE_STATE_DEPTH_WRITE);
+		m_depthState = D3D12_RESOURCE_STATE_DEPTH_WRITE;
+	}
+
+	const float clearColor[4] = { 0.49804f, 0.78431f, 0.94510f, 1.0f };
+	D3D12_CPU_DESCRIPTOR_HANDLE rtv = GetBackBufferRtv();
+	m_commandList->ClearRenderTargetView(rtv, clearColor, 0, nullptr);
+	m_commandList->ClearDepthStencilView(GetDsv(), D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 	RestoreMainTargets();
 	SetOpaqueState();
 }
 
 void DXRender::RenderEnd()
 {
-	if (m_vsync) {
-		m_pSwapChain->Present(1, 0);
+	if (m_backBufferState[m_frameIndex] != D3D12_RESOURCE_STATE_PRESENT) {
+		Transition(m_renderTargets[m_frameIndex].Get(),
+			m_backBufferState[m_frameIndex], D3D12_RESOURCE_STATE_PRESENT);
+		m_backBufferState[m_frameIndex] = D3D12_RESOURCE_STATE_PRESENT;
 	}
-	else {
-		m_pSwapChain->Present(0, 0);
-	}
+
+	m_commandList->Close();
+	ID3D12CommandList* lists[] = { m_commandList.Get() };
+	m_queue->ExecuteCommandLists(1, lists);
+	m_swapChain->Present(m_vsync ? 1 : 0, 0);
+	MoveToNextFrame();
 }

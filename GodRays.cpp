@@ -20,6 +20,39 @@ struct GodRaysCB
 	XMFLOAT2 Pad;
 };
 
+static HRESULT CreateGRPso(
+	ID3D12Device* device, ID3D12RootSignature* rootSig,
+	ID3DBlob* vs, ID3DBlob* ps, bool additive, DXGI_FORMAT rtvFmt,
+	ID3D12PipelineState** outPso)
+{
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC pso = {};
+	pso.pRootSignature = rootSig;
+	pso.VS = { vs->GetBufferPointer(), vs->GetBufferSize() };
+	pso.PS = { ps->GetBufferPointer(), ps->GetBufferSize() };
+	pso.SampleMask = UINT_MAX;
+	pso.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID;
+	pso.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+	pso.RasterizerState.DepthClipEnable = TRUE;
+	pso.DepthStencilState.DepthEnable = FALSE;
+	pso.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
+	pso.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_ALWAYS;
+	if (additive) {
+		pso.BlendState.RenderTarget[0].BlendEnable = TRUE;
+		pso.BlendState.RenderTarget[0].SrcBlend = D3D12_BLEND_ONE;
+		pso.BlendState.RenderTarget[0].DestBlend = D3D12_BLEND_ONE;
+		pso.BlendState.RenderTarget[0].BlendOp = D3D12_BLEND_OP_ADD;
+		pso.BlendState.RenderTarget[0].SrcBlendAlpha = D3D12_BLEND_ZERO;
+		pso.BlendState.RenderTarget[0].DestBlendAlpha = D3D12_BLEND_ONE;
+		pso.BlendState.RenderTarget[0].BlendOpAlpha = D3D12_BLEND_OP_ADD;
+	}
+	pso.BlendState.RenderTarget[0].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
+	pso.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+	pso.NumRenderTargets = 1;
+	pso.RTVFormats[0] = rtvFmt;
+	pso.SampleDesc.Count = 1;
+	return device->CreateGraphicsPipelineState(&pso, IID_PPV_ARGS(outPso));
+}
+
 HRESULT GodRays::CreateTargets(DXRender* render)
 {
 	ReleaseTargets();
@@ -29,179 +62,129 @@ HRESULT GodRays::CreateTargets(DXRender* render)
 	m_halfW = (m_fullW > 1) ? (m_fullW / 2) : 1;
 	m_halfH = (m_fullH > 1) ? (m_fullH / 2) : 1;
 
-	ID3D11Device* device = render->GetDevice();
-	ID3D11Texture2D* backBuf = render->GetBackBufferTexture();
-	if (!backBuf)
+	HRESULT hr = render->CreateTexture2D(
+		m_fullW, m_fullH, DXGI_FORMAT_R8G8B8A8_UNORM,
+		D3D12_RESOURCE_FLAG_NONE,
+		D3D12_RESOURCE_STATE_COPY_DEST,
+		&m_colorTex);
+	if (FAILED(hr))
+		return hr;
+	m_colorState = D3D12_RESOURCE_STATE_COPY_DEST;
+	m_colorSrv = render->CreateTextureSrv(m_colorTex, DXGI_FORMAT_R8G8B8A8_UNORM);
+	if (m_colorSrv == UINT_MAX)
 		return E_FAIL;
 
-	D3D11_TEXTURE2D_DESC colorDesc;
-	backBuf->GetDesc(&colorDesc);
-	colorDesc.SampleDesc.Count = 1;
-	colorDesc.SampleDesc.Quality = 0;
-	colorDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
-	colorDesc.MiscFlags = 0;
-	colorDesc.CPUAccessFlags = 0;
-	colorDesc.Usage = D3D11_USAGE_DEFAULT;
-
-	HRESULT hr = device->CreateTexture2D(&colorDesc, nullptr, &m_colorTex);
+	hr = render->CreateTexture2D(
+		m_halfW, m_halfH, DXGI_FORMAT_R16G16B16A16_FLOAT,
+		D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET,
+		D3D12_RESOURCE_STATE_RENDER_TARGET,
+		&m_raysTex);
 	if (FAILED(hr))
 		return hr;
-
-	D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc;
-	ZeroMemory(&srvDesc, sizeof(srvDesc));
-	srvDesc.Format = colorDesc.Format;
-	srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
-	srvDesc.Texture2D.MipLevels = 1;
-	hr = device->CreateShaderResourceView(m_colorTex, &srvDesc, &m_colorSRV);
-	if (FAILED(hr))
-		return hr;
-
-	D3D11_TEXTURE2D_DESC td;
-	ZeroMemory(&td, sizeof(td));
-	td.Width = m_halfW;
-	td.Height = m_halfH;
-	td.MipLevels = 1;
-	td.ArraySize = 1;
-	td.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
-	td.SampleDesc.Count = 1;
-	td.Usage = D3D11_USAGE_DEFAULT;
-	td.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
-
-	hr = device->CreateTexture2D(&td, nullptr, &m_raysTex);
-	if (FAILED(hr))
-		return hr;
-	hr = device->CreateRenderTargetView(m_raysTex, nullptr, &m_raysRTV);
-	if (FAILED(hr))
-		return hr;
-	hr = device->CreateShaderResourceView(m_raysTex, nullptr, &m_raysSRV);
-	return hr;
+	m_raysState = D3D12_RESOURCE_STATE_RENDER_TARGET;
+	m_raysRtv = render->AllocRtvIndex();
+	if (m_raysRtv == UINT_MAX)
+		return E_FAIL;
+	render->GetDevice()->CreateRenderTargetView(m_raysTex, nullptr, render->GetRtvCpu(m_raysRtv));
+	m_raysSrv = render->CreateTextureSrv(m_raysTex, DXGI_FORMAT_R16G16B16A16_FLOAT);
+	return (m_raysSrv != UINT_MAX) ? S_OK : E_FAIL;
 }
 
 void GodRays::ReleaseTargets()
 {
-	if (m_raysSRV) { m_raysSRV->Release(); m_raysSRV = nullptr; }
-	if (m_raysRTV) { m_raysRTV->Release(); m_raysRTV = nullptr; }
 	if (m_raysTex) { m_raysTex->Release(); m_raysTex = nullptr; }
-	if (m_colorSRV) { m_colorSRV->Release(); m_colorSRV = nullptr; }
 	if (m_colorTex) { m_colorTex->Release(); m_colorTex = nullptr; }
+	m_colorSrv = m_raysRtv = m_raysSrv = UINT_MAX;
 }
 
 HRESULT GodRays::Init(DXRender* render)
 {
-	m_vs = nullptr;
-	m_psRays = nullptr;
-	m_psComposite = nullptr;
-	m_cb = nullptr;
-	m_pointSampler = nullptr;
-	m_linearSampler = nullptr;
-	m_rasterizer = nullptr;
-	m_depthDisabled = nullptr;
-	m_blendOpaque = nullptr;
-	m_blendAdditive = nullptr;
+	m_rootSig = nullptr;
+	m_psoRays = nullptr;
+	m_psoComposite = nullptr;
+	m_pointSampler = m_linearSampler = m_pairSrvBase = UINT_MAX;
 	m_colorTex = nullptr;
-	m_colorSRV = nullptr;
 	m_raysTex = nullptr;
-	m_raysRTV = nullptr;
-	m_raysSRV = nullptr;
+	m_colorSrv = m_raysRtv = m_raysSrv = UINT_MAX;
 	m_fullW = m_fullH = m_halfW = m_halfH = 0;
 
-	ID3D11Device* device = render->GetDevice();
+	ID3D12Device* device = render->GetDevice();
 	HRESULT hr;
-	ID3DBlob* blob = nullptr;
 
-	hr = D3DReadFileToBlob(L"ssao_vs.cso", &blob);
-	if (FAILED(hr)) {
-		printf("Error: GodRays cannot read ssao_vs.cso\n");
+	D3D12_DESCRIPTOR_RANGE srvRange = {};
+	srvRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+	srvRange.NumDescriptors = 2;
+	srvRange.BaseShaderRegister = 0;
+
+	D3D12_DESCRIPTOR_RANGE sampRange = {};
+	sampRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER;
+	sampRange.NumDescriptors = 2;
+	sampRange.BaseShaderRegister = 0;
+
+	D3D12_ROOT_PARAMETER params[3] = {};
+	params[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+	params[0].Descriptor.ShaderRegister = 0;
+	params[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+	params[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+	params[1].DescriptorTable.NumDescriptorRanges = 1;
+	params[1].DescriptorTable.pDescriptorRanges = &srvRange;
+	params[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+	params[2].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+	params[2].DescriptorTable.NumDescriptorRanges = 1;
+	params[2].DescriptorTable.pDescriptorRanges = &sampRange;
+	params[2].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+
+	D3D12_ROOT_SIGNATURE_DESC rsDesc = {};
+	rsDesc.NumParameters = 3;
+	rsDesc.pParameters = params;
+
+	ID3DBlob* sigBlob = nullptr;
+	hr = D3D12SerializeRootSignature(&rsDesc, D3D_ROOT_SIGNATURE_VERSION_1, &sigBlob, nullptr);
+	if (FAILED(hr))
 		return hr;
+	hr = device->CreateRootSignature(0, sigBlob->GetBufferPointer(), sigBlob->GetBufferSize(), IID_PPV_ARGS(&m_rootSig));
+	sigBlob->Release();
+	if (FAILED(hr))
+		return hr;
+
+	ID3DBlob* vs = nullptr;
+	ID3DBlob* psRays = nullptr;
+	ID3DBlob* psComp = nullptr;
+	hr = D3DReadFileToBlob(L"ssao_vs.cso", &vs);
+	if (FAILED(hr)) { printf("Error: GodRays cannot read ssao_vs.cso\n"); return hr; }
+	hr = D3DReadFileToBlob(L"godrays_ps.cso", &psRays);
+	if (FAILED(hr)) { printf("Error: GodRays cannot read godrays_ps.cso\n"); return hr; }
+	hr = D3DReadFileToBlob(L"godrays_composite_ps.cso", &psComp);
+	if (FAILED(hr)) { printf("Error: GodRays cannot read godrays_composite_ps.cso\n"); return hr; }
+
+	hr = CreateGRPso(device, m_rootSig, vs, psRays, false, DXGI_FORMAT_R16G16B16A16_FLOAT, &m_psoRays);
+	if (FAILED(hr)) return hr;
+	hr = CreateGRPso(device, m_rootSig, vs, psComp, true, DXGI_FORMAT_R8G8B8A8_UNORM, &m_psoComposite);
+	vs->Release();
+	psRays->Release();
+	psComp->Release();
+	if (FAILED(hr))
+		return hr;
+
+	/* Contiguous linear (s0) + point (s1) for rays pass. */
+	D3D12_SAMPLER_DESC sd = {};
+	sd.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
+	sd.AddressU = sd.AddressV = sd.AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+	sd.MaxLOD = D3D12_FLOAT32_MAX;
+	m_linearSampler = render->CreateSampler(sd);
+	sd.Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;
+	m_pointSampler = render->CreateSampler(sd);
+	if (m_linearSampler == UINT_MAX || m_pointSampler == UINT_MAX)
+		return E_FAIL;
+	/* Rays pass expects s0=linear, s1=point as a contiguous table. */
+	if (m_pointSampler != m_linearSampler + 1) {
+		printf("Error: GodRays samplers not contiguous\n");
+		return E_FAIL;
 	}
-	hr = device->CreateVertexShader(blob->GetBufferPointer(), blob->GetBufferSize(), nullptr, &m_vs);
-	blob->Release();
-	if (FAILED(hr))
-		return hr;
 
-	hr = D3DReadFileToBlob(L"godrays_ps.cso", &blob);
-	if (FAILED(hr)) {
-		printf("Error: GodRays cannot read godrays_ps.cso\n");
-		return hr;
-	}
-	hr = device->CreatePixelShader(blob->GetBufferPointer(), blob->GetBufferSize(), nullptr, &m_psRays);
-	blob->Release();
-	if (FAILED(hr))
-		return hr;
-
-	hr = D3DReadFileToBlob(L"godrays_composite_ps.cso", &blob);
-	if (FAILED(hr)) {
-		printf("Error: GodRays cannot read godrays_composite_ps.cso\n");
-		return hr;
-	}
-	hr = device->CreatePixelShader(blob->GetBufferPointer(), blob->GetBufferSize(), nullptr, &m_psComposite);
-	blob->Release();
-	if (FAILED(hr))
-		return hr;
-
-	D3D11_BUFFER_DESC cbd;
-	ZeroMemory(&cbd, sizeof(cbd));
-	cbd.ByteWidth = sizeof(GodRaysCB);
-	cbd.Usage = D3D11_USAGE_DEFAULT;
-	cbd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
-	hr = device->CreateBuffer(&cbd, nullptr, &m_cb);
-	if (FAILED(hr))
-		return hr;
-
-	D3D11_SAMPLER_DESC sd;
-	ZeroMemory(&sd, sizeof(sd));
-	sd.Filter = D3D11_FILTER_MIN_MAG_MIP_POINT;
-	sd.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
-	sd.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
-	sd.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
-	sd.MaxLOD = D3D11_FLOAT32_MAX;
-	hr = device->CreateSamplerState(&sd, &m_pointSampler);
-	if (FAILED(hr))
-		return hr;
-
-	sd.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
-	hr = device->CreateSamplerState(&sd, &m_linearSampler);
-	if (FAILED(hr))
-		return hr;
-
-	D3D11_RASTERIZER_DESC rd;
-	ZeroMemory(&rd, sizeof(rd));
-	rd.FillMode = D3D11_FILL_SOLID;
-	rd.CullMode = D3D11_CULL_NONE;
-	rd.DepthClipEnable = TRUE;
-	hr = device->CreateRasterizerState(&rd, &m_rasterizer);
-	if (FAILED(hr))
-		return hr;
-
-	D3D11_DEPTH_STENCIL_DESC dd;
-	ZeroMemory(&dd, sizeof(dd));
-	dd.DepthEnable = FALSE;
-	dd.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
-	dd.DepthFunc = D3D11_COMPARISON_ALWAYS;
-	hr = device->CreateDepthStencilState(&dd, &m_depthDisabled);
-	if (FAILED(hr))
-		return hr;
-
-	D3D11_BLEND_DESC bd;
-	ZeroMemory(&bd, sizeof(bd));
-	bd.RenderTarget[0].BlendEnable = FALSE;
-	bd.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
-	hr = device->CreateBlendState(&bd, &m_blendOpaque);
-	if (FAILED(hr))
-		return hr;
-
-	ZeroMemory(&bd, sizeof(bd));
-	bd.RenderTarget[0].BlendEnable = TRUE;
-	bd.RenderTarget[0].SrcBlend = D3D11_BLEND_ONE;
-	bd.RenderTarget[0].DestBlend = D3D11_BLEND_ONE;
-	bd.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
-	bd.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_ZERO;
-	bd.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_ONE;
-	bd.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
-	bd.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
-	hr = device->CreateBlendState(&bd, &m_blendAdditive);
-	if (FAILED(hr))
-		return hr;
+	m_pairSrvBase = render->AllocSrvIndex();
+	if (m_pairSrvBase == UINT_MAX || render->AllocSrvIndex() == UINT_MAX)
+		return E_FAIL;
 
 	hr = CreateTargets(render);
 	if (FAILED(hr)) {
@@ -216,16 +199,9 @@ HRESULT GodRays::Init(DXRender* render)
 void GodRays::Cleanup()
 {
 	ReleaseTargets();
-	if (m_blendAdditive) { m_blendAdditive->Release(); m_blendAdditive = nullptr; }
-	if (m_blendOpaque) { m_blendOpaque->Release(); m_blendOpaque = nullptr; }
-	if (m_depthDisabled) { m_depthDisabled->Release(); m_depthDisabled = nullptr; }
-	if (m_rasterizer) { m_rasterizer->Release(); m_rasterizer = nullptr; }
-	if (m_linearSampler) { m_linearSampler->Release(); m_linearSampler = nullptr; }
-	if (m_pointSampler) { m_pointSampler->Release(); m_pointSampler = nullptr; }
-	if (m_cb) { m_cb->Release(); m_cb = nullptr; }
-	if (m_psComposite) { m_psComposite->Release(); m_psComposite = nullptr; }
-	if (m_psRays) { m_psRays->Release(); m_psRays = nullptr; }
-	if (m_vs) { m_vs->Release(); m_vs = nullptr; }
+	if (m_psoComposite) { m_psoComposite->Release(); m_psoComposite = nullptr; }
+	if (m_psoRays) { m_psoRays->Release(); m_psoRays = nullptr; }
+	if (m_rootSig) { m_rootSig->Release(); m_rootSig = nullptr; }
 }
 
 float GodRays::ProjectSun(
@@ -239,14 +215,12 @@ float GodRays::ProjectSun(
 	outV = 0.5f;
 	outOcclusion = 0.0f;
 
-	/* Directional light → screen UV via view-space direction (stable for any pitch). */
 	XMMATRIX view = camera->GetView();
 	XMVECTOR sunView = XMVector3TransformNormal(sunDirToward, view);
 	float vx = XMVectorGetX(sunView);
 	float vy = XMVectorGetY(sunView);
 	float vz = XMVectorGetZ(sunView);
 
-	/* Only cull when the sun is behind the camera. */
 	if (vz <= 1e-4f)
 		return 0.0f;
 
@@ -258,10 +232,6 @@ float GodRays::ProjectSun(
 	outU = ndcX * 0.5f + 0.5f;
 	outV = -ndcY * 0.5f + 0.5f;
 
-	/*
-	 * Soft fade only when far outside the frame. Keep a strong floor so looking
-	 * up (sun near / past the edge) still produces rays across the sky.
-	 */
 	float dx = fabsf(outU - 0.5f) * 2.0f;
 	float dy = fabsf(outV - 0.5f) * 2.0f;
 	float outside = fmaxf(0.0f, fmaxf(dx, dy) - 1.15f);
@@ -275,38 +245,42 @@ float GodRays::ProjectSun(
 	return edge;
 }
 
-void GodRays::DrawFullscreen(ID3D11DeviceContext* ctx)
+void GodRays::DrawFullscreen(DXRender* render, ID3D12PipelineState* pso, UINT srvIndex, UINT samplerIndex)
 {
-	ctx->IASetInputLayout(nullptr);
-	ctx->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-	UINT stride = 0, offset = 0;
-	ID3D11Buffer* nullVB = nullptr;
-	ctx->IASetVertexBuffers(0, 1, &nullVB, &stride, &offset);
-	ctx->IASetIndexBuffer(nullptr, DXGI_FORMAT_R32_UINT, 0);
-	ctx->VSSetShader(m_vs, nullptr, 0);
-	ctx->Draw(3, 0);
+	ID3D12GraphicsCommandList* cmd = render->GetCommandList();
+	cmd->SetGraphicsRootSignature(m_rootSig);
+	cmd->SetPipelineState(pso);
+	cmd->SetGraphicsRootDescriptorTable(1, render->GetSrvGpu(srvIndex));
+	cmd->SetGraphicsRootDescriptorTable(2, render->GetSamplerGpu(samplerIndex));
+	cmd->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	cmd->DrawInstanced(3, 1, 0, 0);
 }
 
 void GodRays::Apply(DXRender* render, Camera* camera, FXMVECTOR sunDirToward)
 {
-	if (!m_vs || !m_psRays || !m_colorTex)
+	if (!m_rootSig || !m_psoRays || !m_colorTex)
 		return;
 
-	ID3D11ShaderResourceView* depthSRV = render->GetDepthSRV();
-	ID3D11Texture2D* backBuf = render->GetBackBufferTexture();
-	if (!depthSRV || !backBuf)
+	UINT depthSrv = render->GetDepthSrvIndex();
+	ID3D12Resource* backBuf = render->GetBackBuffer();
+	if (depthSrv == UINT_MAX || !backBuf)
 		return;
 
 	float sunU, sunV, sunOcc;
 	if (ProjectSun(camera, sunDirToward, sunU, sunV, sunOcc) <= 0.001f)
 		return;
 
-	ID3D11DeviceContext* ctx = render->GetDeviceContext();
+	ID3D12GraphicsCommandList* cmd = render->GetCommandList();
 
-	/* Unbind RT so we can copy / sample. */
-	ID3D11RenderTargetView* nullRTV = nullptr;
-	ctx->OMSetRenderTargets(1, &nullRTV, nullptr);
-	ctx->CopyResource(m_colorTex, backBuf);
+	render->Transition(backBuf, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_COPY_SOURCE);
+	if (m_colorState != D3D12_RESOURCE_STATE_COPY_DEST) {
+		render->Transition(m_colorTex, m_colorState, D3D12_RESOURCE_STATE_COPY_DEST);
+		m_colorState = D3D12_RESOURCE_STATE_COPY_DEST;
+	}
+	cmd->CopyResource(m_colorTex, backBuf);
+	render->Transition(backBuf, D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET);
+	render->Transition(m_colorTex, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+	m_colorState = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
 
 	GodRaysCB cb;
 	cb.LightPosUV = XMFLOAT2(sunU, sunV);
@@ -319,48 +293,45 @@ void GodRays::Apply(DXRender* render, Camera* camera, FXMVECTOR sunDirToward)
 	cb.DepthCutoff = DEPTH_CUTOFF;
 	cb.SunOcclusion = sunOcc;
 	cb.Pad = XMFLOAT2(0.0f, 0.0f);
-	ctx->UpdateSubresource(m_cb, 0, nullptr, &cb, 0, 0);
 
-	ctx->VSSetConstantBuffers(0, 1, &m_cb);
-	ctx->PSSetConstantBuffers(0, 1, &m_cb);
-	ctx->RSSetState(m_rasterizer);
-	ctx->OMSetDepthStencilState(m_depthDisabled, 0);
-	float blendFactor[4] = { 0, 0, 0, 0 };
-	ctx->OMSetBlendState(m_blendOpaque, blendFactor, 0xffffffff);
+	D3D12_GPU_VIRTUAL_ADDRESS cbAddr = 0;
+	void* ptr = render->AllocFrameConstants(sizeof(cb), &cbAddr);
+	memcpy(ptr, &cb, sizeof(cb));
 
-	D3D11_VIEWPORT halfVP;
-	halfVP.TopLeftX = 0.0f;
-	halfVP.TopLeftY = 0.0f;
+	render->GetDevice()->CopyDescriptorsSimple(
+		1, render->GetSrvCpu(m_pairSrvBase), render->GetSrvCpu(m_colorSrv),
+		D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+	render->GetDevice()->CopyDescriptorsSimple(
+		1, render->GetSrvCpu(m_pairSrvBase + 1), render->GetSrvCpu(depthSrv),
+		D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+
+	if (m_raysState != D3D12_RESOURCE_STATE_RENDER_TARGET) {
+		render->Transition(m_raysTex, m_raysState, D3D12_RESOURCE_STATE_RENDER_TARGET);
+		m_raysState = D3D12_RESOURCE_STATE_RENDER_TARGET;
+	}
+
+	D3D12_VIEWPORT halfVP = {};
 	halfVP.Width = (float)m_halfW;
 	halfVP.Height = (float)m_halfH;
-	halfVP.MinDepth = 0.0f;
 	halfVP.MaxDepth = 1.0f;
-	ctx->RSSetViewports(1, &halfVP);
-
+	D3D12_RECT halfSc = { 0, 0, (LONG)m_halfW, (LONG)m_halfH };
+	D3D12_CPU_DESCRIPTOR_HANDLE raysRtv = render->GetRtvCpu(m_raysRtv);
 	float clearRays[4] = { 0, 0, 0, 0 };
-	ctx->ClearRenderTargetView(m_raysRTV, clearRays);
-	ctx->OMSetRenderTargets(1, &m_raysRTV, nullptr);
-	ctx->PSSetShader(m_psRays, nullptr, 0);
-	ctx->PSSetShaderResources(0, 1, &m_colorSRV);
-	ctx->PSSetShaderResources(1, 1, &depthSRV);
-	ctx->PSSetSamplers(0, 1, &m_linearSampler);
-	ctx->PSSetSamplers(1, 1, &m_pointSampler);
-	DrawFullscreen(ctx);
+	cmd->OMSetRenderTargets(1, &raysRtv, FALSE, nullptr);
+	cmd->ClearRenderTargetView(raysRtv, clearRays, 0, nullptr);
+	cmd->RSSetViewports(1, &halfVP);
+	cmd->RSSetScissorRects(1, &halfSc);
+	cmd->SetGraphicsRootSignature(m_rootSig);
+	cmd->SetGraphicsRootConstantBufferView(0, cbAddr);
+	DrawFullscreen(render, m_psoRays, m_pairSrvBase, m_linearSampler);
 
-	ID3D11ShaderResourceView* nullSRV = nullptr;
-	ctx->PSSetShaderResources(0, 1, &nullSRV);
-	ctx->PSSetShaderResources(1, 1, &nullSRV);
+	render->Transition(m_raysTex, m_raysState, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+	m_raysState = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
 
-	/* Additive upsample onto resolved back buffer. */
 	render->BindBackBufferOnly();
-	ctx->OMSetBlendState(m_blendAdditive, blendFactor, 0xffffffff);
-	ctx->PSSetShader(m_psComposite, nullptr, 0);
-	ctx->PSSetShaderResources(0, 1, &m_raysSRV);
-	ctx->PSSetSamplers(0, 1, &m_linearSampler);
-	DrawFullscreen(ctx);
+	cmd->SetGraphicsRootConstantBufferView(0, cbAddr);
+	DrawFullscreen(render, m_psoComposite, m_raysSrv, m_linearSampler);
 
-	ctx->PSSetShaderResources(0, 1, &nullSRV);
-	ctx->OMSetBlendState(m_blendOpaque, blendFactor, 0xffffffff);
 	render->RestoreMainTargets();
 	render->ApplyRasterizerState();
 	render->SetOpaqueState();

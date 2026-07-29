@@ -3,7 +3,6 @@
 #include <stdint.h>
 #include <vector>
 
-#include <d3d11.h>
 #include <DirectXMath.h>
 
 #include "DXRender.hpp"
@@ -70,21 +69,16 @@ private:
 	int8_t m_fineBlocks[SMALL_SECTORS][SMALL_SECTORS];
 	float m_seaZ;
 
-	ID3D11Buffer* m_vb;
-	ID3D11Buffer* m_ib;
-	ID3D11Buffer* m_oceanVB;
-	ID3D11Buffer* m_oceanIB;
-	ID3D11Buffer* m_cb;
-	ID3D11VertexShader* m_vs;
-	ID3D11PixelShader* m_ps;
-	ID3D11InputLayout* m_layout;
-	ID3D11ShaderResourceView* m_texture;
-	ID3D11SamplerState* m_sampler;
-	ID3D11RasterizerState* m_rasterizer;
-	ID3D11DepthStencilState* m_depthState;
-	ID3D11BlendState* m_blendState;
+	ID3D12Resource* m_vb;
+	ID3D12Resource* m_ib;
+	ID3D12Resource* m_oceanIB;
+	ID3D12RootSignature* m_rootSig;
+	ID3D12PipelineState* m_pso;
+	GpuTexture m_texture;
+	UINT m_samplerIndex;
+	UINT m_coastIndexCount;
+	UINT m_coastVertexBytes;
 
-	uint32_t m_indexCount;
 	float m_uvU;
 	float m_uvV;
 	float m_time;

@@ -17,6 +17,65 @@ struct PostFXBlitCB
 	XMFLOAT2 Pad;
 };
 
+static D3D12_BLEND_DESC MakeOpaque()
+{
+	D3D12_BLEND_DESC b = {};
+	b.RenderTarget[0].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
+	return b;
+}
+
+static D3D12_BLEND_DESC MakeAlpha()
+{
+	D3D12_BLEND_DESC b = {};
+	b.RenderTarget[0].BlendEnable = TRUE;
+	b.RenderTarget[0].SrcBlend = D3D12_BLEND_SRC_ALPHA;
+	b.RenderTarget[0].DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
+	b.RenderTarget[0].BlendOp = D3D12_BLEND_OP_ADD;
+	b.RenderTarget[0].SrcBlendAlpha = D3D12_BLEND_ONE;
+	b.RenderTarget[0].DestBlendAlpha = D3D12_BLEND_INV_SRC_ALPHA;
+	b.RenderTarget[0].BlendOpAlpha = D3D12_BLEND_OP_ADD;
+	b.RenderTarget[0].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
+	return b;
+}
+
+static D3D12_BLEND_DESC MakeAdditive()
+{
+	D3D12_BLEND_DESC b = {};
+	b.RenderTarget[0].BlendEnable = TRUE;
+	b.RenderTarget[0].SrcBlend = D3D12_BLEND_ONE;
+	b.RenderTarget[0].DestBlend = D3D12_BLEND_ONE;
+	b.RenderTarget[0].BlendOp = D3D12_BLEND_OP_ADD;
+	b.RenderTarget[0].SrcBlendAlpha = D3D12_BLEND_ONE;
+	b.RenderTarget[0].DestBlendAlpha = D3D12_BLEND_ONE;
+	b.RenderTarget[0].BlendOpAlpha = D3D12_BLEND_OP_ADD;
+	b.RenderTarget[0].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
+	return b;
+}
+
+static HRESULT CreatePostPso(
+	ID3D12Device* device, ID3D12RootSignature* rootSig,
+	ID3DBlob* vs, ID3DBlob* ps, const D3D12_BLEND_DESC& blend,
+	ID3D12PipelineState** outPso)
+{
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC pso = {};
+	pso.pRootSignature = rootSig;
+	pso.VS = { vs->GetBufferPointer(), vs->GetBufferSize() };
+	pso.PS = { ps->GetBufferPointer(), ps->GetBufferSize() };
+	pso.BlendState = blend;
+	pso.SampleMask = UINT_MAX;
+	pso.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID;
+	pso.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+	pso.RasterizerState.DepthClipEnable = TRUE;
+	pso.DepthStencilState.DepthEnable = FALSE;
+	pso.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
+	pso.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_ALWAYS;
+	pso.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+	pso.NumRenderTargets = 1;
+	pso.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
+	pso.SampleDesc.Count = 1;
+	return device->CreateGraphicsPipelineState(&pso, IID_PPV_ARGS(outPso));
+}
+
 const char* PostFX::ModeName(Mode mode)
 {
 	switch (mode) {
@@ -34,66 +93,48 @@ HRESULT PostFX::CreateTargets(DXRender* render)
 	m_width = render->GetBackBufferWidth();
 	m_height = render->GetBackBufferHeight();
 
-	ID3D11Texture2D* backBuf = render->GetBackBufferTexture();
-	if (!backBuf)
+	HRESULT hr = render->CreateTexture2D(
+		m_width, m_height, DXGI_FORMAT_R8G8B8A8_UNORM,
+		D3D12_RESOURCE_FLAG_NONE,
+		D3D12_RESOURCE_STATE_COPY_DEST,
+		&m_backTex);
+	if (FAILED(hr))
+		return hr;
+	m_backState = D3D12_RESOURCE_STATE_COPY_DEST;
+	m_backSrv = render->CreateTextureSrv(m_backTex, DXGI_FORMAT_R8G8B8A8_UNORM);
+	if (m_backSrv == UINT_MAX)
 		return E_FAIL;
 
-	D3D11_TEXTURE2D_DESC desc;
-	backBuf->GetDesc(&desc);
-	desc.SampleDesc.Count = 1;
-	desc.SampleDesc.Quality = 0;
-	desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
-	desc.MiscFlags = 0;
-	desc.CPUAccessFlags = 0;
-	desc.Usage = D3D11_USAGE_DEFAULT;
-
-	ID3D11Device* device = render->GetDevice();
-	HRESULT hr = device->CreateTexture2D(&desc, nullptr, &m_backTex);
+	hr = render->CreateTexture2D(
+		m_width, m_height, DXGI_FORMAT_R8G8B8A8_UNORM,
+		D3D12_RESOURCE_FLAG_NONE,
+		D3D12_RESOURCE_STATE_COPY_DEST,
+		&m_frontTex);
 	if (FAILED(hr))
 		return hr;
-
-	hr = device->CreateTexture2D(&desc, nullptr, &m_frontTex);
-	if (FAILED(hr))
-		return hr;
-
-	D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc;
-	ZeroMemory(&srvDesc, sizeof(srvDesc));
-	srvDesc.Format = desc.Format;
-	srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
-	srvDesc.Texture2D.MipLevels = 1;
-
-	hr = device->CreateShaderResourceView(m_backTex, &srvDesc, &m_backSRV);
-	if (FAILED(hr))
-		return hr;
-	hr = device->CreateShaderResourceView(m_frontTex, &srvDesc, &m_frontSRV);
-	return hr;
+	m_frontState = D3D12_RESOURCE_STATE_COPY_DEST;
+	m_frontSrv = render->CreateTextureSrv(m_frontTex, DXGI_FORMAT_R8G8B8A8_UNORM);
+	return (m_frontSrv != UINT_MAX) ? S_OK : E_FAIL;
 }
 
 void PostFX::ReleaseTargets()
 {
-	if (m_frontSRV) { m_frontSRV->Release(); m_frontSRV = nullptr; }
 	if (m_frontTex) { m_frontTex->Release(); m_frontTex = nullptr; }
-	if (m_backSRV) { m_backSRV->Release(); m_backSRV = nullptr; }
 	if (m_backTex) { m_backTex->Release(); m_backTex = nullptr; }
+	m_backSrv = m_frontSrv = UINT_MAX;
 }
 
 HRESULT PostFX::Init(DXRender* render)
 {
-	m_vs = nullptr;
-	m_psColour = nullptr;
-	m_psBlit = nullptr;
-	m_cbColour = nullptr;
-	m_cbBlit = nullptr;
-	m_pointSampler = nullptr;
-	m_rasterizer = nullptr;
-	m_depthDisabled = nullptr;
-	m_blendOpaque = nullptr;
-	m_blendAlpha = nullptr;
-	m_blendAdditive = nullptr;
+	m_rootSig = nullptr;
+	m_psoColour = nullptr;
+	m_psoBlitOpaque = nullptr;
+	m_psoBlitAlpha = nullptr;
+	m_psoBlitAdditive = nullptr;
+	m_pointSampler = UINT_MAX;
 	m_backTex = nullptr;
-	m_backSRV = nullptr;
 	m_frontTex = nullptr;
-	m_frontSRV = nullptr;
+	m_backSrv = m_frontSrv = UINT_MAX;
 	m_width = m_height = 0;
 	m_mode = MODE_MOTION_BLUR;
 	m_justInitialised = true;
@@ -103,119 +144,75 @@ HRESULT PostFX::Init(DXRender* render)
 	m_blurAlpha = DEFAULT_BLUR_ALPHA;
 	m_intensity = INTENSITY;
 
-	ID3D11Device* device = render->GetDevice();
+	ID3D12Device* device = render->GetDevice();
 	HRESULT hr;
-	ID3DBlob* blob = nullptr;
 
-	hr = D3DReadFileToBlob(L"ssao_vs.cso", &blob);
-	if (FAILED(hr)) {
-		printf("Error: PostFX cannot read ssao_vs.cso\n");
+	D3D12_DESCRIPTOR_RANGE srvRange = {};
+	srvRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+	srvRange.NumDescriptors = 1;
+	srvRange.BaseShaderRegister = 0;
+
+	D3D12_DESCRIPTOR_RANGE sampRange = {};
+	sampRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER;
+	sampRange.NumDescriptors = 1;
+	sampRange.BaseShaderRegister = 0;
+
+	D3D12_ROOT_PARAMETER params[3] = {};
+	params[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+	params[0].Descriptor.ShaderRegister = 0;
+	params[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+	params[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+	params[1].DescriptorTable.NumDescriptorRanges = 1;
+	params[1].DescriptorTable.pDescriptorRanges = &srvRange;
+	params[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+	params[2].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+	params[2].DescriptorTable.NumDescriptorRanges = 1;
+	params[2].DescriptorTable.pDescriptorRanges = &sampRange;
+	params[2].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+
+	D3D12_ROOT_SIGNATURE_DESC rsDesc = {};
+	rsDesc.NumParameters = 3;
+	rsDesc.pParameters = params;
+
+	ID3DBlob* sigBlob = nullptr;
+	hr = D3D12SerializeRootSignature(&rsDesc, D3D_ROOT_SIGNATURE_VERSION_1, &sigBlob, nullptr);
+	if (FAILED(hr))
 		return hr;
-	}
-	hr = device->CreateVertexShader(blob->GetBufferPointer(), blob->GetBufferSize(), nullptr, &m_vs);
-	blob->Release();
+	hr = device->CreateRootSignature(0, sigBlob->GetBufferPointer(), sigBlob->GetBufferSize(), IID_PPV_ARGS(&m_rootSig));
+	sigBlob->Release();
 	if (FAILED(hr))
 		return hr;
 
-	hr = D3DReadFileToBlob(L"colourfilter_vc_ps.cso", &blob);
-	if (FAILED(hr)) {
-		printf("Error: PostFX cannot read colourfilter_vc_ps.cso\n");
-		return hr;
-	}
-	hr = device->CreatePixelShader(blob->GetBufferPointer(), blob->GetBufferSize(), nullptr, &m_psColour);
-	blob->Release();
+	ID3DBlob* vs = nullptr;
+	ID3DBlob* psColour = nullptr;
+	ID3DBlob* psBlit = nullptr;
+	hr = D3DReadFileToBlob(L"ssao_vs.cso", &vs);
+	if (FAILED(hr)) { printf("Error: PostFX cannot read ssao_vs.cso\n"); return hr; }
+	hr = D3DReadFileToBlob(L"colourfilter_vc_ps.cso", &psColour);
+	if (FAILED(hr)) { printf("Error: PostFX cannot read colourfilter_vc_ps.cso\n"); return hr; }
+	hr = D3DReadFileToBlob(L"postfx_blit_ps.cso", &psBlit);
+	if (FAILED(hr)) { printf("Error: PostFX cannot read postfx_blit_ps.cso\n"); return hr; }
+
+	hr = CreatePostPso(device, m_rootSig, vs, psColour, MakeOpaque(), &m_psoColour);
+	if (FAILED(hr)) return hr;
+	hr = CreatePostPso(device, m_rootSig, vs, psBlit, MakeOpaque(), &m_psoBlitOpaque);
+	if (FAILED(hr)) return hr;
+	hr = CreatePostPso(device, m_rootSig, vs, psBlit, MakeAlpha(), &m_psoBlitAlpha);
+	if (FAILED(hr)) return hr;
+	hr = CreatePostPso(device, m_rootSig, vs, psBlit, MakeAdditive(), &m_psoBlitAdditive);
+	vs->Release();
+	psColour->Release();
+	psBlit->Release();
 	if (FAILED(hr))
 		return hr;
 
-	hr = D3DReadFileToBlob(L"postfx_blit_ps.cso", &blob);
-	if (FAILED(hr)) {
-		printf("Error: PostFX cannot read postfx_blit_ps.cso\n");
-		return hr;
-	}
-	hr = device->CreatePixelShader(blob->GetBufferPointer(), blob->GetBufferSize(), nullptr, &m_psBlit);
-	blob->Release();
-	if (FAILED(hr))
-		return hr;
-
-	D3D11_BUFFER_DESC cbd;
-	ZeroMemory(&cbd, sizeof(cbd));
-	cbd.Usage = D3D11_USAGE_DEFAULT;
-	cbd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
-
-	cbd.ByteWidth = sizeof(PostFXColourCB);
-	hr = device->CreateBuffer(&cbd, nullptr, &m_cbColour);
-	if (FAILED(hr))
-		return hr;
-
-	cbd.ByteWidth = sizeof(PostFXBlitCB);
-	hr = device->CreateBuffer(&cbd, nullptr, &m_cbBlit);
-	if (FAILED(hr))
-		return hr;
-
-	D3D11_SAMPLER_DESC sd;
-	ZeroMemory(&sd, sizeof(sd));
-	sd.Filter = D3D11_FILTER_MIN_MAG_MIP_POINT;
-	sd.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
-	sd.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
-	sd.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
-	sd.MaxLOD = D3D11_FLOAT32_MAX;
-	hr = device->CreateSamplerState(&sd, &m_pointSampler);
-	if (FAILED(hr))
-		return hr;
-
-	D3D11_RASTERIZER_DESC rd;
-	ZeroMemory(&rd, sizeof(rd));
-	rd.FillMode = D3D11_FILL_SOLID;
-	rd.CullMode = D3D11_CULL_NONE;
-	rd.DepthClipEnable = TRUE;
-	hr = device->CreateRasterizerState(&rd, &m_rasterizer);
-	if (FAILED(hr))
-		return hr;
-
-	D3D11_DEPTH_STENCIL_DESC dd;
-	ZeroMemory(&dd, sizeof(dd));
-	dd.DepthEnable = FALSE;
-	dd.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
-	dd.DepthFunc = D3D11_COMPARISON_ALWAYS;
-	hr = device->CreateDepthStencilState(&dd, &m_depthDisabled);
-	if (FAILED(hr))
-		return hr;
-
-	D3D11_BLEND_DESC bd;
-	ZeroMemory(&bd, sizeof(bd));
-	bd.RenderTarget[0].BlendEnable = FALSE;
-	bd.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
-	hr = device->CreateBlendState(&bd, &m_blendOpaque);
-	if (FAILED(hr))
-		return hr;
-
-	/* SRCALPHA / INVSRCALPHA — soft trail tint. */
-	ZeroMemory(&bd, sizeof(bd));
-	bd.RenderTarget[0].BlendEnable = TRUE;
-	bd.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;
-	bd.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
-	bd.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
-	bd.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_ONE;
-	bd.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
-	bd.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
-	bd.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
-	hr = device->CreateBlendState(&bd, &m_blendAlpha);
-	if (FAILED(hr))
-		return hr;
-
-	/* ONE / ONE — additive colour bloom (re3 RenderOverlayBlur). */
-	ZeroMemory(&bd, sizeof(bd));
-	bd.RenderTarget[0].BlendEnable = TRUE;
-	bd.RenderTarget[0].SrcBlend = D3D11_BLEND_ONE;
-	bd.RenderTarget[0].DestBlend = D3D11_BLEND_ONE;
-	bd.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
-	bd.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_ONE;
-	bd.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_ONE;
-	bd.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
-	bd.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
-	hr = device->CreateBlendState(&bd, &m_blendAdditive);
-	if (FAILED(hr))
-		return hr;
+	D3D12_SAMPLER_DESC sd = {};
+	sd.Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;
+	sd.AddressU = sd.AddressV = sd.AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+	sd.MaxLOD = D3D12_FLOAT32_MAX;
+	m_pointSampler = render->CreateSampler(sd);
+	if (m_pointSampler == UINT_MAX)
+		return E_FAIL;
 
 	hr = CreateTargets(render);
 	if (FAILED(hr)) {
@@ -230,17 +227,11 @@ HRESULT PostFX::Init(DXRender* render)
 void PostFX::Cleanup()
 {
 	ReleaseTargets();
-	if (m_blendAdditive) { m_blendAdditive->Release(); m_blendAdditive = nullptr; }
-	if (m_blendAlpha) { m_blendAlpha->Release(); m_blendAlpha = nullptr; }
-	if (m_blendOpaque) { m_blendOpaque->Release(); m_blendOpaque = nullptr; }
-	if (m_depthDisabled) { m_depthDisabled->Release(); m_depthDisabled = nullptr; }
-	if (m_rasterizer) { m_rasterizer->Release(); m_rasterizer = nullptr; }
-	if (m_pointSampler) { m_pointSampler->Release(); m_pointSampler = nullptr; }
-	if (m_cbBlit) { m_cbBlit->Release(); m_cbBlit = nullptr; }
-	if (m_cbColour) { m_cbColour->Release(); m_cbColour = nullptr; }
-	if (m_psBlit) { m_psBlit->Release(); m_psBlit = nullptr; }
-	if (m_psColour) { m_psColour->Release(); m_psColour = nullptr; }
-	if (m_vs) { m_vs->Release(); m_vs = nullptr; }
+	if (m_psoBlitAdditive) { m_psoBlitAdditive->Release(); m_psoBlitAdditive = nullptr; }
+	if (m_psoBlitAlpha) { m_psoBlitAlpha->Release(); m_psoBlitAlpha = nullptr; }
+	if (m_psoBlitOpaque) { m_psoBlitOpaque->Release(); m_psoBlitOpaque = nullptr; }
+	if (m_psoColour) { m_psoColour->Release(); m_psoColour = nullptr; }
+	if (m_rootSig) { m_rootSig->Release(); m_rootSig = nullptr; }
 }
 
 void PostFX::SetBlurColor(float r, float g, float b)
@@ -275,25 +266,37 @@ PostFX::Mode PostFX::CycleMode()
 	return m_mode;
 }
 
-void PostFX::DrawFullscreen(ID3D11DeviceContext* ctx)
+void PostFX::CopyBackBuffer(DXRender* render, ID3D12Resource* dest, D3D12_RESOURCE_STATES& destState)
 {
-	ctx->IASetInputLayout(nullptr);
-	ctx->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-	UINT stride = 0, offset = 0;
-	ID3D11Buffer* nullVB = nullptr;
-	ctx->IASetVertexBuffers(0, 1, &nullVB, &stride, &offset);
-	ctx->IASetIndexBuffer(nullptr, DXGI_FORMAT_R32_UINT, 0);
-	ctx->VSSetShader(m_vs, nullptr, 0);
-	ctx->Draw(3, 0);
+	ID3D12Resource* back = render->GetBackBuffer();
+	ID3D12GraphicsCommandList* cmd = render->GetCommandList();
+
+	/* Back buffer is RENDER_TARGET during the frame; restore after copy. */
+	render->Transition(back, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_COPY_SOURCE);
+	if (destState != D3D12_RESOURCE_STATE_COPY_DEST) {
+		render->Transition(dest, destState, D3D12_RESOURCE_STATE_COPY_DEST);
+		destState = D3D12_RESOURCE_STATE_COPY_DEST;
+	}
+	cmd->CopyResource(dest, back);
+	render->Transition(back, D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET);
+	render->Transition(dest, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+	destState = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
 }
 
-void PostFX::ApplyColourFilter(DXRender* render, ID3D11Texture2D* backBuf)
+void PostFX::DrawFullscreen(DXRender* render, ID3D12PipelineState* pso, UINT srvIndex)
 {
-	ID3D11DeviceContext* ctx = render->GetDeviceContext();
+	ID3D12GraphicsCommandList* cmd = render->GetCommandList();
+	cmd->SetGraphicsRootSignature(m_rootSig);
+	cmd->SetPipelineState(pso);
+	cmd->SetGraphicsRootDescriptorTable(1, render->GetSrvGpu(srvIndex));
+	cmd->SetGraphicsRootDescriptorTable(2, render->GetSamplerGpu(m_pointSampler));
+	cmd->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	cmd->DrawInstanced(3, 1, 0, 0);
+}
 
-	ID3D11RenderTargetView* nullRTV = nullptr;
-	ctx->OMSetRenderTargets(1, &nullRTV, nullptr);
-	ctx->CopyResource(m_backTex, backBuf);
+void PostFX::ApplyColourFilter(DXRender* render)
+{
+	CopyBackBuffer(render, m_backTex, m_backState);
 
 	PostFXColourCB cb;
 	float f = m_intensity;
@@ -302,50 +305,33 @@ void PostFX::ApplyColourFilter(DXRender* render, ID3D11Texture2D* backBuf)
 		m_blurG * f / 255.0f,
 		m_blurB * f / 255.0f,
 		30.0f / 255.0f);
-	ctx->UpdateSubresource(m_cbColour, 0, nullptr, &cb, 0, 0);
+
+	D3D12_GPU_VIRTUAL_ADDRESS cbAddr = 0;
+	void* ptr = render->AllocFrameConstants(sizeof(cb), &cbAddr);
+	memcpy(ptr, &cb, sizeof(cb));
 
 	render->BindBackBufferOnly();
-	ctx->RSSetState(m_rasterizer);
-	ctx->OMSetDepthStencilState(m_depthDisabled, 0);
-	float blendFactor[4] = { 0, 0, 0, 0 };
-	ctx->OMSetBlendState(m_blendOpaque, blendFactor, 0xffffffff);
-
-	ctx->PSSetShader(m_psColour, nullptr, 0);
-	ctx->PSSetConstantBuffers(0, 1, &m_cbColour);
-	ctx->PSSetShaderResources(0, 1, &m_backSRV);
-	ctx->PSSetSamplers(0, 1, &m_pointSampler);
-	DrawFullscreen(ctx);
-
-	ID3D11ShaderResourceView* nullSRV = nullptr;
-	ctx->PSSetShaderResources(0, 1, &nullSRV);
+	ID3D12GraphicsCommandList* cmd = render->GetCommandList();
+	cmd->SetGraphicsRootSignature(m_rootSig);
+	cmd->SetGraphicsRootConstantBufferView(0, cbAddr);
+	DrawFullscreen(render, m_psoColour, m_backSrv);
 }
 
-void PostFX::ApplyMotionBlur(DXRender* render, ID3D11Texture2D* backBuf)
+void PostFX::ApplyMotionBlur(DXRender* render)
 {
-	ID3D11DeviceContext* ctx = render->GetDeviceContext();
-	float blendFactor[4] = { 0, 0, 0, 0 };
-
-	/* Same Intensity scale as colour filter so both modes match in punch. */
 	float f = m_intensity;
 	float r = m_blurR * f / 255.0f;
 	float g = m_blurG * f / 255.0f;
 	float b = m_blurB * f / 255.0f;
 	float a = m_blurAlpha * f / 255.0f;
-	/* ~2px smear like re3 Vertex2. */
 	XMFLOAT2 offsetUV(2.0f / (float)m_width, 2.0f / (float)m_height);
 
-	if (!m_justInitialised) {
+	if (!m_justInitialised && m_frontState == D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE) {
 		render->BindBackBufferOnly();
-		ctx->RSSetState(m_rasterizer);
-		ctx->OMSetDepthStencilState(m_depthDisabled, 0);
-		ctx->PSSetShader(m_psBlit, nullptr, 0);
-		ctx->PSSetConstantBuffers(0, 1, &m_cbBlit);
-		ctx->PSSetShaderResources(0, 1, &m_frontSRV);
-		ctx->PSSetSamplers(0, 1, &m_pointSampler);
+		ID3D12GraphicsCommandList* cmd = render->GetCommandList();
+		cmd->SetGraphicsRootSignature(m_rootSig);
 
 		PostFXBlitCB blit;
-
-		/* Pass 1: alpha blend of offset previous frame, color*2, a=30. */
 		blit.Color = XMFLOAT4(
 			(r * 2.0f > 1.0f) ? 1.0f : r * 2.0f,
 			(g * 2.0f > 1.0f) ? 1.0f : g * 2.0f,
@@ -353,50 +339,44 @@ void PostFX::ApplyMotionBlur(DXRender* render, ID3D11Texture2D* backBuf)
 			30.0f / 255.0f * f);
 		blit.UVOffset = offsetUV;
 		blit.Pad = XMFLOAT2(0, 0);
-		ctx->UpdateSubresource(m_cbBlit, 0, nullptr, &blit, 0, 0);
-		ctx->OMSetBlendState(m_blendAlpha, blendFactor, 0xffffffff);
-		DrawFullscreen(ctx);
 
-		/* Pass 2: additive aligned. */
+		D3D12_GPU_VIRTUAL_ADDRESS cbAddr = 0;
+		void* ptr = render->AllocFrameConstants(sizeof(blit), &cbAddr);
+		memcpy(ptr, &blit, sizeof(blit));
+		cmd->SetGraphicsRootConstantBufferView(0, cbAddr);
+		DrawFullscreen(render, m_psoBlitAlpha, m_frontSrv);
+
 		blit.Color = XMFLOAT4(r, g, b, a);
 		blit.UVOffset = XMFLOAT2(0, 0);
-		ctx->UpdateSubresource(m_cbBlit, 0, nullptr, &blit, 0, 0);
-		ctx->OMSetBlendState(m_blendAdditive, blendFactor, 0xffffffff);
-		DrawFullscreen(ctx);
+		ptr = render->AllocFrameConstants(sizeof(blit), &cbAddr);
+		memcpy(ptr, &blit, sizeof(blit));
+		cmd->SetGraphicsRootConstantBufferView(0, cbAddr);
+		DrawFullscreen(render, m_psoBlitAdditive, m_frontSrv);
 
-		/* Pass 3: additive offset (BlurOn trails). */
 		blit.UVOffset = offsetUV;
-		ctx->UpdateSubresource(m_cbBlit, 0, nullptr, &blit, 0, 0);
-		DrawFullscreen(ctx);
-
-		ID3D11ShaderResourceView* nullSRV = nullptr;
-		ctx->PSSetShaderResources(0, 1, &nullSRV);
+		ptr = render->AllocFrameConstants(sizeof(blit), &cbAddr);
+		memcpy(ptr, &blit, sizeof(blit));
+		cmd->SetGraphicsRootConstantBufferView(0, cbAddr);
+		DrawFullscreen(render, m_psoBlitAdditive, m_frontSrv);
 	}
 
-	/* Save current frame (with overlay) for next frame's trails. */
-	ID3D11RenderTargetView* nullRTV = nullptr;
-	ctx->OMSetRenderTargets(1, &nullRTV, nullptr);
-	ctx->CopyResource(m_frontTex, backBuf);
+	CopyBackBuffer(render, m_frontTex, m_frontState);
 	m_justInitialised = false;
 }
 
 void PostFX::Apply(DXRender* render)
 {
-	if (!m_vs || m_mode == MODE_OFF)
-		return;
-
-	ID3D11Texture2D* backBuf = render->GetBackBufferTexture();
-	if (!backBuf)
+	if (!m_rootSig || m_mode == MODE_OFF)
 		return;
 
 	if (m_mode == MODE_COLOUR_FILTER) {
-		if (!m_psColour || !m_backTex)
+		if (!m_psoColour || !m_backTex)
 			return;
-		ApplyColourFilter(render, backBuf);
+		ApplyColourFilter(render);
 	} else if (m_mode == MODE_MOTION_BLUR) {
-		if (!m_psBlit || !m_frontTex)
+		if (!m_psoBlitAlpha || !m_frontTex)
 			return;
-		ApplyMotionBlur(render, backBuf);
+		ApplyMotionBlur(render);
 	}
 
 	render->RestoreMainTargets();

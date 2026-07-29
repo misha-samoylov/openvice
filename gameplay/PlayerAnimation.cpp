@@ -49,78 +49,184 @@ bool Player::InitPipeline(DXRender* render)
 		return false;
 	}
 
-	hr = render->GetDevice()->CreateVertexShader(
-		vsBlob->GetBufferPointer(), vsBlob->GetBufferSize(), nullptr, &m_vs);
-	if (FAILED(hr)) {
-		vsBlob->Release();
-		return false;
-	}
-
-	D3D11_INPUT_ELEMENT_DESC layout[] = {
-		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-		{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-		{ "BLENDINDICES", 0, DXGI_FORMAT_R8G8B8A8_UINT, 0, 20, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-		{ "BLENDWEIGHT", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 24, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-	};
-
-	hr = render->GetDevice()->CreateInputLayout(
-		layout, ARRAYSIZE(layout),
-		vsBlob->GetBufferPointer(), vsBlob->GetBufferSize(),
-		&m_layout);
-	vsBlob->Release();
-	if (FAILED(hr)) {
-		printf("[Error] Player: CreateInputLayout failed\n");
-		return false;
-	}
-
 	ID3DBlob* psBlob = nullptr;
 	hr = D3DReadFileToBlob(L"pixel_shader.cso", &psBlob);
 	if (FAILED(hr)) {
+		vsBlob->Release();
 		printf("[Error] Player: cannot read pixel_shader.cso\n");
 		return false;
 	}
-	hr = render->GetDevice()->CreatePixelShader(
-		psBlob->GetBufferPointer(), psBlob->GetBufferSize(), nullptr, &m_ps);
-	psBlob->Release();
-	if (FAILED(hr))
-		return false;
 
 	ID3DBlob* shadowPsBlob = nullptr;
 	hr = D3DReadFileToBlob(L"shadow_ps.cso", &shadowPsBlob);
 	if (FAILED(hr)) {
+		vsBlob->Release();
+		psBlob->Release();
 		printf("[Error] Player: cannot read shadow_ps.cso\n");
 		return false;
 	}
-	hr = render->GetDevice()->CreatePixelShader(
-		shadowPsBlob->GetBufferPointer(), shadowPsBlob->GetBufferSize(), nullptr, &m_shadowPS);
+
+	D3D12_DESCRIPTOR_RANGE srv0 = {};
+	srv0.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+	srv0.NumDescriptors = 1;
+	srv0.BaseShaderRegister = 0;
+
+	D3D12_DESCRIPTOR_RANGE srv1 = {};
+	srv1.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+	srv1.NumDescriptors = 1;
+	srv1.BaseShaderRegister = 1;
+
+	D3D12_DESCRIPTOR_RANGE samp0 = {};
+	samp0.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER;
+	samp0.NumDescriptors = 1;
+	samp0.BaseShaderRegister = 0;
+
+	D3D12_DESCRIPTOR_RANGE samp1 = {};
+	samp1.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER;
+	samp1.NumDescriptors = 1;
+	samp1.BaseShaderRegister = 1;
+
+	D3D12_ROOT_PARAMETER params[6] = {};
+	params[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+	params[0].Descriptor.ShaderRegister = 0;
+	params[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+
+	params[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+	params[1].Descriptor.ShaderRegister = 1;
+	params[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
+
+	params[2].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+	params[2].DescriptorTable.NumDescriptorRanges = 1;
+	params[2].DescriptorTable.pDescriptorRanges = &srv0;
+	params[2].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+
+	params[3].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+	params[3].DescriptorTable.NumDescriptorRanges = 1;
+	params[3].DescriptorTable.pDescriptorRanges = &srv1;
+	params[3].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+
+	params[4].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+	params[4].DescriptorTable.NumDescriptorRanges = 1;
+	params[4].DescriptorTable.pDescriptorRanges = &samp0;
+	params[4].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+
+	params[5].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+	params[5].DescriptorTable.NumDescriptorRanges = 1;
+	params[5].DescriptorTable.pDescriptorRanges = &samp1;
+	params[5].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+
+	D3D12_ROOT_SIGNATURE_DESC rsDesc = {};
+	rsDesc.NumParameters = 6;
+	rsDesc.pParameters = params;
+	rsDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
+
+	ID3DBlob* sigBlob = nullptr;
+	ID3DBlob* errBlob = nullptr;
+	hr = D3D12SerializeRootSignature(&rsDesc, D3D_ROOT_SIGNATURE_VERSION_1, &sigBlob, &errBlob);
+	if (FAILED(hr)) {
+		if (errBlob) {
+			printf("[Error] Player root sig: %s\n", (char*)errBlob->GetBufferPointer());
+			errBlob->Release();
+		}
+		vsBlob->Release();
+		psBlob->Release();
+		shadowPsBlob->Release();
+		return false;
+	}
+	hr = render->GetDevice()->CreateRootSignature(
+		0, sigBlob->GetBufferPointer(), sigBlob->GetBufferSize(), IID_PPV_ARGS(&m_rootSig));
+	sigBlob->Release();
+	if (FAILED(hr)) {
+		vsBlob->Release();
+		psBlob->Release();
+		shadowPsBlob->Release();
+		return false;
+	}
+
+	D3D12_INPUT_ELEMENT_DESC layout[] = {
+		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+		{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+		{ "BLENDINDICES", 0, DXGI_FORMAT_R8G8B8A8_UINT, 0, 20, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+		{ "BLENDWEIGHT", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 24, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+	};
+
+	D3D12_RASTERIZER_DESC raster = {};
+	raster.FillMode = D3D12_FILL_MODE_SOLID;
+	raster.CullMode = D3D12_CULL_MODE_FRONT;
+	raster.DepthClipEnable = TRUE;
+
+	D3D12_BLEND_DESC blend = {};
+	blend.RenderTarget[0].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
+
+	D3D12_DEPTH_STENCIL_DESC depth = {};
+	depth.DepthEnable = TRUE;
+	depth.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
+	depth.DepthFunc = D3D12_COMPARISON_FUNC_LESS;
+
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC psoColor = {};
+	psoColor.pRootSignature = m_rootSig;
+	psoColor.VS = { vsBlob->GetBufferPointer(), vsBlob->GetBufferSize() };
+	psoColor.PS = { psBlob->GetBufferPointer(), psBlob->GetBufferSize() };
+	psoColor.BlendState = blend;
+	psoColor.SampleMask = UINT_MAX;
+	psoColor.RasterizerState = raster;
+	psoColor.DepthStencilState = depth;
+	psoColor.InputLayout = { layout, ARRAYSIZE(layout) };
+	psoColor.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+	psoColor.NumRenderTargets = 1;
+	psoColor.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
+	psoColor.DSVFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
+	psoColor.SampleDesc.Count = 1;
+	hr = render->GetDevice()->CreateGraphicsPipelineState(&psoColor, IID_PPV_ARGS(&m_psoColor));
+	if (FAILED(hr)) {
+		vsBlob->Release();
+		psBlob->Release();
+		shadowPsBlob->Release();
+		printf("[Error] Player: CreateGraphicsPipelineState color failed\n");
+		return false;
+	}
+
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC psoShadow = {};
+	psoShadow.pRootSignature = m_rootSig;
+	psoShadow.VS = { vsBlob->GetBufferPointer(), vsBlob->GetBufferSize() };
+	psoShadow.PS = { shadowPsBlob->GetBufferPointer(), shadowPsBlob->GetBufferSize() };
+	psoShadow.BlendState = blend;
+	psoShadow.SampleMask = UINT_MAX;
+	psoShadow.RasterizerState = raster;
+	psoShadow.DepthStencilState = depth;
+	psoShadow.InputLayout = { layout, ARRAYSIZE(layout) };
+	psoShadow.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+	psoShadow.NumRenderTargets = 0;
+	psoShadow.DSVFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
+	psoShadow.SampleDesc.Count = 1;
+	hr = render->GetDevice()->CreateGraphicsPipelineState(&psoShadow, IID_PPV_ARGS(&m_psoShadow));
+	vsBlob->Release();
+	psBlob->Release();
 	shadowPsBlob->Release();
-	if (FAILED(hr))
+	if (FAILED(hr)) {
+		printf("[Error] Player: CreateGraphicsPipelineState shadow failed\n");
+		return false;
+	}
+
+	D3D12_SAMPLER_DESC samp = {};
+	samp.Filter = D3D12_FILTER_ANISOTROPIC;
+	samp.MaxAnisotropy = 16;
+	samp.AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+	samp.AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+	samp.AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+	samp.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
+	samp.MaxLOD = D3D12_FLOAT32_MAX;
+	m_samplerIndex = render->CreateSampler(samp);
+	if (m_samplerIndex == UINT_MAX)
 		return false;
 
-	D3D11_SAMPLER_DESC sampDesc;
-	ZeroMemory(&sampDesc, sizeof(sampDesc));
-	sampDesc.Filter = D3D11_FILTER_ANISOTROPIC;
-	sampDesc.MaxAnisotropy = 16;
-	sampDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
-	sampDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
-	sampDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
-	sampDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
-	sampDesc.MinLOD = 0;
-	sampDesc.MaxLOD = D3D11_FLOAT32_MAX;
-	hr = render->GetDevice()->CreateSamplerState(&sampDesc, &m_sampler);
-	if (FAILED(hr))
-		return false;
-
-	D3D11_BUFFER_DESC bd;
-	ZeroMemory(&bd, sizeof(bd));
-	bd.Usage = D3D11_USAGE_DEFAULT;
-	bd.ByteWidth = sizeof(XMFLOAT4X4) * MAX_BONES;
-	bd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
-	hr = render->GetDevice()->CreateBuffer(&bd, nullptr, &m_boneCB);
-	if (FAILED(hr))
-		return false;
-
-	return true;
+	D3D12_SAMPLER_DESC cmp = {};
+	cmp.Filter = D3D12_FILTER_COMPARISON_MIN_MAG_LINEAR_MIP_POINT;
+	cmp.AddressU = cmp.AddressV = cmp.AddressW = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+	cmp.ComparisonFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
+	cmp.BorderColor[0] = cmp.BorderColor[1] = cmp.BorderColor[2] = cmp.BorderColor[3] = 1.0f;
+	m_shadowSamplerIndex = render->CreateSampler(cmp);
+	return m_shadowSamplerIndex != UINT_MAX;
 }
 
 bool Player::LoadTextures(IMG* img)
@@ -139,6 +245,8 @@ bool Player::LoadTextures(IMG* img)
 
 	for (uint32_t i = 0; i < txd.texList.size(); i++) {
 		NativeTexture& t = txd.texList[i];
+		if (t.dxtCompression == 0)
+			t.convertTo32Bit();
 		LoadedTex tex;
 		memset(&tex, 0, sizeof(tex));
 		memcpy(tex.name, t.name, sizeof(tex.name));
@@ -166,10 +274,10 @@ int Player::FindTexIndex(const char* name) const
 	return -1;
 }
 
-HRESULT Player::CreateTextureSRV(DXRender* render, LoadedTex& tex, ID3D11ShaderResourceView** outSRV)
+HRESULT Player::CreateTextureSRV(DXRender* render, LoadedTex& tex, GpuTexture* outTex)
 {
 	return TextureFactory::CreateSrvFromDxt(
-		render, tex.data, tex.size, tex.width, tex.height, tex.dxt, outSRV);
+		render, tex.data, tex.size, tex.width, tex.height, tex.dxt, outTex);
 }
 
 bool Player::LoadModel(IMG* img, DXRender* render)
@@ -306,49 +414,23 @@ bool Player::LoadModel(IMG* img, DXRender* render)
 			sv.boneWeights[3] = skinGeom->vertexBoneWeights[v * 4 + 3];
 		}
 
-		SkinnedMeshPart part;
-		memset(&part, 0, sizeof(part));
+		SkinnedMeshPart part = {};
 		part.indexCount = split.m_numIndices;
+		part.vertexCount = vCount;
 		part.topology = skinGeom->faceType == FACETYPE_STRIP
-			? D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP
-			: D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+			? D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP
+			: D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 		part.hasAlpha = false;
-		part.texture = nullptr;
 
-		D3D11_BUFFER_DESC bdv;
-		ZeroMemory(&bdv, sizeof(bdv));
-		bdv.Usage = D3D11_USAGE_DEFAULT;
-		bdv.ByteWidth = (UINT)(sizeof(SkinnedVertex) * vCount);
-		bdv.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-		D3D11_SUBRESOURCE_DATA datav;
-		ZeroMemory(&datav, sizeof(datav));
-		datav.pSysMem = verts.data();
-		if (FAILED(render->GetDevice()->CreateBuffer(&bdv, &datav, &part.vb))) {
+		if (FAILED(render->CreateDefaultBuffer(
+			verts.data(), (UINT64)(sizeof(SkinnedVertex) * vCount), &part.vb))) {
 			clump->Clear();
 			delete clump;
 			return false;
 		}
 
-		D3D11_BUFFER_DESC bdi;
-		ZeroMemory(&bdi, sizeof(bdi));
-		bdi.Usage = D3D11_USAGE_DEFAULT;
-		bdi.ByteWidth = sizeof(unsigned int) * split.m_numIndices;
-		bdi.BindFlags = D3D11_BIND_INDEX_BUFFER;
-		D3D11_SUBRESOURCE_DATA datai;
-		ZeroMemory(&datai, sizeof(datai));
-		datai.pSysMem = split.indices;
-		if (FAILED(render->GetDevice()->CreateBuffer(&bdi, &datai, &part.ib))) {
-			clump->Clear();
-			delete clump;
-			return false;
-		}
-
-		D3D11_BUFFER_DESC bdcb;
-		ZeroMemory(&bdcb, sizeof(bdcb));
-		bdcb.Usage = D3D11_USAGE_DEFAULT;
-		bdcb.ByteWidth = sizeof(objectConstBuffer);
-		bdcb.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
-		if (FAILED(render->GetDevice()->CreateBuffer(&bdcb, nullptr, &part.objectCB))) {
+		if (FAILED(render->CreateDefaultBuffer(
+			split.indices, (UINT64)(sizeof(unsigned int) * split.m_numIndices), &part.ib))) {
 			clump->Clear();
 			delete clump;
 			return false;

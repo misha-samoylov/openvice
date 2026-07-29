@@ -2,7 +2,6 @@
 
 #include <stdint.h>
 
-#include <d3d11.h>
 #include <DirectXMath.h>
 
 #include "DXRender.hpp"
@@ -19,14 +18,12 @@ class Clouds
 public:
 	bool Init(DXRender* render, const char* particleTxdPath);
 	void Update(float dt, Camera* camera);
-	/* sunDirToward = unit vector toward the sun (engine Y-up), same as ShadowMap.
-	 * drawClouds=false still draws the sun, skips volumetric clouds. */
 	void Render(DXRender* render, Camera* camera, FXMVECTOR sunDirToward, bool drawClouds = true);
 	void Cleanup();
 
 private:
 	struct CloudVertex {
-		float x, y; /* NDC */
+		float x, y;
 		float u, v;
 		float r, g, b, a;
 	};
@@ -49,9 +46,7 @@ private:
 
 	enum { MAX_QUADS = 8 };
 
-	/* Angular size scale; glow extent is ~28 * SUN_SIZE in projected units. */
 	static constexpr float SUN_SIZE = 2.5f;
-
 	static constexpr float CLOUD_BOTTOM = 140.0f;
 	static constexpr float CLOUD_TOP = 320.0f;
 	static constexpr float CLOUD_COVERAGE = 0.48f;
@@ -61,7 +56,6 @@ private:
 	static constexpr float CLOUD_AMBIENT = 1.15f;
 
 	bool CreatePipeline(DXRender* render);
-	bool CreateStates(DXRender* render);
 	bool CreateTargets(DXRender* render);
 	void ReleaseTargets();
 
@@ -73,31 +67,22 @@ private:
 		float screenW, float screenH);
 	void RenderVolumetric(DXRender* render, Camera* camera, FXMVECTOR sunDirToward);
 
-	void FlushBatch(DXRender* render, ID3D11BlendState* blend,
+	void FlushBatch(DXRender* render, ID3D12PipelineState* pso,
 		CloudVertex* verts, int vertCount);
-	void DrawFullscreen(ID3D11DeviceContext* ctx);
+	void DrawFullscreen(DXRender* render, ID3D12PipelineState* pso);
 
-	ID3D11Buffer* m_vb;
-	ID3D11VertexShader* m_vsSun;
-	ID3D11PixelShader* m_psSun;
-	ID3D11InputLayout* m_layout;
+	ID3D12RootSignature* m_rootSigSun;
+	ID3D12RootSignature* m_rootSigCloud;
+	ID3D12PipelineState* m_psoSun;
+	ID3D12PipelineState* m_psoCloud;
+	ID3D12PipelineState* m_psoComposite;
 
-	ID3D11VertexShader* m_vsCloud;
-	ID3D11PixelShader* m_psCloud;
-	ID3D11PixelShader* m_psComposite;
-	ID3D11Buffer* m_cb;
+	UINT m_samplerIndex;
 
-	ID3D11SamplerState* m_sampler;
-	ID3D11RasterizerState* m_rasterizer;
-	ID3D11DepthStencilState* m_depthOff;
-	ID3D11BlendState* m_blendAdditive;
-	ID3D11BlendState* m_blendAlpha;
-	ID3D11BlendState* m_blendOpaque;
-
-	/* Half-res volumetric buffer. */
-	ID3D11Texture2D* m_cloudTex;
-	ID3D11RenderTargetView* m_cloudRTV;
-	ID3D11ShaderResourceView* m_cloudSRV;
+	ID3D12Resource* m_cloudTex;
+	UINT m_cloudRtv;
+	UINT m_cloudSrv;
+	D3D12_RESOURCE_STATES m_cloudState;
 	UINT m_fullW;
 	UINT m_fullH;
 	UINT m_halfW;

@@ -5,14 +5,13 @@
 #include <stdlib.h>
 #include <string.h>
 #include <cmath>
+#include <d3dcompiler.h>
 
 #include "renderware.h"
 
 #define WATER_X_OFFSET 400.0f
 #define WATER_Z_OFFSET 0.5f
 #define SMALL_SECTOR_SIZE 32.0f
-#define LARGE_SECTOR_SIZE 64.0f
-#define HUGE_SECTOR_SIZE 128.0f
 
 static float WaterFromSmallX(int x)
 {
@@ -22,16 +21,6 @@ static float WaterFromSmallX(int x)
 static float WaterFromSmallY(int y)
 {
 	return (float)(y - 64) * SMALL_SECTOR_SIZE;
-}
-
-static float WaterFromLargeX(int x)
-{
-	return (float)(x - 32) * LARGE_SECTOR_SIZE;
-}
-
-static float WaterFromLargeY(int y)
-{
-	return (float)(y - 32) * LARGE_SECTOR_SIZE;
 }
 
 bool Water::LoadWaterPro(const char* path)
@@ -45,7 +34,6 @@ bool Water::LoadWaterPro(const char* path)
 	fread(&m_numLevels, sizeof(m_numLevels), 1, f);
 	fread(m_waterZs, sizeof(m_waterZs), 1, f);
 
-	/* CRect[48] = 4 floats each — skip after reading into dummy */
 	float rects[MAX_LEVELS * 4];
 	fread(rects, sizeof(rects), 1, f);
 
@@ -127,10 +115,6 @@ bool Water::LoadWaterTexture(DXRender* render, const char* particleTxdPath)
 void Water::AddQuad(std::vector<WaterVertex>& verts, std::vector<uint32_t>& indices,
 	float gx, float gy, float gz, float size, float uvScale)
 {
-	/*
-	 * GTA RW: X/Y horizontal, Z up.
-	 * openvice LH: X = GTA X, Y = GTA Z, Z = GTA Y.
-	 */
 	uint32_t base = (uint32_t)verts.size();
 
 	WaterVertex v0 = { gx,        gz, gy,        0.0f,     0.0f };
@@ -143,7 +127,6 @@ void Water::AddQuad(std::vector<WaterVertex>& verts, std::vector<uint32_t>& indi
 	verts.push_back(v2);
 	verts.push_back(v3);
 
-	/* Same winding as re3 after axis remap (matches CULL_FRONT map path). */
 	indices.push_back(base + 0);
 	indices.push_back(base + 2);
 	indices.push_back(base + 1);
@@ -159,7 +142,6 @@ bool Water::BuildCoastMesh(DXRender* render)
 	verts.reserve(65536);
 	indices.reserve(98304);
 
-	/* Fine 32x32 sectors — coastal / inland water from waterpro.dat */
 	for (int x = 0; x < SMALL_SECTORS; x++) {
 		for (int y = 0; y < SMALL_SECTORS; y++) {
 			int8_t idx = m_fineBlocks[x][y];
@@ -181,58 +163,28 @@ bool Water::BuildCoastMesh(DXRender* render)
 		return false;
 	}
 
-	D3D11_BUFFER_DESC vbd;
-	ZeroMemory(&vbd, sizeof(vbd));
-	vbd.Usage = D3D11_USAGE_IMMUTABLE;
-	vbd.ByteWidth = (UINT)(sizeof(WaterVertex) * verts.size());
-	vbd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-
-	D3D11_SUBRESOURCE_DATA vdata;
-	ZeroMemory(&vdata, sizeof(vdata));
-	vdata.pSysMem = verts.data();
-
-	HRESULT hr = render->GetDevice()->CreateBuffer(&vbd, &vdata, &m_vb);
+	m_coastVertexBytes = (UINT)(sizeof(WaterVertex) * verts.size());
+	HRESULT hr = render->CreateDefaultBuffer(verts.data(), m_coastVertexBytes, &m_vb);
 	if (FAILED(hr)) {
 		printf("[Error] Cannot create water VB\n");
 		return false;
 	}
 
-	D3D11_BUFFER_DESC ibd;
-	ZeroMemory(&ibd, sizeof(ibd));
-	ibd.Usage = D3D11_USAGE_IMMUTABLE;
-	ibd.ByteWidth = (UINT)(sizeof(uint32_t) * indices.size());
-	ibd.BindFlags = D3D11_BIND_INDEX_BUFFER;
-
-	D3D11_SUBRESOURCE_DATA idata;
-	ZeroMemory(&idata, sizeof(idata));
-	idata.pSysMem = indices.data();
-
-	hr = render->GetDevice()->CreateBuffer(&ibd, &idata, &m_ib);
+	hr = render->CreateDefaultBuffer(
+		indices.data(), sizeof(uint32_t) * indices.size(), &m_ib);
 	if (FAILED(hr)) {
 		printf("[Error] Cannot create water IB\n");
 		return false;
 	}
 
-	m_indexCount = (uint32_t)indices.size();
+	m_coastIndexCount = (UINT)indices.size();
 	printf("[Info] Coast water mesh: %u quads, %u indices\n",
-		(unsigned)(verts.size() / 4), m_indexCount);
+		(unsigned)(verts.size() / 4), m_coastIndexCount);
 	return true;
 }
 
 bool Water::CreateOceanBuffers(DXRender* render)
 {
-	D3D11_BUFFER_DESC vbd;
-	ZeroMemory(&vbd, sizeof(vbd));
-	vbd.Usage = D3D11_USAGE_DYNAMIC;
-	vbd.ByteWidth = sizeof(WaterVertex) * MAX_OCEAN_QUADS * 4;
-	vbd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-	vbd.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-
-	HRESULT hr = render->GetDevice()->CreateBuffer(&vbd, nullptr, &m_oceanVB);
-	if (FAILED(hr))
-		return false;
-
-	/* Fixed index pattern for up to MAX_OCEAN_QUADS quads */
 	std::vector<uint32_t> indices;
 	indices.reserve(MAX_OCEAN_QUADS * 6);
 	for (uint32_t q = 0; q < (uint32_t)MAX_OCEAN_QUADS; q++) {
@@ -245,23 +197,13 @@ bool Water::CreateOceanBuffers(DXRender* render)
 		indices.push_back(base + 2);
 	}
 
-	D3D11_BUFFER_DESC ibd;
-	ZeroMemory(&ibd, sizeof(ibd));
-	ibd.Usage = D3D11_USAGE_IMMUTABLE;
-	ibd.ByteWidth = (UINT)(sizeof(uint32_t) * indices.size());
-	ibd.BindFlags = D3D11_BIND_INDEX_BUFFER;
-
-	D3D11_SUBRESOURCE_DATA idata;
-	ZeroMemory(&idata, sizeof(idata));
-	idata.pSysMem = indices.data();
-
-	hr = render->GetDevice()->CreateBuffer(&ibd, &idata, &m_oceanIB);
+	HRESULT hr = render->CreateDefaultBuffer(
+		indices.data(), sizeof(uint32_t) * indices.size(), &m_oceanIB);
 	return SUCCEEDED(hr);
 }
 
 void Water::ComputeSeaLevel()
 {
-	/* Most common water Z from placed fine tiles (VC ocean is ~6.0). */
 	int counts[MAX_LEVELS];
 	memset(counts, 0, sizeof(counts));
 
@@ -285,7 +227,6 @@ void Water::ComputeSeaLevel()
 
 bool Water::IsInsideMapWaterGrid(float gtaX, float gtaY) const
 {
-	/* Same index math as re3 WATER_TO_SMALL_SECTOR with WATER_X_OFFSET. */
 	float unsignedX = (gtaX + WATER_X_OFFSET) + 2048.0f;
 	float unsignedY = gtaY + 2048.0f;
 	int fx = (int)floorf(unsignedX / SMALL_SECTOR_SIZE);
@@ -296,6 +237,7 @@ bool Water::IsInsideMapWaterGrid(float gtaX, float gtaY) const
 bool Water::CreatePipeline(DXRender* render)
 {
 	HRESULT hr;
+	ID3D12Device* device = render->GetDevice();
 
 	ID3DBlob* vsBlob = nullptr;
 	hr = D3DReadFileToBlob(L"water_vs.cso", &vsBlob);
@@ -304,115 +246,120 @@ bool Water::CreatePipeline(DXRender* render)
 		return false;
 	}
 
-	hr = render->GetDevice()->CreateVertexShader(
-		vsBlob->GetBufferPointer(), vsBlob->GetBufferSize(), nullptr, &m_vs);
-	if (FAILED(hr)) {
-		vsBlob->Release();
-		return false;
-	}
-
-	D3D11_INPUT_ELEMENT_DESC layout[2] = {};
-	layout[0].SemanticName = "POSITION";
-	layout[0].Format = DXGI_FORMAT_R32G32B32_FLOAT;
-	layout[0].AlignedByteOffset = 0;
-	layout[0].InputSlotClass = D3D11_INPUT_PER_VERTEX_DATA;
-
-	layout[1].SemanticName = "TEXCOORD";
-	layout[1].Format = DXGI_FORMAT_R32G32_FLOAT;
-	layout[1].AlignedByteOffset = 12;
-	layout[1].InputSlotClass = D3D11_INPUT_PER_VERTEX_DATA;
-
-	hr = render->GetDevice()->CreateInputLayout(
-		layout, 2, vsBlob->GetBufferPointer(), vsBlob->GetBufferSize(), &m_layout);
-	vsBlob->Release();
-	if (FAILED(hr))
-		return false;
-
 	ID3DBlob* psBlob = nullptr;
 	hr = D3DReadFileToBlob(L"water_ps.cso", &psBlob);
 	if (FAILED(hr)) {
 		printf("[Error] Cannot read water_ps.cso\n");
+		vsBlob->Release();
 		return false;
 	}
 
-	hr = render->GetDevice()->CreatePixelShader(
-		psBlob->GetBufferPointer(), psBlob->GetBufferSize(), nullptr, &m_ps);
+	D3D12_DESCRIPTOR_RANGE srvRange = {};
+	srvRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+	srvRange.NumDescriptors = 1;
+	srvRange.BaseShaderRegister = 0;
+
+	D3D12_DESCRIPTOR_RANGE sampRange = {};
+	sampRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER;
+	sampRange.NumDescriptors = 1;
+	sampRange.BaseShaderRegister = 0;
+
+	D3D12_ROOT_PARAMETER params[3] = {};
+	params[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+	params[0].Descriptor.ShaderRegister = 0;
+	params[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+	params[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+	params[1].DescriptorTable.NumDescriptorRanges = 1;
+	params[1].DescriptorTable.pDescriptorRanges = &srvRange;
+	params[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+	params[2].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+	params[2].DescriptorTable.NumDescriptorRanges = 1;
+	params[2].DescriptorTable.pDescriptorRanges = &sampRange;
+	params[2].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+
+	D3D12_ROOT_SIGNATURE_DESC rsDesc = {};
+	rsDesc.NumParameters = 3;
+	rsDesc.pParameters = params;
+	rsDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
+
+	ID3DBlob* sigBlob = nullptr;
+	hr = D3D12SerializeRootSignature(&rsDesc, D3D_ROOT_SIGNATURE_VERSION_1, &sigBlob, nullptr);
+	if (FAILED(hr)) {
+		vsBlob->Release();
+		psBlob->Release();
+		return false;
+	}
+	hr = device->CreateRootSignature(
+		0, sigBlob->GetBufferPointer(), sigBlob->GetBufferSize(), IID_PPV_ARGS(&m_rootSig));
+	sigBlob->Release();
+	if (FAILED(hr)) {
+		vsBlob->Release();
+		psBlob->Release();
+		return false;
+	}
+
+	D3D12_INPUT_ELEMENT_DESC layout[2] = {};
+	layout[0].SemanticName = "POSITION";
+	layout[0].Format = DXGI_FORMAT_R32G32B32_FLOAT;
+	layout[0].AlignedByteOffset = 0;
+	layout[0].InputSlotClass = D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA;
+	layout[1].SemanticName = "TEXCOORD";
+	layout[1].Format = DXGI_FORMAT_R32G32_FLOAT;
+	layout[1].AlignedByteOffset = 12;
+	layout[1].InputSlotClass = D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA;
+
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC pso = {};
+	pso.pRootSignature = m_rootSig;
+	pso.VS = { vsBlob->GetBufferPointer(), vsBlob->GetBufferSize() };
+	pso.PS = { psBlob->GetBufferPointer(), psBlob->GetBufferSize() };
+	pso.BlendState.RenderTarget[0].BlendEnable = TRUE;
+	pso.BlendState.RenderTarget[0].SrcBlend = D3D12_BLEND_SRC_ALPHA;
+	pso.BlendState.RenderTarget[0].DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
+	pso.BlendState.RenderTarget[0].BlendOp = D3D12_BLEND_OP_ADD;
+	pso.BlendState.RenderTarget[0].SrcBlendAlpha = D3D12_BLEND_ONE;
+	pso.BlendState.RenderTarget[0].DestBlendAlpha = D3D12_BLEND_INV_SRC_ALPHA;
+	pso.BlendState.RenderTarget[0].BlendOpAlpha = D3D12_BLEND_OP_ADD;
+	pso.BlendState.RenderTarget[0].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
+	pso.SampleMask = UINT_MAX;
+	pso.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID;
+	pso.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+	pso.RasterizerState.DepthClipEnable = TRUE;
+	pso.DepthStencilState.DepthEnable = TRUE;
+	pso.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
+	pso.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
+	pso.InputLayout = { layout, 2 };
+	pso.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+	pso.NumRenderTargets = 1;
+	pso.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
+	pso.DSVFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
+	pso.SampleDesc.Count = 1;
+
+	hr = device->CreateGraphicsPipelineState(&pso, IID_PPV_ARGS(&m_pso));
+	vsBlob->Release();
 	psBlob->Release();
 	if (FAILED(hr))
 		return false;
 
-	D3D11_BUFFER_DESC cbd;
-	ZeroMemory(&cbd, sizeof(cbd));
-	cbd.Usage = D3D11_USAGE_DEFAULT;
-	cbd.ByteWidth = sizeof(WaterCB);
-	cbd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
-	hr = render->GetDevice()->CreateBuffer(&cbd, nullptr, &m_cb);
-	if (FAILED(hr))
-		return false;
-
-	D3D11_SAMPLER_DESC samp;
-	ZeroMemory(&samp, sizeof(samp));
-	samp.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
-	samp.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
-	samp.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
-	samp.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
-	samp.ComparisonFunc = D3D11_COMPARISON_NEVER;
-	samp.MaxLOD = D3D11_FLOAT32_MAX;
-	hr = render->GetDevice()->CreateSamplerState(&samp, &m_sampler);
-	if (FAILED(hr))
-		return false;
-
-	D3D11_RASTERIZER_DESC rs;
-	ZeroMemory(&rs, sizeof(rs));
-	rs.FillMode = D3D11_FILL_SOLID;
-	rs.CullMode = D3D11_CULL_NONE;
-	rs.DepthClipEnable = TRUE;
-	hr = render->GetDevice()->CreateRasterizerState(&rs, &m_rasterizer);
-	if (FAILED(hr))
-		return false;
-
-	D3D11_DEPTH_STENCIL_DESC ds;
-	ZeroMemory(&ds, sizeof(ds));
-	ds.DepthEnable = TRUE;
-	ds.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
-	ds.DepthFunc = D3D11_COMPARISON_LESS_EQUAL;
-	hr = render->GetDevice()->CreateDepthStencilState(&ds, &m_depthState);
-	if (FAILED(hr))
-		return false;
-
-	D3D11_BLEND_DESC bd;
-	ZeroMemory(&bd, sizeof(bd));
-	bd.RenderTarget[0].BlendEnable = TRUE;
-	bd.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;
-	bd.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
-	bd.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
-	bd.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_ONE;
-	bd.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
-	bd.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
-	bd.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
-	hr = render->GetDevice()->CreateBlendState(&bd, &m_blendState);
-	if (FAILED(hr))
-		return false;
-
-	return true;
+	D3D12_SAMPLER_DESC samp = {};
+	samp.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
+	samp.AddressU = samp.AddressV = samp.AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+	samp.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
+	samp.MaxLOD = D3D12_FLOAT32_MAX;
+	m_samplerIndex = render->CreateSampler(samp);
+	return m_samplerIndex != UINT_MAX;
 }
 
 bool Water::Init(DXRender* render, const char* waterproPath, const char* particleTxdPath)
 {
 	m_vb = nullptr;
 	m_ib = nullptr;
-	m_oceanVB = nullptr;
 	m_oceanIB = nullptr;
-	m_cb = nullptr;
-	m_vs = nullptr;
-	m_ps = nullptr;
-	m_layout = nullptr;
-	m_texture = nullptr;
-	m_sampler = nullptr;
-	m_rasterizer = nullptr;
-	m_depthState = nullptr;
-	m_blendState = nullptr;
-	m_indexCount = 0;
+	m_rootSig = nullptr;
+	m_pso = nullptr;
+	m_texture = {};
+	m_samplerIndex = UINT_MAX;
+	m_coastIndexCount = 0;
+	m_coastVertexBytes = 0;
 	m_uvU = 0.0f;
 	m_uvV = 0.0f;
 	m_time = 0.0f;
@@ -451,7 +398,6 @@ void Water::Update(float deltaTime)
 	if (dt > 0.1f) dt = 0.1f;
 	m_time += dt;
 
-	/* Visible surface drift */
 	float windAddUV = 0.0028f * (dt * 30.0f);
 	m_uvU += windAddUV;
 	m_uvV += windAddUV * 0.72f;
@@ -462,70 +408,62 @@ void Water::Update(float deltaTime)
 void Water::BindPipeline(DXRender* render, Camera* camera, float drawDistance,
 	FXMVECTOR sunDirToward, bool reflectClouds)
 {
-	ID3D11DeviceContext* ctx = render->GetDeviceContext();
-
+	ID3D12GraphicsCommandList* cmd = render->GetCommandList();
 	XMVECTOR camPos = camera->GetPosition();
 
 	WaterCB cb;
 	XMMATRIX wvp = camera->GetView() * camera->GetProjection();
 	cb.wvp = XMMatrixTranspose(wvp);
 	cb.uvScroll = XMFLOAT2(m_uvU, m_uvV);
-	/* Match main.cpp: fully fogged before far clip hides the horizon seam. */
 	cb.fogStart = drawDistance * 0.40f;
 	cb.fogEnd = drawDistance * 0.82f;
-	cb.tint = XMFLOAT4(0.2352f, 0.3472f, 0.4032f, 0.82f); /* 30% darker */
+	cb.tint = XMFLOAT4(0.2352f, 0.3472f, 0.4032f, 0.82f);
 	cb.fogColor = XMFLOAT4(0.49804f, 0.78431f, 0.94510f, 1.0f);
 	cb.cameraPos = XMFLOAT3(XMVectorGetX(camPos), XMVectorGetY(camPos), XMVectorGetZ(camPos));
 	cb.time = m_time;
 	XMStoreFloat3(&cb.sunDir, XMVector3Normalize(sunDirToward));
-	/* Match Clouds.h / Clouds::RenderVolumetric wind & density. */
 	cb.cloudReflect = reflectClouds ? 1.0f : 0.0f;
-	cb.windSpeed = 9.0f; /* CLOUD_WIND * (0.5 + 0.25) */
+	cb.windSpeed = 9.0f;
 	cb.cloudCoverage = 0.48f;
 	cb.cloudDensity = 0.055f;
 	cb.pad1 = 0.0f;
 
-	ctx->UpdateSubresource(m_cb, 0, nullptr, &cb, 0, 0);
+	D3D12_GPU_VIRTUAL_ADDRESS cbAddr = 0;
+	void* ptr = render->AllocFrameConstants(sizeof(cb), &cbAddr);
+	memcpy(ptr, &cb, sizeof(cb));
 
-	float blendFactor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
-	ctx->RSSetState(m_rasterizer);
-	ctx->OMSetBlendState(m_blendState, blendFactor, 0xffffffff);
-	ctx->OMSetDepthStencilState(m_depthState, 0);
-
-	ctx->IASetInputLayout(m_layout);
-	ctx->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-
-	ctx->VSSetShader(m_vs, nullptr, 0);
-	ctx->VSSetConstantBuffers(0, 1, &m_cb);
-	ctx->PSSetShader(m_ps, nullptr, 0);
-	ctx->PSSetConstantBuffers(0, 1, &m_cb);
-	ctx->PSSetShaderResources(0, 1, &m_texture);
-	ctx->PSSetSamplers(0, 1, &m_sampler);
+	cmd->SetGraphicsRootSignature(m_rootSig);
+	cmd->SetPipelineState(m_pso);
+	cmd->SetGraphicsRootConstantBufferView(0, cbAddr);
+	cmd->SetGraphicsRootDescriptorTable(1, render->GetSrvGpu(m_texture.srvIndex));
+	cmd->SetGraphicsRootDescriptorTable(2, render->GetSamplerGpu(m_samplerIndex));
+	cmd->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 }
 
 void Water::DrawCoast(DXRender* render)
 {
-	ID3D11DeviceContext* ctx = render->GetDeviceContext();
-	UINT stride = sizeof(WaterVertex);
-	UINT offset = 0;
-	ctx->IASetVertexBuffers(0, 1, &m_vb, &stride, &offset);
-	ctx->IASetIndexBuffer(m_ib, DXGI_FORMAT_R32_UINT, 0);
-	ctx->DrawIndexed(m_indexCount, 0, 0);
+	ID3D12GraphicsCommandList* cmd = render->GetCommandList();
+	D3D12_VERTEX_BUFFER_VIEW vbv = {};
+	vbv.BufferLocation = m_vb->GetGPUVirtualAddress();
+	vbv.SizeInBytes = m_coastVertexBytes;
+	vbv.StrideInBytes = sizeof(WaterVertex);
+	D3D12_INDEX_BUFFER_VIEW ibv = {};
+	ibv.BufferLocation = m_ib->GetGPUVirtualAddress();
+	ibv.SizeInBytes = m_coastIndexCount * sizeof(uint32_t);
+	ibv.Format = DXGI_FORMAT_R32_UINT;
+	cmd->IASetVertexBuffers(0, 1, &vbv);
+	cmd->IASetIndexBuffer(&ibv);
+	cmd->DrawIndexedInstanced(m_coastIndexCount, 1, 0, 0, 0);
 }
 
 void Water::DrawInfiniteOcean(DXRender* render, Camera* camera, float drawDistance)
 {
-	/*
-	 * Like re3 extrahuge ocean: fill everything outside the waterpro fine
-	 * grid with large tiles at the VC sea level, following the camera so
-	 * water appears infinite within the view distance.
-	 */
 	XMVECTOR camPos = camera->GetPosition();
 	float gtaX = XMVectorGetX(camPos);
-	float gtaY = XMVectorGetZ(camPos); /* engine Z = GTA Y */
+	float gtaY = XMVectorGetZ(camPos);
 
 	const float tileSize = 256.0f;
-	const float uvScale = 8.0f; /* matches re3 ExtraHuge UV scale */
+	const float uvScale = 8.0f;
 	const float seaRenderZ = m_seaZ - WATER_Z_OFFSET;
 	const float radius = drawDistance + tileSize;
 
@@ -551,15 +489,11 @@ void Water::DrawInfiniteOcean(DXRender* render, Camera* camera, float drawDistan
 			if (dx * dx + dy * dy > radiusSq)
 				continue;
 
-			/* Inside map grid: coast mesh / land already handled. */
 			if (IsInsideMapWaterGrid(cx, cy))
 				continue;
 
 			if ((int)(verts.size() / 4) >= MAX_OCEAN_QUADS)
 				break;
-
-			uint32_t base = (uint32_t)verts.size();
-			(void)base;
 
 			WaterVertex v0 = { gx,             seaRenderZ, gy,             0.0f,    0.0f };
 			WaterVertex v1 = { gx,             seaRenderZ, gy + tileSize,  0.0f,    uvScale };
@@ -576,21 +510,23 @@ void Water::DrawInfiniteOcean(DXRender* render, Camera* camera, float drawDistan
 	if (quadCount == 0)
 		return;
 
-	ID3D11DeviceContext* ctx = render->GetDeviceContext();
+	UINT64 bytes = sizeof(WaterVertex) * verts.size();
+	D3D12_GPU_VIRTUAL_ADDRESS vbAddr = 0;
+	void* mapped = render->AllocFrameConstants(bytes, &vbAddr);
+	memcpy(mapped, verts.data(), (size_t)bytes);
 
-	D3D11_MAPPED_SUBRESOURCE mapped;
-	HRESULT hr = ctx->Map(m_oceanVB, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
-	if (FAILED(hr))
-		return;
-
-	memcpy(mapped.pData, verts.data(), sizeof(WaterVertex) * verts.size());
-	ctx->Unmap(m_oceanVB, 0);
-
-	UINT stride = sizeof(WaterVertex);
-	UINT offset = 0;
-	ctx->IASetVertexBuffers(0, 1, &m_oceanVB, &stride, &offset);
-	ctx->IASetIndexBuffer(m_oceanIB, DXGI_FORMAT_R32_UINT, 0);
-	ctx->DrawIndexed(quadCount * 6, 0, 0);
+	ID3D12GraphicsCommandList* cmd = render->GetCommandList();
+	D3D12_VERTEX_BUFFER_VIEW vbv = {};
+	vbv.BufferLocation = vbAddr;
+	vbv.SizeInBytes = (UINT)bytes;
+	vbv.StrideInBytes = sizeof(WaterVertex);
+	D3D12_INDEX_BUFFER_VIEW ibv = {};
+	ibv.BufferLocation = m_oceanIB->GetGPUVirtualAddress();
+	ibv.SizeInBytes = MAX_OCEAN_QUADS * 6 * sizeof(uint32_t);
+	ibv.Format = DXGI_FORMAT_R32_UINT;
+	cmd->IASetVertexBuffers(0, 1, &vbv);
+	cmd->IASetIndexBuffer(&ibv);
+	cmd->DrawIndexedInstanced(quadCount * 6, 1, 0, 0, 0);
 }
 
 void Water::Render(DXRender* render, Camera* camera, Frustum& frustum, float drawDistance,
@@ -605,27 +541,20 @@ void Water::Render(DXRender* render, Camera* camera, Frustum& frustum, float dra
 	DrawCoast(render);
 	DrawInfiniteOcean(render, camera, drawDistance);
 
-	ID3D11DeviceContext* ctx = render->GetDeviceContext();
-	float blendFactor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
-	ctx->OMSetBlendState(nullptr, blendFactor, 0xffffffff);
-	ctx->OMSetDepthStencilState(nullptr, 0);
 	render->SetOpaqueState();
 	render->ApplyRasterizerState();
 }
 
 void Water::Cleanup()
 {
-	if (m_blendState) { m_blendState->Release(); m_blendState = nullptr; }
-	if (m_depthState) { m_depthState->Release(); m_depthState = nullptr; }
-	if (m_rasterizer) { m_rasterizer->Release(); m_rasterizer = nullptr; }
-	if (m_sampler) { m_sampler->Release(); m_sampler = nullptr; }
-	if (m_texture) { m_texture->Release(); m_texture = nullptr; }
-	if (m_layout) { m_layout->Release(); m_layout = nullptr; }
-	if (m_ps) { m_ps->Release(); m_ps = nullptr; }
-	if (m_vs) { m_vs->Release(); m_vs = nullptr; }
-	if (m_cb) { m_cb->Release(); m_cb = nullptr; }
+	if (m_texture.resource) {
+		m_texture.resource->Release();
+		m_texture.resource = nullptr;
+		m_texture.srvIndex = UINT_MAX;
+	}
+	if (m_pso) { m_pso->Release(); m_pso = nullptr; }
+	if (m_rootSig) { m_rootSig->Release(); m_rootSig = nullptr; }
 	if (m_oceanIB) { m_oceanIB->Release(); m_oceanIB = nullptr; }
-	if (m_oceanVB) { m_oceanVB->Release(); m_oceanVB = nullptr; }
 	if (m_ib) { m_ib->Release(); m_ib = nullptr; }
 	if (m_vb) { m_vb->Release(); m_vb = nullptr; }
 	m_ready = false;

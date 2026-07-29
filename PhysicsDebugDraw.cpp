@@ -12,15 +12,8 @@ PhysicsDebugDraw::PhysicsDebugDraw()
 	, m_overlayMode(0)
 	, m_cullX(0), m_cullY(0), m_cullZ(0), m_cullRadiusSq(0)
 	, m_cullEnabled(false)
-	, m_vs(nullptr)
-	, m_ps(nullptr)
-	, m_layout(nullptr)
-	, m_vb(nullptr)
-	, m_cb(nullptr)
-	, m_rs(nullptr)
-	, m_dss(nullptr)
-	, m_bs(nullptr)
-	, m_vbCapacity(0)
+	, m_rootSig(nullptr)
+	, m_pso(nullptr)
 {
 	m_viewProj = XMMatrixIdentity();
 }
@@ -35,8 +28,28 @@ bool PhysicsDebugDraw::Init(DXRender* render)
 	if (!render || !render->GetDevice())
 		return false;
 
-	ID3D11Device* device = render->GetDevice();
+	ID3D12Device* device = render->GetDevice();
 	HRESULT hr;
+
+	D3D12_ROOT_PARAMETER param = {};
+	param.ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+	param.Descriptor.ShaderRegister = 0;
+	param.ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
+
+	D3D12_ROOT_SIGNATURE_DESC rsDesc = {};
+	rsDesc.NumParameters = 1;
+	rsDesc.pParameters = &param;
+	rsDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
+
+	ID3DBlob* sigBlob = nullptr;
+	hr = D3D12SerializeRootSignature(&rsDesc, D3D_ROOT_SIGNATURE_VERSION_1, &sigBlob, nullptr);
+	if (FAILED(hr))
+		return false;
+	hr = device->CreateRootSignature(
+		0, sigBlob->GetBufferPointer(), sigBlob->GetBufferSize(), IID_PPV_ARGS(&m_rootSig));
+	sigBlob->Release();
+	if (FAILED(hr))
+		return false;
 
 	ID3DBlob* vsBlob = nullptr;
 	hr = D3DReadFileToBlob(L"debug_line_vs.cso", &vsBlob);
@@ -44,64 +57,42 @@ bool PhysicsDebugDraw::Init(DXRender* render)
 		printf("[Error] PhysicsDebugDraw: cannot read debug_line_vs.cso\n");
 		return false;
 	}
-	hr = device->CreateVertexShader(vsBlob->GetBufferPointer(), vsBlob->GetBufferSize(), nullptr, &m_vs);
-	if (FAILED(hr)) {
-		vsBlob->Release();
-		return false;
-	}
-
-	D3D11_INPUT_ELEMENT_DESC layout[] = {
-		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-		{ "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-	};
-	hr = device->CreateInputLayout(
-		layout, ARRAYSIZE(layout),
-		vsBlob->GetBufferPointer(), vsBlob->GetBufferSize(),
-		&m_layout);
-	vsBlob->Release();
-	if (FAILED(hr))
-		return false;
-
 	ID3DBlob* psBlob = nullptr;
 	hr = D3DReadFileToBlob(L"debug_line_ps.cso", &psBlob);
 	if (FAILED(hr)) {
 		printf("[Error] PhysicsDebugDraw: cannot read debug_line_ps.cso\n");
+		vsBlob->Release();
 		return false;
 	}
-	hr = device->CreatePixelShader(psBlob->GetBufferPointer(), psBlob->GetBufferSize(), nullptr, &m_ps);
+
+	D3D12_INPUT_ELEMENT_DESC layout[] = {
+		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+		{ "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+	};
+
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC pso = {};
+	pso.pRootSignature = m_rootSig;
+	pso.VS = { vsBlob->GetBufferPointer(), vsBlob->GetBufferSize() };
+	pso.PS = { psBlob->GetBufferPointer(), psBlob->GetBufferSize() };
+	pso.BlendState.RenderTarget[0].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
+	pso.SampleMask = UINT_MAX;
+	pso.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID;
+	pso.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+	pso.RasterizerState.DepthClipEnable = TRUE;
+	pso.RasterizerState.AntialiasedLineEnable = TRUE;
+	pso.DepthStencilState.DepthEnable = TRUE;
+	pso.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
+	pso.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
+	pso.InputLayout = { layout, 2 };
+	pso.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_LINE;
+	pso.NumRenderTargets = 1;
+	pso.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
+	pso.DSVFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
+	pso.SampleDesc.Count = 1;
+
+	hr = device->CreateGraphicsPipelineState(&pso, IID_PPV_ARGS(&m_pso));
+	vsBlob->Release();
 	psBlob->Release();
-	if (FAILED(hr))
-		return false;
-
-	D3D11_BUFFER_DESC cbd = {};
-	cbd.Usage = D3D11_USAGE_DYNAMIC;
-	cbd.ByteWidth = sizeof(XMMATRIX);
-	cbd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
-	cbd.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-	hr = device->CreateBuffer(&cbd, nullptr, &m_cb);
-	if (FAILED(hr))
-		return false;
-
-	D3D11_RASTERIZER_DESC rd = {};
-	rd.FillMode = D3D11_FILL_SOLID;
-	rd.CullMode = D3D11_CULL_NONE;
-	rd.DepthClipEnable = TRUE;
-	rd.AntialiasedLineEnable = TRUE;
-	hr = device->CreateRasterizerState(&rd, &m_rs);
-	if (FAILED(hr))
-		return false;
-
-	D3D11_DEPTH_STENCIL_DESC dd = {};
-	dd.DepthEnable = TRUE;
-	dd.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
-	dd.DepthFunc = D3D11_COMPARISON_LESS_EQUAL;
-	hr = device->CreateDepthStencilState(&dd, &m_dss);
-	if (FAILED(hr))
-		return false;
-
-	D3D11_BLEND_DESC bd = {};
-	bd.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
-	hr = device->CreateBlendState(&bd, &m_bs);
 	if (FAILED(hr))
 		return false;
 
@@ -112,15 +103,8 @@ bool PhysicsDebugDraw::Init(DXRender* render)
 
 void PhysicsDebugDraw::Cleanup()
 {
-	if (m_vs) { m_vs->Release(); m_vs = nullptr; }
-	if (m_ps) { m_ps->Release(); m_ps = nullptr; }
-	if (m_layout) { m_layout->Release(); m_layout = nullptr; }
-	if (m_vb) { m_vb->Release(); m_vb = nullptr; }
-	if (m_cb) { m_cb->Release(); m_cb = nullptr; }
-	if (m_rs) { m_rs->Release(); m_rs = nullptr; }
-	if (m_dss) { m_dss->Release(); m_dss = nullptr; }
-	if (m_bs) { m_bs->Release(); m_bs = nullptr; }
-	m_vbCapacity = 0;
+	if (m_pso) { m_pso->Release(); m_pso = nullptr; }
+	if (m_rootSig) { m_rootSig->Release(); m_rootSig = nullptr; }
 	m_lines.clear();
 }
 
@@ -143,7 +127,6 @@ void PhysicsDebugDraw::SetOverlayMode(int mode)
 		return;
 	}
 
-	/* Compound / boundBox modes: shapes only — no AABB clutter. */
 	if (mode == 1) {
 		m_debugMode =
 			DBG_DrawWireframe |
@@ -194,7 +177,6 @@ void PhysicsDebugDraw::drawLine(const btVector3& from, const btVector3& to, cons
 			return;
 	}
 
-	/* Cap to keep frame time sane over huge COL worlds. */
 	if (m_lines.size() >= 400000)
 		return;
 
@@ -237,81 +219,37 @@ int PhysicsDebugDraw::getDebugMode() const
 	return m_debugMode;
 }
 
-bool PhysicsDebugDraw::EnsureVertexBuffer(DXRender* render, UINT vertexCount)
-{
-	if (vertexCount == 0)
-		return false;
-	if (m_vb && m_vbCapacity >= vertexCount)
-		return true;
-
-	if (m_vb) {
-		m_vb->Release();
-		m_vb = nullptr;
-	}
-
-	UINT cap = vertexCount;
-	if (cap < 4096)
-		cap = 4096;
-	/* Grow with headroom. */
-	while (cap < vertexCount)
-		cap *= 2;
-
-	D3D11_BUFFER_DESC bd = {};
-	bd.Usage = D3D11_USAGE_DYNAMIC;
-	bd.ByteWidth = sizeof(Vertex) * cap;
-	bd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-	bd.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-
-	HRESULT hr = render->GetDevice()->CreateBuffer(&bd, nullptr, &m_vb);
-	if (FAILED(hr)) {
-		m_vbCapacity = 0;
-		return false;
-	}
-	m_vbCapacity = cap;
-	return true;
-}
-
 void PhysicsDebugDraw::Render(DXRender* render)
 {
-	if (!m_enabled || !render || m_lines.empty() || !m_vs || !m_ps)
+	if (!m_enabled || !render || m_lines.empty() || !m_rootSig || !m_pso)
 		return;
 
 	UINT count = (UINT)m_lines.size();
-	if (!EnsureVertexBuffer(render, count))
+	UINT64 bytes = sizeof(Vertex) * (UINT64)count;
+	D3D12_GPU_VIRTUAL_ADDRESS vbAddr = 0;
+	void* mapped = render->AllocFrameConstants(bytes, &vbAddr);
+	if (!mapped)
 		return;
+	memcpy(mapped, m_lines.data(), (size_t)bytes);
 
-	ID3D11DeviceContext* dc = render->GetDeviceContext();
+	XMMATRIX vp = XMMatrixTranspose(m_viewProj);
+	D3D12_GPU_VIRTUAL_ADDRESS cbAddr = 0;
+	void* cbPtr = render->AllocFrameConstants(sizeof(vp), &cbAddr);
+	memcpy(cbPtr, &vp, sizeof(vp));
 
-	D3D11_MAPPED_SUBRESOURCE mapped;
-	if (SUCCEEDED(dc->Map(m_vb, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped))) {
-		memcpy(mapped.pData, m_lines.data(), sizeof(Vertex) * count);
-		dc->Unmap(m_vb, 0);
-	} else {
-		return;
-	}
+	ID3D12GraphicsCommandList* cmd = render->GetCommandList();
+	D3D12_VERTEX_BUFFER_VIEW vbv = {};
+	vbv.BufferLocation = vbAddr;
+	vbv.SizeInBytes = (UINT)bytes;
+	vbv.StrideInBytes = sizeof(Vertex);
 
-	if (SUCCEEDED(dc->Map(m_cb, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped))) {
-		XMMATRIX* dst = (XMMATRIX*)mapped.pData;
-		*dst = XMMatrixTranspose(m_viewProj);
-		dc->Unmap(m_cb, 0);
-	}
+	cmd->SetGraphicsRootSignature(m_rootSig);
+	cmd->SetPipelineState(m_pso);
+	cmd->SetGraphicsRootConstantBufferView(0, cbAddr);
+	cmd->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_LINELIST);
+	cmd->IASetVertexBuffers(0, 1, &vbv);
+	cmd->DrawInstanced(count, 1, 0, 0);
 
-	UINT stride = sizeof(Vertex);
-	UINT offset = 0;
-	dc->IASetInputLayout(m_layout);
-	dc->IASetVertexBuffers(0, 1, &m_vb, &stride, &offset);
-	dc->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_LINELIST);
-	dc->VSSetShader(m_vs, nullptr, 0);
-	dc->PSSetShader(m_ps, nullptr, 0);
-	dc->VSSetConstantBuffers(0, 1, &m_cb);
-	dc->RSSetState(m_rs);
-	dc->OMSetDepthStencilState(m_dss, 0);
-	float blendFactor[4] = { 0, 0, 0, 0 };
-	dc->OMSetBlendState(m_bs, blendFactor, 0xffffffff);
-
-	dc->Draw(count, 0);
-
-	/* Restore typical scene states. */
 	render->SetOpaqueState();
 	render->ApplyRasterizerState();
 }

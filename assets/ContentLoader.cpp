@@ -47,6 +47,10 @@ void ContentLoader::LoadTexturesFromTxd(IMG* img, AssetRegistry& assets, const c
 
 	for (uint32_t i = 0; i < txd.texList.size(); i++) {
 		NativeTexture& t = txd.texList[i];
+		/* Uncompressed / paletted TXD must not be wrapped as fake DXT. */
+		if (t.dxtCompression == 0)
+			t.convertTo32Bit();
+
 		GameMaterial m;
 		memcpy(m.name, t.name, sizeof(m.name));
 		m.name[sizeof(m.name) - 1] = '\0';

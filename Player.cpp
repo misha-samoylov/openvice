@@ -50,12 +50,11 @@ bool Player::Init(IMG* img, DXRender* render, IFP* ifp)
 	m_animJumpGlide = nullptr;
 	m_animJumpLand = nullptr;
 	m_boneCount = 0;
-	m_vs = nullptr;
-	m_ps = nullptr;
-	m_shadowPS = nullptr;
-	m_layout = nullptr;
-	m_sampler = nullptr;
-	m_boneCB = nullptr;
+	m_rootSig = nullptr;
+	m_psoColor = nullptr;
+	m_psoShadow = nullptr;
+	m_samplerIndex = UINT_MAX;
+	m_shadowSamplerIndex = UINT_MAX;
 
 	if (!ifp) {
 		printf("[Error] Player: no IFP\n");
@@ -295,38 +294,28 @@ bool Player::PlaceOnGround()
 
 void Player::Render(DXRender* render, MeshRenderContext& ctx)
 {
-	ID3D11DeviceContext* dc = render->GetDeviceContext();
+	ID3D12GraphicsCommandList* cmd = render->GetCommandList();
 
-	/* Invalidate mesh cache — different pipeline. */
-	ctx.layout = nullptr;
-	ctx.vs = nullptr;
-	ctx.ps = nullptr;
+	/* Invalidate mesh cache — different pipeline / root signature. */
+	ctx.pso = nullptr;
 	ctx.vb = nullptr;
 	ctx.ib = nullptr;
-	ctx.srv = nullptr;
-	ctx.sampler = nullptr;
+	ctx.srvIndex = UINT_MAX;
+	ctx.samplerIndex = UINT_MAX;
+	ctx.topology = D3D_PRIMITIVE_TOPOLOGY_UNDEFINED;
 
-	dc->IASetInputLayout(m_layout);
-	dc->VSSetShader(m_vs, nullptr, 0);
-
-	/*
-	 * Shadow pass: depth-only (null PS) for opaque parts so alpha-clip cannot
-	 * discard the whole ped. Alpha meshes still use shadow_ps + clip.
-	 */
 	const bool shadowPass = (ctx.pass == MESH_PASS_SHADOW);
-	if (!shadowPass) {
-		dc->PSSetShader(m_ps, nullptr, 0);
-		dc->PSSetSamplers(0, 1, &m_sampler);
-	}
+	ID3D12PipelineState* pso = shadowPass ? m_psoShadow : m_psoColor;
 
-	dc->VSSetConstantBuffers(1, 1, &m_boneCB);
+	cmd->SetGraphicsRootSignature(m_rootSig);
+	cmd->SetPipelineState(pso);
+	ctx.pso = pso;
 
-	if (!shadowPass && ctx.shadowSRV && ctx.shadowSampler) {
-		dc->PSSetShaderResources(1, 1, &ctx.shadowSRV);
-		dc->PSSetSamplers(1, 1, &ctx.shadowSampler);
-	}
-
-	dc->UpdateSubresource(m_boneCB, 0, nullptr, m_skinPalette.data(), 0, 0);
+	const UINT boneBytes = sizeof(XMFLOAT4X4) * MAX_BONES;
+	D3D12_GPU_VIRTUAL_ADDRESS boneAddr = 0;
+	void* bonePtr = render->AllocFrameConstants(boneBytes, &boneAddr);
+	memcpy(bonePtr, m_skinPalette.data(), boneBytes);
+	cmd->SetGraphicsRootConstantBufferView(1, boneAddr);
 
 	/*
 	 * Skinning stays in GTA/RW space. Remap to engine Y-up on the world
@@ -354,34 +343,51 @@ void Player::Render(DXRender* render, MeshRenderContext& ctx)
 	cb.padWind[0] = 0.0f;
 	cb.padWind[1] = 0.0f;
 
+	D3D12_GPU_VIRTUAL_ADDRESS objAddr = 0;
+	void* objPtr = render->AllocFrameConstants(sizeof(cb), &objAddr);
+	memcpy(objPtr, &cb, sizeof(cb));
+	cmd->SetGraphicsRootConstantBufferView(0, objAddr);
+
+	UINT samp = (ctx.samplerIndex != UINT_MAX) ? ctx.samplerIndex : m_samplerIndex;
+
 	for (size_t i = 0; i < m_meshes.size(); i++) {
 		SkinnedMeshPart& part = m_meshes[i];
+		if (!part.vb || !part.ib || !part.texture.Valid())
+			continue;
 
-		UINT stride = sizeof(SkinnedVertex);
-		UINT offset = 0;
-		dc->IASetVertexBuffers(0, 1, &part.vb, &stride, &offset);
-		dc->IASetIndexBuffer(part.ib, DXGI_FORMAT_R32_UINT, 0);
-		dc->IASetPrimitiveTopology(part.topology);
-
-		dc->UpdateSubresource(part.objectCB, 0, nullptr, &cb, 0, 0);
-		dc->VSSetConstantBuffers(0, 1, &part.objectCB);
-		dc->PSSetConstantBuffers(0, 1, &part.objectCB);
-
-		if (shadowPass) {
-			if (part.hasAlpha && part.texture) {
-				dc->PSSetShader(m_shadowPS, nullptr, 0);
-				dc->PSSetSamplers(0, 1, &m_sampler);
-				dc->PSSetShaderResources(0, 1, &part.texture);
-			} else {
-				/* Opaque: write depth for every covered pixel. */
-				dc->PSSetShader(nullptr, nullptr, 0);
-			}
-		} else {
-			if (part.texture)
-				dc->PSSetShaderResources(0, 1, &part.texture);
+		if (ctx.topology != part.topology) {
+			cmd->IASetPrimitiveTopology(part.topology);
+			ctx.topology = part.topology;
 		}
 
-		dc->DrawIndexed(part.indexCount, 0, 0);
+		D3D12_VERTEX_BUFFER_VIEW vbv = {};
+		vbv.BufferLocation = part.vb->GetGPUVirtualAddress();
+		vbv.SizeInBytes = part.vertexCount * (UINT)sizeof(SkinnedVertex);
+		vbv.StrideInBytes = (UINT)sizeof(SkinnedVertex);
+		cmd->IASetVertexBuffers(0, 1, &vbv);
+		ctx.vb = part.vb;
+
+		D3D12_INDEX_BUFFER_VIEW ibv = {};
+		ibv.BufferLocation = part.ib->GetGPUVirtualAddress();
+		ibv.SizeInBytes = part.indexCount * sizeof(unsigned int);
+		ibv.Format = DXGI_FORMAT_R32_UINT;
+		cmd->IASetIndexBuffer(&ibv);
+		ctx.ib = part.ib;
+
+		UINT texSrv = part.texture.srvIndex;
+		cmd->SetGraphicsRootDescriptorTable(2, render->GetSrvGpu(texSrv));
+		UINT shadowSrv = (!shadowPass && ctx.shadowSrvIndex != UINT_MAX)
+			? ctx.shadowSrvIndex : texSrv;
+		cmd->SetGraphicsRootDescriptorTable(3, render->GetSrvGpu(shadowSrv));
+		ctx.srvIndex = texSrv;
+
+		cmd->SetGraphicsRootDescriptorTable(4, render->GetSamplerGpu(samp));
+		UINT shadowSamp = (!shadowPass && ctx.shadowSamplerIndex != UINT_MAX)
+			? ctx.shadowSamplerIndex
+			: ((m_shadowSamplerIndex != UINT_MAX) ? m_shadowSamplerIndex : samp);
+		cmd->SetGraphicsRootDescriptorTable(5, render->GetSamplerGpu(shadowSamp));
+
+		cmd->DrawIndexedInstanced(part.indexCount, 1, 0, 0, 0);
 	}
 
 	/* Reset D3D binding cache so map meshes rebind correctly. */
@@ -408,10 +414,19 @@ void Player::Cleanup()
 	m_world = nullptr;
 
 	for (size_t i = 0; i < m_meshes.size(); i++) {
-		if (m_meshes[i].vb) m_meshes[i].vb->Release();
-		if (m_meshes[i].ib) m_meshes[i].ib->Release();
-		if (m_meshes[i].texture) m_meshes[i].texture->Release();
-		if (m_meshes[i].objectCB) m_meshes[i].objectCB->Release();
+		if (m_meshes[i].vb) {
+			m_meshes[i].vb->Release();
+			m_meshes[i].vb = nullptr;
+		}
+		if (m_meshes[i].ib) {
+			m_meshes[i].ib->Release();
+			m_meshes[i].ib = nullptr;
+		}
+		if (m_meshes[i].texture.resource) {
+			m_meshes[i].texture.resource->Release();
+			m_meshes[i].texture.resource = nullptr;
+			m_meshes[i].texture.srvIndex = UINT_MAX;
+		}
 	}
 	m_meshes.clear();
 
@@ -419,10 +434,9 @@ void Player::Cleanup()
 		free(m_textures[i].data);
 	m_textures.clear();
 
-	if (m_boneCB) { m_boneCB->Release(); m_boneCB = nullptr; }
-	if (m_sampler) { m_sampler->Release(); m_sampler = nullptr; }
-	if (m_layout) { m_layout->Release(); m_layout = nullptr; }
-	if (m_shadowPS) { m_shadowPS->Release(); m_shadowPS = nullptr; }
-	if (m_ps) { m_ps->Release(); m_ps = nullptr; }
-	if (m_vs) { m_vs->Release(); m_vs = nullptr; }
+	if (m_psoColor) { m_psoColor->Release(); m_psoColor = nullptr; }
+	if (m_psoShadow) { m_psoShadow->Release(); m_psoShadow = nullptr; }
+	if (m_rootSig) { m_rootSig->Release(); m_rootSig = nullptr; }
+	m_samplerIndex = UINT_MAX;
+	m_shadowSamplerIndex = UINT_MAX;
 }

@@ -256,6 +256,22 @@ void NativeTexture::convertTo32Bit()
 		}
 		rasterFormat = RASTER_8888;
 		depth = 0x20;
+	} else if ((rasterFormat & RASTER_MASK) == RASTER_8888 ||
+		(rasterFormat & RASTER_MASK) == RASTER_888) {
+		/* D3D native is BGRA in memory — swap to RGBA for DXGI R8G8B8A8. */
+		for (uint32_t j = 0; j < mipmapCount; j++) {
+			uint32_t pixels = width[j] * height[j];
+			if (dataSizes[j] < pixels * 4)
+				continue;
+			for (uint32_t i = 0; i < pixels; i++) {
+				uint8_t b = texels[j][i * 4 + 0];
+				uint8_t r = texels[j][i * 4 + 2];
+				texels[j][i * 4 + 0] = r;
+				texels[j][i * 4 + 2] = b;
+			}
+		}
+		depth = 0x20;
+		rasterFormat = (rasterFormat & ~RASTER_MASK) | RASTER_8888;
 	}
 	// no support for other raster formats yet
 }

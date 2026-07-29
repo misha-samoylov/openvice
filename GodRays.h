@@ -1,6 +1,5 @@
 #pragma once
 
-#include <d3d11.h>
 #include <DirectXMath.h>
 
 #include "DXRender.hpp"
@@ -21,19 +20,17 @@ public:
 	static constexpr float WEIGHT = 0.266f;
 	static constexpr float THRESHOLD = 0.68f;
 	static constexpr float INTENSITY = 0.484f;
-	/* Reversed-Z? No — standard D3D: far plane ≈ 1.0. Sky / distant depth. */
 	static constexpr float DEPTH_CUTOFF = 0.992f;
 
 	HRESULT Init(DXRender* render);
 	void Cleanup();
 
-	/* sunDirToward = unit vector toward the sun (same as ShadowMap). */
 	void Apply(DXRender* render, Camera* camera, FXMVECTOR sunDirToward);
 
 private:
 	HRESULT CreateTargets(DXRender* render);
 	void ReleaseTargets();
-	void DrawFullscreen(ID3D11DeviceContext* ctx);
+	void DrawFullscreen(DXRender* render, ID3D12PipelineState* pso, UINT srvIndex, UINT samplerIndex);
 	float ProjectSun(
 		Camera* camera,
 		FXMVECTOR sunDirToward,
@@ -42,25 +39,22 @@ private:
 		float& outOcclusion
 	);
 
-	ID3D11VertexShader* m_vs;
-	ID3D11PixelShader* m_psRays;
-	ID3D11PixelShader* m_psComposite;
-	ID3D11Buffer* m_cb;
-	ID3D11SamplerState* m_pointSampler;
-	ID3D11SamplerState* m_linearSampler;
-	ID3D11RasterizerState* m_rasterizer;
-	ID3D11DepthStencilState* m_depthDisabled;
-	ID3D11BlendState* m_blendOpaque;
-	ID3D11BlendState* m_blendAdditive;
+	ID3D12RootSignature* m_rootSig;
+	ID3D12PipelineState* m_psoRays;
+	ID3D12PipelineState* m_psoComposite;
 
-	/* Full-res scene color copy (sample while writing rays). */
-	ID3D11Texture2D* m_colorTex;
-	ID3D11ShaderResourceView* m_colorSRV;
+	UINT m_pointSampler;
+	UINT m_linearSampler;
+	UINT m_pairSrvBase;
 
-	/* Half-res ray accumulation. */
-	ID3D11Texture2D* m_raysTex;
-	ID3D11RenderTargetView* m_raysRTV;
-	ID3D11ShaderResourceView* m_raysSRV;
+	ID3D12Resource* m_colorTex;
+	UINT m_colorSrv;
+	D3D12_RESOURCE_STATES m_colorState;
+
+	ID3D12Resource* m_raysTex;
+	UINT m_raysRtv;
+	UINT m_raysSrv;
+	D3D12_RESOURCE_STATES m_raysState;
 
 	UINT m_fullW;
 	UINT m_fullH;

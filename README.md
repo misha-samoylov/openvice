@@ -8,11 +8,10 @@ Features:
 ## Features
 
 ### Render
-* DirectX 11
+* DirectX 12 (Feature Level 12_0)
 * SSAO
 * Post processing color with Motion blur
 * Shadows (Cascaded Shadow Maps)
-* MSAA 4x
 * Volumetric God Rays
 * Volumetric Clouds (half-res raymarch) analytical lighting
 * Water: Fresnel effect, soft ripples, specular highlights from the sun, alpha blending, and cloud reflections
@@ -22,7 +21,7 @@ Features:
 * Vehicle vertex deformation physics
 
 ## Build 
-Open `openvice.sln` solution in **Microsoft Visual Studio 2019** and click **Build** -> **Build Solution**.
+Open `openvice.sln` solution in **Microsoft Visual Studio 2019** (or newer) and click **Build** -> **Build Solution**. Use the **x64** configuration.
 
 ## Controls
 * `NUMPAD 0` - Change to control character (Tommy)
@@ -40,8 +39,8 @@ Open `openvice.sln` solution in **Microsoft Visual Studio 2019** and click **Bui
 * `Mouse wheel` - Change camera speed, change camera+-
 
 ## System requirements
-* Windows Vista or higher
-* DirectX 11
+* Windows 10 or higher
+* DirectX 12 (Feature Level 12_0)
 
 ## Dependencies
 * [Bullet Physics 2.89](https://github.com/bulletphysics/bullet3/releases/tag/2.89)

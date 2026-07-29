@@ -5,20 +5,18 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include <d3d11.h>
 #include <DirectXMath.h>
-#include <Dds.h>
-#include <DirectXTex.h>
-
-#pragma comment(lib, "d3d11.lib")
 
 #include "DXRender.hpp"
 #include "Camera.hpp"
 
+#include <Dds.h>
+#include <DirectXTex.h>
+
 using namespace DirectX;
 
 struct DDS_File {
-	DWORD dwMagic; // (ASCII "DDS ")
+	DWORD dwMagic;
 	struct DDS_HEADER header;
 };
 
@@ -49,7 +47,6 @@ enum MeshPass
 	MESH_PASS_SHADOW = 1
 };
 
-/* Cached D3D bindings for the current frame — skip redundant Set* calls. */
 struct MeshRenderContext
 {
 	XMMATRIX viewProj;
@@ -62,16 +59,14 @@ struct MeshRenderContext
 	float shadowBias;
 	float windTime;
 	MeshPass pass;
-	ID3D11InputLayout* layout;
-	ID3D11VertexShader* vs;
-	ID3D11PixelShader* ps;
-	ID3D11SamplerState* sampler;
-	ID3D11SamplerState* shadowSampler;
-	ID3D11Buffer* vb;
-	ID3D11Buffer* ib;
-	ID3D11ShaderResourceView* srv;
-	ID3D11ShaderResourceView* shadowSRV;
-	D3D_PRIMITIVE_TOPOLOGY topology;
+	ID3D12PipelineState* pso;
+	ID3D12Resource* vb;
+	ID3D12Resource* ib;
+	UINT srvIndex;
+	UINT shadowSrvIndex;
+	UINT samplerIndex;
+	UINT shadowSamplerIndex;
+	D3D12_PRIMITIVE_TOPOLOGY topology;
 
 	MeshRenderContext()
 		: cascadeSplits(25.0f, 80.0f, 200.0f, 500.0f)
@@ -82,16 +77,14 @@ struct MeshRenderContext
 		, shadowBias(0.00015f)
 		, windTime(0.0f)
 		, pass(MESH_PASS_COLOR)
-		, layout(nullptr)
-		, vs(nullptr)
-		, ps(nullptr)
-		, sampler(nullptr)
-		, shadowSampler(nullptr)
+		, pso(nullptr)
 		, vb(nullptr)
 		, ib(nullptr)
-		, srv(nullptr)
-		, shadowSRV(nullptr)
-		, topology(D3D11_PRIMITIVE_TOPOLOGY_UNDEFINED)
+		, srvIndex(UINT_MAX)
+		, shadowSrvIndex(UINT_MAX)
+		, samplerIndex(UINT_MAX)
+		, shadowSamplerIndex(UINT_MAX)
+		, topology(D3D_PRIMITIVE_TOPOLOGY_UNDEFINED)
 	{
 		viewProj = XMMatrixIdentity();
 		for (int i = 0; i < 4; i++)
@@ -100,16 +93,14 @@ struct MeshRenderContext
 
 	void ClearBindings()
 	{
-		layout = nullptr;
-		vs = nullptr;
-		ps = nullptr;
-		sampler = nullptr;
-		shadowSampler = nullptr;
+		pso = nullptr;
 		vb = nullptr;
 		ib = nullptr;
-		srv = nullptr;
-		shadowSRV = nullptr;
-		topology = D3D11_PRIMITIVE_TOPOLOGY_UNDEFINED;
+		srvIndex = UINT_MAX;
+		shadowSrvIndex = UINT_MAX;
+		samplerIndex = UINT_MAX;
+		shadowSamplerIndex = UINT_MAX;
+		topology = D3D_PRIMITIVE_TOPOLOGY_UNDEFINED;
 	}
 };
 
@@ -117,22 +108,22 @@ class Mesh
 {
 public:
 	HRESULT Init(
-		DXRender*pRender, 
-		float *vertices, 
-		int verticesCount, 
-		unsigned int *indices, 
-		int indicesCount, 
+		DXRender* pRender,
+		float* vertices,
+		int verticesCount,
+		unsigned int* indices,
+		int indicesCount,
 		D3D_PRIMITIVE_TOPOLOGY topology
 	);
 	void Cleanup();
-	void Render(DXRender *pRender, MeshRenderContext& ctx);
+	void Render(DXRender* pRender, MeshRenderContext& ctx);
 	HRESULT SetDataDDS(
-		DXRender *pRender,
-		uint8_t *pDataSource,
-		size_t size, 
-		uint32_t width, 
-		uint32_t height, 
-		uint32_t dxtCompression, 
+		DXRender* pRender,
+		uint8_t* pDataSource,
+		size_t size,
+		uint32_t width,
+		uint32_t height,
+		uint32_t dxtCompression,
 		uint32_t depth
 	);
 	void SetWorld(CXMMATRIX world) { m_World = world; }
@@ -148,15 +139,12 @@ public:
 	void SetAlpha(bool a) { m_hasAlpha = a; }
 	bool GetAlpha() { return m_hasAlpha; }
 
-	/* DXT1 1-bit alpha → cutout; DXT3/5 → soft blended. */
 	void SetAlphaCutout(bool cutout) { m_alphaCutout = cutout; }
 	bool IsAlphaCutout() const { return m_alphaCutout; }
 
-	/* Palm/tree frond sway amplitude in local meters (0 = off). */
 	void SetWindAmount(float amount) { m_windAmount = amount; }
 	float GetWindAmount() const { return m_windAmount; }
 
-	/* Interleaved xyz + uv (5 floats per vertex). Mutable for fake deformation. */
 	std::vector<float>& GetVertexData() { return m_vertexData; }
 	const std::vector<float>& GetVertexData() const { return m_vertexData; }
 	int GetVertexCount() const { return (int)m_vertexData.size() / 5; }
@@ -165,19 +153,19 @@ public:
 	static void ReleaseSharedResources();
 
 private:
-	HRESULT CreateConstBuffer(DXRender *pRender);
-	static HRESULT EnsureSharedPipeline(DXRender *pRender);
+	static HRESULT EnsureSharedPipeline(DXRender* pRender);
 	HRESULT CreateDataBuffer(
-		DXRender *pRender,
-		float *pVerticesData,
+		DXRender* pRender,
+		float* pVerticesData,
 		int verticesCount,
-		unsigned int *pIndicesData,
+		unsigned int* pIndicesData,
 		int indicesCount
 	);
+	ID3D12PipelineState* SelectPso(DXRender* pRender, MeshRenderContext& ctx) const;
 
-	ID3D11Buffer *m_pVertexBuffer;
-	ID3D11Buffer *m_pIndexBuffer;
-	ID3D11Buffer *m_pObjectBuffer;
+	ID3D12Resource* m_pVertexBuffer;
+	ID3D12Resource* m_pIndexBuffer;
+	GpuTexture m_texture;
 
 	struct objectConstBuffer m_objectConstBuffer;
 
@@ -187,17 +175,21 @@ private:
 	unsigned int m_countIndices;
 	D3D_PRIMITIVE_TOPOLOGY m_primitiveTopology;
 
-	ID3D11ShaderResourceView* m_pTexture;
-
 	int m_meshId;
 	bool m_hasAlpha;
 	bool m_alphaCutout;
 	float m_windAmount;
 
-	static ID3D11VertexShader* s_pVertexShader;
-	static ID3D11PixelShader* s_pPixelShader;
-	static ID3D11PixelShader* s_pShadowPixelShader;
-	static ID3D11InputLayout* s_pVertexLayout;
-	static ID3D11SamplerState* s_pSampler;
+	static ID3D12RootSignature* s_rootSig;
+	static ID3D12PipelineState* s_psoOpaque;
+	static ID3D12PipelineState* s_psoCutout;
+	static ID3D12PipelineState* s_psoSoft;
+	static ID3D12PipelineState* s_psoShadow;
+	static ID3D12PipelineState* s_psoWire;
+	static UINT s_samplerIndex;
+	static UINT s_shadowSamplerIndex;
 	static int s_sharedRefCount;
+	static ID3DBlob* s_vsBlob;
+	static ID3DBlob* s_psBlob;
+	static ID3DBlob* s_shadowPsBlob;
 };

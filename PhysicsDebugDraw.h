@@ -10,7 +10,7 @@
 
 using namespace DirectX;
 
-/* Collects Bullet debug primitives and draws them as colored DX11 line lists. */
+/* Collects Bullet debug primitives and draws them as colored DX12 line lists. */
 class PhysicsDebugDraw : public btIDebugDraw
 {
 public:
@@ -22,14 +22,12 @@ public:
 
 	void BeginFrame();
 	void SetViewProjection(const XMMATRIX& viewProj);
-	/* Skip lines whose midpoint is farther than radius from the camera. */
 	void SetCullSphere(float x, float y, float z, float radius);
 	void Render(DXRender* render);
 
 	void SetEnabled(bool enabled);
 	bool IsEnabled() const { return m_enabled; }
 
-	/* 0=off wire+aabb+contacts; prefer SetOverlayMode for F3 cycling. */
 	void SetOverlayMode(int mode);
 	int GetOverlayMode() const { return m_overlayMode; }
 
@@ -48,11 +46,9 @@ private:
 		float r, g, b, a;
 	};
 
-	bool EnsureVertexBuffer(DXRender* render, UINT vertexCount);
-
 	bool m_enabled;
 	int m_debugMode;
-	int m_overlayMode; /* 0 off, 1 all, 2 compound, 3 boundBox-only */
+	int m_overlayMode;
 	std::vector<Vertex> m_lines;
 
 	float m_cullX, m_cullY, m_cullZ, m_cullRadiusSq;
@@ -60,13 +56,6 @@ private:
 
 	XMMATRIX m_viewProj;
 
-	ID3D11VertexShader* m_vs;
-	ID3D11PixelShader* m_ps;
-	ID3D11InputLayout* m_layout;
-	ID3D11Buffer* m_vb;
-	ID3D11Buffer* m_cb;
-	ID3D11RasterizerState* m_rs;
-	ID3D11DepthStencilState* m_dss;
-	ID3D11BlendState* m_bs;
-	UINT m_vbCapacity;
+	ID3D12RootSignature* m_rootSig;
+	ID3D12PipelineState* m_pso;
 };
