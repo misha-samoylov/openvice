@@ -5,14 +5,45 @@
 
 #define PROJECT_NAME "openvice"
 
-#define WINDOW_WIDTH 3840
-#define WINDOW_HEIGHT 2160
-#define WINDOW_TITLE L"openvice"
+/* RT map demo: filtered IPL(s), full-scene RayQuery, free camera, no player/water. */
+#define ENABLE_SINGLE_OBJECT_RT_DEMO 1
+#define DEMO_IPL_NAME "cisland"
 
-#define CAMERA_FAR_PLANE 1500.0f
-/* Fog must reach full sky before the far clip, or a hard pop-in line shows. */
-#define FOG_START_FACTOR 0.40f
-#define FOG_END_FACTOR 0.82f
+#define WINDOW_WIDTH 1280
+#define WINDOW_HEIGHT 720
+#if ENABLE_SINGLE_OBJECT_RT_DEMO
+#define WINDOW_TITLE L"openvice — cisland+golf RT demo"
+#else
+#define WINDOW_TITLE L"openvice"
+#endif
+
+#if ENABLE_SINGLE_OBJECT_RT_DEMO
+#define CAMERA_FAR_PLANE 800.0f
+#define DRAW_DISTANCE 700.0f
+#define FOG_START_FACTOR 0.70f
+#define FOG_END_FACTOR 0.95f
+#define ENABLE_OCCLUSION_CULLING 0
+#define ENABLE_CSM_SHADOWS 0
+#define ENABLE_SSAO 0
+#define ENABLE_RT_SHADOWS 1
+#define ENABLE_RT_INLINE_PS 0
+#define ENABLE_RT_BOUNCE_PASS 0
+#define ENABLE_RT_FULL_SCENE 1 /* primary rays + shade + sun shadow */
+#define ENABLE_RT_FULL_HALF_RES 1 /* half-res ray pass — avoids TDR on island */
+#else
+#define CAMERA_FAR_PLANE 300.0f
+#define DRAW_DISTANCE 300.0f
+#define FOG_START_FACTOR 0.55f
+#define FOG_END_FACTOR 0.92f
+#define ENABLE_OCCLUSION_CULLING 1
+#define ENABLE_CSM_SHADOWS 0
+#define ENABLE_SSAO 0
+#define ENABLE_RT_SHADOWS 1
+#define ENABLE_RT_INLINE_PS 0
+#define ENABLE_RT_BOUNCE_PASS 1
+#define ENABLE_RT_FULL_SCENE 0
+#define ENABLE_RT_FULL_HALF_RES 0
+#endif
 
 /* Daytime hour for tobj visibility (re3 CTimeModelInfo). Night lights are off. */
 #define WORLD_HOUR 12
@@ -44,3 +75,6 @@
 
 /* Map IDE/IPL basenames under data/maps/<name>/<name>.ide|.ipl */
 #define GTA_VC_MAP_COUNT 31
+
+/* Temporary: only load/place listed IPL basenames. Set 0 to load all maps. */
+#define GTA_VC_IPL_FILTER_ENABLED 1

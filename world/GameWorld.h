@@ -25,9 +25,9 @@ struct RenderSettings
 	int physicsDebugFilter;
 
 	RenderSettings()
-		: shadowsEnabled(true)
-		, ssaoEnabled(true)
-		, godRaysEnabled(true)
+		: shadowsEnabled(false) /* CSM off; lighting is RT-only */
+		, ssaoEnabled(false)
+		, godRaysEnabled(false) /* screen-space; lighting is RT sun */
 		, cloudsEnabled(true)
 		, physicsDebugVisible(false)
 		, physicsDebugFilter(COL_DEBUG_ALL)
@@ -45,6 +45,8 @@ public:
 		DXRender* render,
 		PhysicsDebugDraw* debugDraw
 	);
+	/* RT map demo: waterpro + mesh only (no player/vehicle). */
+	bool InitWater(DXRender* render);
 	void Shutdown();
 
 	CollisionWorld* Collision() { return m_collision.get(); }

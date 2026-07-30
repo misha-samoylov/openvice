@@ -1,5 +1,6 @@
 #include "assets/DffLoader.h"
 #include "core/GtaCoords.h"
+#include "graphics/GpuTextureCache.h"
 #include "loaders/Clump.h"
 #include "loaders/Geometry.h"
 #include "Mesh.hpp"
@@ -167,13 +168,22 @@ namespace DffLoader
 		DXRender* render, Mesh* mesh, Model* model,
 		AssetRegistry& assets, const char* matName)
 	{
-		int matIndex = assets.FindTextureIndex(matName);
-		if (matIndex < 0)
-			return;
+		GameMaterial* tex = nullptr;
+		if (matName && matName[0]) {
+			tex = assets.Txd().FindTexture(matName);
+			if (!tex)
+				tex = assets.Txd().FindTextureAnywhere(matName);
+		}
 
-		GameMaterial& tex = assets.Textures()[(size_t)matIndex];
-		bool isAlpha = tex.isAlpha;
-		uint32_t dxt = tex.dxtCompression;
+		if (!tex) {
+			/* Missing texture → black stub (always draw, never skip mesh). */
+			GpuTexture black = GpuTextureCache::Instance().ResolveOrBlack(render, nullptr);
+			mesh->SetSharedTexture(black);
+			return;
+		}
+
+		bool isAlpha = tex->isAlpha;
+		uint32_t dxt = tex->dxtCompression;
 		mesh->SetAlpha(isAlpha);
 		mesh->SetAlphaCutout(isAlpha && dxt != 3 && dxt != 4 && dxt != 5);
 		if (!model->IsAlpha() && isAlpha)
@@ -181,15 +191,9 @@ namespace DffLoader
 		/* Alpha fronds sway; opaque trunks stay put. */
 		if (isAlpha && IsFoliageWindModel(model->GetName().c_str()))
 			mesh->SetWindAmount(0.32f);
-		mesh->SetDataDDS(
-			render,
-			tex.Data(),
-			tex.source.size(),
-			tex.width,
-			tex.height,
-			tex.dxtCompression,
-			tex.depth
-		);
+
+		GpuTexture gpu = GpuTextureCache::Instance().ResolveOrBlack(render, tex);
+		mesh->SetSharedTexture(gpu);
 	}
 
 	static void ExpandBoundsFromVertices(
@@ -224,7 +228,7 @@ namespace DffLoader
 	{
 		for (uint32_t si = 0; si < geometry->splits.size(); si++) {
 			std::vector<uint32_t> triIndices;
-			geometry->ExpandSplitToTriangles(si, triIndices);
+			geometry->CollectSplitTriangles(si, triIndices);
 			if (triIndices.empty())
 				continue;
 
@@ -354,7 +358,7 @@ namespace DffLoader
 
 			for (uint32_t i = 0; i < geometry->splits.size(); i++) {
 				std::vector<uint32_t> triIndices;
-				geometry->ExpandSplitToTriangles(i, triIndices);
+				geometry->CollectSplitTriangles(i, triIndices);
 				if (triIndices.empty())
 					continue;
 

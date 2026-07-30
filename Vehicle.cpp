@@ -1,6 +1,7 @@
 #include "Vehicle.h"
 #include "CollisionWorld.h"
 #include "core/GtaCoords.h"
+#include "graphics/GpuTextureCache.h"
 #include "loaders/Clump.h"
 #include "loaders/Geometry.h"
 #include "renderware.h"
@@ -393,7 +394,7 @@ bool Vehicle::LoadWheelMeshes(IMG* img, DXRender* render)
 	int meshesBuilt = 0;
 	for (uint32_t si = 0; si < geometry->splits.size(); si++) {
 		std::vector<uint32_t> triIndices;
-		geometry->ExpandSplitToTriangles(si, triIndices);
+		geometry->CollectSplitTriangles(si, triIndices);
 		if (triIndices.empty()) {
 			printf("[Warn] Vehicle: wheel split %u expanded to 0 tris (faceType=%u numIdx=%u)\n",
 				si, geometry->faceType, geometry->splits[si].m_numIndices);
@@ -442,8 +443,13 @@ bool Vehicle::LoadWheelMeshes(IMG* img, DXRender* render)
 				textured = true;
 				break;
 			}
-			if (!textured && matName && matName[0])
-				printf("[Warn] Vehicle: wheel texture '%s' not in TXD\n", matName);
+			if (!textured) {
+				/* Missing wheel texture → black stub. */
+				mesh->SetSharedTexture(
+					GpuTextureCache::Instance().ResolveOrBlack(render, nullptr));
+				if (matName && matName[0])
+					printf("[Warn] Vehicle: wheel texture '%s' not in TXD (black stub)\n", matName);
+			}
 		}
 
 		m_wheelMeshes.push_back(mesh);

@@ -1,6 +1,7 @@
 #include "Player.h"
 #include "CollisionWorld.h"
 #include "core/GtaCoords.h"
+#include "graphics/GpuTextureCache.h"
 
 #include <stdio.h>
 #include <cmath>
@@ -342,8 +343,10 @@ void Player::Render(DXRender* render, MeshRenderContext& ctx)
 	cb.shadowBias = ctx.shadowBias;
 	cb.windTime = 0.0f;
 	cb.windAmount = 0.0f;
-	cb.padWind[0] = 0.0f;
-	cb.padWind[1] = 0.0f;
+	cb.padWindAlign[0] = 0.0f;
+	cb.padWindAlign[1] = 0.0f;
+	cb.sunDir = ctx.sunDir;
+	cb.padSun = 0.0f;
 
 	D3D12_GPU_VIRTUAL_ADDRESS objAddr = 0;
 	void* objPtr = render->AllocFrameConstants(sizeof(cb), &objAddr);
@@ -356,8 +359,16 @@ void Player::Render(DXRender* render, MeshRenderContext& ctx)
 
 	for (size_t i = 0; i < m_meshes.size(); i++) {
 		SkinnedMeshPart& part = m_meshes[i];
-		if (!part.vb || !part.ib || !part.texture.Valid())
+		if (!part.vb || !part.ib)
 			continue;
+
+		UINT texSrv = part.texture.srvIndex;
+		if (texSrv == UINT_MAX) {
+			GpuTextureCache::Instance().EnsureBlack(render);
+			if (!GpuTextureCache::Instance().HasBlack())
+				continue;
+			texSrv = GpuTextureCache::Instance().Black().srvIndex;
+		}
 
 		if (ctx.topology != part.topology) {
 			cmd->IASetPrimitiveTopology(part.topology);
@@ -378,18 +389,27 @@ void Player::Render(DXRender* render, MeshRenderContext& ctx)
 		cmd->IASetIndexBuffer(&ibv);
 		ctx.ib = part.ib;
 
-		UINT texSrv = part.texture.srvIndex;
 		cmd->SetGraphicsRootDescriptorTable(2, render->GetSrvGpu(texSrv));
 		UINT shadowSrv = (!shadowPass && ctx.shadowSrvIndex != UINT_MAX)
 			? ctx.shadowSrvIndex : texSrv;
 		cmd->SetGraphicsRootDescriptorTable(3, render->GetSrvGpu(shadowSrv));
+		if (Mesh::HasRtPixelShader()) {
+			D3D12_GPU_VIRTUAL_ADDRESS va = ctx.rtAccelVA;
+			if (va == 0)
+				va = render->GetFallbackTlasVA();
+			if (va == 0)
+				continue;
+			cmd->SetGraphicsRootShaderResourceView(4, va);
+		} else {
+			cmd->SetGraphicsRootShaderResourceView(4, 0);
+		}
 		ctx.srvIndex = texSrv;
 
-		cmd->SetGraphicsRootDescriptorTable(4, render->GetSamplerGpu(samp));
+		cmd->SetGraphicsRootDescriptorTable(5, render->GetSamplerGpu(samp));
 		UINT shadowSamp = (!shadowPass && ctx.shadowSamplerIndex != UINT_MAX)
 			? ctx.shadowSamplerIndex
-			: ((m_shadowSamplerIndex != UINT_MAX) ? m_shadowSamplerIndex : samp);
-		cmd->SetGraphicsRootDescriptorTable(5, render->GetSamplerGpu(shadowSamp));
+			: samp;
+		cmd->SetGraphicsRootDescriptorTable(6, render->GetSamplerGpu(shadowSamp));
 
 		cmd->DrawIndexedInstanced(part.indexCount, 1, 0, 0, 0);
 	}
@@ -427,7 +447,10 @@ void Player::Cleanup()
 			m_meshes[i].ib = nullptr;
 		}
 		if (m_meshes[i].texture.resource) {
-			m_meshes[i].texture.resource->Release();
+			/* Black stub is owned by GpuTextureCache — do not Release. */
+			const GpuTexture& black = GpuTextureCache::Instance().Black();
+			if (m_meshes[i].texture.resource != black.resource)
+				m_meshes[i].texture.resource->Release();
 			m_meshes[i].texture.resource = nullptr;
 			m_meshes[i].texture.srvIndex = UINT_MAX;
 		}

@@ -1,4 +1,5 @@
 #include "gameplay/GameSession.h"
+#include "core/GameConfig.h"
 
 #include <stdio.h>
 #include <cmath>
@@ -19,7 +20,20 @@ GameSession::GameSession()
 
 void GameSession::InitCameraState()
 {
-	/* mouse deltas filled on first Detect() */
+#if ENABLE_SINGLE_OBJECT_RT_DEMO
+	m_camYaw = 0.0f;
+	m_camPitch = 0.35f;
+	m_camDistance = 45.0f;
+	m_freeCamSpeed = 2.5f;
+	m_freeCamera = true;
+#endif
+}
+
+void GameSession::SetFreeCamLook(float yaw, float pitch)
+{
+	m_camYaw = yaw;
+	m_camPitch = pitch;
+	m_freeCamera = true;
 }
 
 void GameSession::HandleDebugHotkeys(
@@ -306,7 +320,56 @@ void GameSession::HandleFrame(
 	if (input->IsKey(DIK_ESCAPE))
 		PostQuitMessage(EXIT_SUCCESS);
 
+	#if ENABLE_SINGLE_OBJECT_RT_DEMO
+	(void)render;
+	(void)renderer;
+
+	if (world.GetWater())
+		world.GetWater()->Update(frameTime);
+
+	/* Free-fly: WASD + mouse look, Shift=faster, wheel=speed. */
+	float speed = 25.0f * m_freeCamSpeed * frameTime;
+	if (input->IsKey(DIK_LSHIFT) || input->IsKey(DIK_RSHIFT))
+		speed *= 4.0f;
+
+	float moveLeftRight = 0.0f;
+	float moveBackForward = 0.0f;
+	if (input->IsKey(DIK_W)) moveBackForward += 1.0f;
+	if (input->IsKey(DIK_A)) moveLeftRight -= 1.0f;
+	if (input->IsKey(DIK_S)) moveBackForward -= 1.0f;
+	if (input->IsKey(DIK_D)) moveLeftRight += 1.0f;
+	if (input->IsKey(DIK_E) || input->IsKey(DIK_SPACE)) {
+		XMVECTOR p = camera->GetPosition();
+		camera->SetPosition(XMVectorGetX(p), XMVectorGetY(p) + speed, XMVectorGetZ(p));
+	}
+	if (input->IsKey(DIK_Q) || input->IsKey(DIK_LCONTROL)) {
+		XMVECTOR p = camera->GetPosition();
+		camera->SetPosition(XMVectorGetX(p), XMVectorGetY(p) - speed, XMVectorGetZ(p));
+	}
+
+	float mx = input->GetMouseSpeedX();
+	float my = input->GetMouseSpeedY();
+	if (mx != 0.0f || my != 0.0f) {
+		m_camYaw += mx * 0.0025f;
+		m_camPitch += my * 0.0025f;
+		if (m_camPitch > 1.55f) m_camPitch = 1.55f;
+		if (m_camPitch < -1.55f) m_camPitch = -1.55f;
+	}
+
+	float wheel = input->GetMouseWheel();
+	if (wheel != 0.0f) {
+		float factor = 1.0f + wheel * 0.0015f;
+		if (factor < 0.5f) factor = 0.5f;
+		if (factor > 2.0f) factor = 2.0f;
+		m_freeCamSpeed *= factor;
+		if (m_freeCamSpeed < 0.2f) m_freeCamSpeed = 0.2f;
+		if (m_freeCamSpeed > 40.0f) m_freeCamSpeed = 40.0f;
+	}
+
+	camera->Update(m_camPitch, m_camYaw, moveLeftRight * speed, moveBackForward * speed);
+#else
 	HandleDebugHotkeys(input, render, world, renderer);
 	HandleCameraModeHotkeys(input, camera, world);
 	UpdateMovement(frameTime, input, camera, world);
+#endif
 }

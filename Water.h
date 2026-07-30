@@ -20,6 +20,11 @@ public:
 		FXMVECTOR sunDirToward, bool reflectClouds = true);
 	void Cleanup();
 
+	/* Engine Y-up sea height (matches rendered water verts). */
+	float GetSeaLevelY() const { return m_seaZ - 0.5f; }
+	float GetTime() const { return m_time; }
+	bool IsReady() const { return m_ready; }
+
 private:
 	struct WaterVertex {
 		float x, y, z;

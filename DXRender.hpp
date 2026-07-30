@@ -67,6 +67,8 @@ public:
 	BlendPassMode GetBlendPassMode() const { return m_blendMode; }
 
 	ID3D12Device* GetDevice() { return m_device.Get(); }
+	ID3D12Device5* GetDevice5() { return m_device5.Get(); }
+	bool SupportsRaytracing() const { return m_raytracingTier != D3D12_RAYTRACING_TIER_NOT_SUPPORTED; }
 	ID3D12GraphicsCommandList* GetCommandList() { return m_commandList.Get(); }
 	ID3D12CommandQueue* GetQueue() { return m_queue.Get(); }
 
@@ -98,6 +100,7 @@ public:
 	UINT CreateTextureSrv(ID3D12Resource* resource, DXGI_FORMAT format = DXGI_FORMAT_UNKNOWN);
 	UINT CreateTexture2DArraySrv(ID3D12Resource* resource, DXGI_FORMAT format, UINT arraySize);
 	UINT CreateTypedBufferSrv(ID3D12Resource* resource, UINT elementCount, UINT stride);
+	UINT CreateAccelerationStructureSrv(ID3D12Resource* accelerationStructure);
 	D3D12_CPU_DESCRIPTOR_HANDLE GetSrvCpu(UINT index) const;
 	D3D12_GPU_DESCRIPTOR_HANDLE GetSrvGpu(UINT index) const;
 
@@ -140,6 +143,10 @@ public:
 
 	void BindDescriptorHeaps();
 
+	/* Empty TLAS for safe RayQuery binds when scene AS is not ready. */
+	HRESULT EnsureFallbackTlas();
+	D3D12_GPU_VIRTUAL_ADDRESS GetFallbackTlasVA() const { return m_fallbackTlasVA; }
+
 private:
 	struct FrameContext
 	{
@@ -166,6 +173,10 @@ private:
 	D3D12_RECT MakeScissor() const;
 
 	ComPtr<ID3D12Device> m_device;
+	ComPtr<ID3D12Device5> m_device5;
+	D3D12_RAYTRACING_TIER m_raytracingTier = D3D12_RAYTRACING_TIER_NOT_SUPPORTED;
+	ComPtr<ID3D12Resource> m_fallbackTlas;
+	D3D12_GPU_VIRTUAL_ADDRESS m_fallbackTlasVA = 0;
 	ComPtr<ID3D12CommandQueue> m_queue;
 	ComPtr<IDXGISwapChain3> m_swapChain;
 	ComPtr<ID3D12GraphicsCommandList> m_commandList;

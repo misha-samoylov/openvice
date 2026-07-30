@@ -14,19 +14,28 @@ bool SceneRenderer::Init(DXRender* render)
 		m_physicsDebug.reset();
 	}
 
+#if ENABLE_CSM_SHADOWS
 	m_shadowMap.reset(new ShadowMap());
 	if (FAILED(m_shadowMap->Init(render))) {
 		printf("[Error] ShadowMap init failed — continuing without dynamic shadows\n");
 		m_shadowMap->Cleanup();
 		m_shadowMap.reset();
 	}
+#else
+	(void)render;
+	printf("[Info] CSM shadows disabled (ENABLE_CSM_SHADOWS=0)\n");
+#endif
 
+#if ENABLE_SSAO
 	m_ssao.reset(new SSAO());
 	if (FAILED(m_ssao->Init(render))) {
 		printf("[Error] SSAO init failed — continuing without ambient occlusion\n");
 		m_ssao->Cleanup();
 		m_ssao.reset();
 	}
+#else
+	printf("[Info] SSAO disabled (ENABLE_SSAO=0)\n");
+#endif
 
 	m_postFX.reset(new PostFX());
 	if (FAILED(m_postFX->Init(render))) {
@@ -42,11 +51,98 @@ bool SceneRenderer::Init(DXRender* render)
 		m_godRays.reset();
 	}
 
+#if ENABLE_RT_SHADOWS
+	m_rtShadows.reset(new RayTracedShadows());
+	if (!m_rtShadows->Init(render)) {
+		printf("[Warn] RayTracedShadows init failed — continuing without RT sun shadows\n");
+		m_rtShadows->Cleanup();
+		m_rtShadows.reset();
+	}
+#if ENABLE_RT_BOUNCE_PASS
+	if (m_rtShadows) {
+		m_rtBounce.reset(new RtBouncePass());
+		if (FAILED(m_rtBounce->Init(render))) {
+			printf("[Warn] RtBouncePass init failed — continuing without RT bounce pass\n");
+			m_rtBounce->Cleanup();
+			m_rtBounce.reset();
+		}
+	}
+#endif
+#if ENABLE_RT_FULL_SCENE
+	if (m_rtShadows) {
+		m_rtFull.reset(new RtFullScene());
+		if (FAILED(m_rtFull->Init(render))) {
+			printf("[Warn] RtFullScene init failed — falling back\n");
+			FILE* vf = nullptr;
+			if (fopen_s(&vf, "openvice_verify.log", "a") == 0 && vf) {
+				fputs("[Warn] RtFullScene init failed — falling back\n", vf);
+				fclose(vf);
+			}
+			m_rtFull->Cleanup();
+			m_rtFull.reset();
+		}
+	}
+#endif
+#endif
+
 	return true;
+}
+
+bool SceneRenderer::BuildRayTracing(DXRender* render, const Scene& scene)
+{
+#if ENABLE_RT_SHADOWS
+	if (!m_rtShadows)
+		return false;
+	if (!m_rtShadows->Build(render, scene)) {
+		printf("[Warn] RayTracedShadows Build failed — keeping empty TLAS for binds\n");
+		/* Rebuild empty TLAS so root SRV binds stay valid; do not destroy the object. */
+		if (!m_rtShadows->Init(render)) {
+			m_rtShadows->Cleanup();
+			m_rtShadows.reset();
+			return false;
+		}
+		return false;
+	}
+#if ENABLE_RT_FULL_SCENE
+	if (m_rtFull) {
+		if (!m_rtFull->BuildShadeData(render, scene, m_rtShadows.get())) {
+			printf("[Warn] RtFullScene shade bake failed\n");
+			FILE* vf = nullptr;
+			if (fopen_s(&vf, "openvice_verify.log", "a") == 0 && vf) {
+				fputs("[Warn] RtFullScene shade bake failed\n", vf);
+				fclose(vf);
+			}
+			m_rtFull->Cleanup();
+			m_rtFull.reset();
+		} else {
+			render->FlushUploads();
+		}
+	}
+#endif
+	return true;
+#else
+	(void)render;
+	(void)scene;
+	return false;
+#endif
 }
 
 void SceneRenderer::Shutdown()
 {
+#if ENABLE_RT_SHADOWS
+	if (m_rtFull) {
+		m_rtFull->Cleanup();
+		m_rtFull.reset();
+	}
+	if (m_rtBounce) {
+		m_rtBounce->Cleanup();
+		m_rtBounce.reset();
+	}
+	if (m_rtShadows) {
+		m_rtShadows->Cleanup();
+		m_rtShadows.reset();
+	}
+#endif
 	if (m_shadowMap) {
 		m_shadowMap->Cleanup();
 		m_shadowMap.reset();
@@ -82,6 +178,14 @@ static void FillCascadeMatrices(MeshRenderContext& ctx, ShadowMap* shadows)
 	ctx.cascadeSplits = shadows->GetSplitDistances();
 }
 
+static XMVECTOR ComputeSunDirection(ShadowMap* shadowMap)
+{
+	if (shadowMap)
+		return shadowMap->GetSunDirection();
+	const float zenith = XMConvertToRadians(ShadowMap::SUN_ZENITH_OFFSET_DEG);
+	return XMVector3Normalize(XMVectorSet(0.0f, cosf(zenith), sinf(zenith), 0.0f));
+}
+
 void SceneRenderer::Render(DXRender* render, Camera* camera, Scene& scene, GameWorld& world)
 {
 	XMMATRIX view = camera->GetView();
@@ -102,11 +206,25 @@ void SceneRenderer::Render(DXRender* render, Camera* camera, Scene& scene, GameW
 	ctx.windTime = world.WindTime();
 
 	RenderSettings& settings = world.Settings();
+#if ENABLE_CSM_SHADOWS
 	const bool shadowsOn = m_shadowMap && settings.shadowsEnabled;
+#else
+	const bool shadowsOn = false;
+	(void)settings.shadowsEnabled;
+#endif
+
+#if ENABLE_RT_SHADOWS
+	const bool rtOn = m_rtShadows && m_rtShadows->IsReady();
+	(void)rtOn;
+#else
+	const bool rtOn = false;
+	(void)rtOn;
+#endif
 
 	/* Open command list + clear main targets before any draws (incl. shadows). */
 	render->RenderStart();
 
+#if ENABLE_CSM_SHADOWS
 	if (shadowsOn) {
 		m_shadowMap->UpdateCascades(focusX, focusY, focusZ);
 		FillCascadeMatrices(ctx, m_shadowMap.get());
@@ -121,10 +239,13 @@ void SceneRenderer::Render(DXRender* render, Camera* camera, Scene& scene, GameW
 			const float cullRange = m_shadowMap->GetCascadeHalfExtent(c);
 
 			scene.Draw(render, ctx, m_frustum, scene.Opaque(), AlphaFilter::All,
+				focusX, focusY, focusZ, DRAW_DISTANCE, nullptr,
 				focusX, focusY, focusZ, cullRange);
 			scene.Draw(render, ctx, m_frustum, scene.Alpha(), AlphaFilter::OpaqueOnly,
+				focusX, focusY, focusZ, DRAW_DISTANCE, nullptr,
 				focusX, focusY, focusZ, cullRange);
 			scene.Draw(render, ctx, m_frustum, scene.Alpha(), AlphaFilter::Cutout,
+				focusX, focusY, focusZ, DRAW_DISTANCE, nullptr,
 				focusX, focusY, focusZ, cullRange);
 
 			if (world.GetVehicle())
@@ -136,34 +257,99 @@ void SceneRenderer::Render(DXRender* render, Camera* camera, Scene& scene, GameW
 		}
 		ctx.ClearBindings();
 	}
+#else
+	(void)focusX;
+	(void)focusY;
+	(void)focusZ;
+#endif
 
 	ctx.pass = MESH_PASS_COLOR;
 	ctx.viewProj = XMMatrixMultiply(view, proj);
 	FillCascadeMatrices(ctx, shadowsOn ? m_shadowMap.get() : nullptr);
-	ctx.receiveShadows = shadowsOn ? 1.0f : 0.0f;
 	ctx.shadowSrvIndex = shadowsOn ? m_shadowMap->GetSrvIndex() : UINT_MAX;
 	ctx.shadowSamplerIndex = shadowsOn ? m_shadowMap->GetCmpSamplerIndex() : UINT_MAX;
 
-	XMVECTOR sunDir;
-	if (m_shadowMap) {
-		sunDir = m_shadowMap->GetSunDirection();
-	} else {
-		const float zenith = XMConvertToRadians(ShadowMap::SUN_ZENITH_OFFSET_DEG);
-		sunDir = XMVector3Normalize(XMVectorSet(0.0f, cosf(zenith), sinf(zenith), 0.0f));
-	}
+	D3D12_GPU_VIRTUAL_ADDRESS tlasVA = 0;
+#if ENABLE_RT_SHADOWS
+	if (m_rtShadows)
+		tlasVA = m_rtShadows->GetGpuAddress();
+	if (tlasVA == 0)
+		tlasVA = render->GetFallbackTlasVA();
+#endif
+	ctx.rtAccelVA = (Mesh::HasRtPixelShader() && tlasVA != 0) ? tlasVA : 0;
+	ctx.rtAccelSrvIndex = UINT_MAX;
+	ctx.receiveShadows = (Mesh::HasRtPixelShader() && tlasVA != 0 &&
+		m_rtShadows && m_rtShadows->IsReady()) ? 1.0f : 0.0f;
 
+	XMVECTOR sunDir = ComputeSunDirection(m_shadowMap.get());
+	XMStoreFloat3(&ctx.sunDir, sunDir);
+
+#if ENABLE_RT_FULL_SCENE
+	/* Full primary-ray path: skip raster meshes; shade + sun shadow in RtFullScene. */
+	if (m_rtFull && m_rtFull->IsReady() && m_rtShadows && m_rtShadows->IsReady()) {
+		D3D12_GPU_VIRTUAL_ADDRESS tlas = m_rtShadows->GetGpuAddress();
+		if (tlas == 0)
+			tlas = render->GetFallbackTlasVA();
+		float seaY = 5.5f;
+		float waterTime = 0.0f;
+		if (world.GetWater() && world.GetWater()->IsReady()) {
+			seaY = world.GetWater()->GetSeaLevelY();
+			waterTime = world.GetWater()->GetTime();
+		}
+		if (tlas != 0)
+			m_rtFull->Apply(render, camera, sunDir, tlas, seaY, waterTime);
+
+		static int s_frameLog = 0;
+		if (s_frameLog < 3) {
+			XMVECTOR cam = camera->GetPosition();
+			char line[256];
+			sprintf_s(line,
+				"[Info] Frame %d fullRT=1 seaY=%.2f cam=(%.1f,%.1f,%.1f) tlas=%d\n",
+				s_frameLog, seaY,
+				XMVectorGetX(cam), XMVectorGetY(cam), XMVectorGetZ(cam),
+				tlas != 0 ? 1 : 0);
+			printf("%s", line);
+			fflush(stdout);
+			FILE* vf = nullptr;
+			if (fopen_s(&vf, "openvice_verify.log", "a") == 0 && vf) {
+				fputs(line, vf);
+				fclose(vf);
+			}
+			s_frameLog++;
+		}
+
+		if (m_postFX)
+			m_postFX->Apply(render);
+		render->RenderEnd();
+		return;
+	}
+#endif
+
+#if !ENABLE_SINGLE_OBJECT_RT_DEMO
 	if (world.GetClouds())
 		world.GetClouds()->Render(render, camera, sunDir, settings.cloudsEnabled);
+#endif
 	ctx.ClearBindings();
 	ctx.shadowSrvIndex = shadowsOn ? m_shadowMap->GetSrvIndex() : UINT_MAX;
 	ctx.shadowSamplerIndex = shadowsOn ? m_shadowMap->GetCmpSamplerIndex() : UINT_MAX;
-	ctx.receiveShadows = shadowsOn ? 1.0f : 0.0f;
+	ctx.rtAccelVA = (Mesh::HasRtPixelShader() && tlasVA != 0) ? tlasVA : 0;
+	ctx.receiveShadows = (Mesh::HasRtPixelShader() && tlasVA != 0 &&
+		m_rtShadows && m_rtShadows->IsReady()) ? 1.0f : 0.0f;
+
+#if ENABLE_SINGLE_OBJECT_RT_DEMO
+	const CollisionWorld* col = nullptr;
+#else
+	const CollisionWorld* col = world.Collision();
+#endif
 
 	render->SetOpaqueState();
 	render->ApplyRasterizerState();
-	scene.Draw(render, ctx, m_frustum, scene.Opaque(), AlphaFilter::All);
-	scene.Draw(render, ctx, m_frustum, scene.Alpha(), AlphaFilter::OpaqueOnly);
+	int drawsOpaque = scene.Draw(render, ctx, m_frustum, scene.Opaque(), AlphaFilter::All,
+		focusX, focusY, focusZ, DRAW_DISTANCE, col);
+	int drawsAlphaOp = scene.Draw(render, ctx, m_frustum, scene.Alpha(), AlphaFilter::OpaqueOnly,
+		focusX, focusY, focusZ, DRAW_DISTANCE, col);
 
+#if !ENABLE_SINGLE_OBJECT_RT_DEMO
 	if (world.GetVehicle())
 		world.GetVehicle()->Render(render, ctx);
 	if (world.GetPlayer() && !world.ControllingVehicle())
@@ -171,26 +357,52 @@ void SceneRenderer::Render(DXRender* render, Camera* camera, Scene& scene, GameW
 
 	if (world.GetWater()) {
 		const bool reflectClouds = settings.cloudsEnabled && world.GetClouds() != nullptr;
-		world.GetWater()->Render(render, camera, m_frustum, CAMERA_FAR_PLANE, sunDir,
+		world.GetWater()->Render(render, camera, m_frustum, DRAW_DISTANCE, sunDir,
 			reflectClouds);
 	}
+#endif
 
 	ctx.ClearBindings();
 	ctx.viewProj = XMMatrixMultiply(view, proj);
 	FillCascadeMatrices(ctx, shadowsOn ? m_shadowMap.get() : nullptr);
 	ctx.shadowSrvIndex = shadowsOn ? m_shadowMap->GetSrvIndex() : UINT_MAX;
 	ctx.shadowSamplerIndex = shadowsOn ? m_shadowMap->GetCmpSamplerIndex() : UINT_MAX;
-	ctx.receiveShadows = shadowsOn ? 1.0f : 0.0f;
+	ctx.rtAccelVA = (Mesh::HasRtPixelShader() && tlasVA != 0) ? tlasVA : 0;
+	ctx.receiveShadows = (Mesh::HasRtPixelShader() && tlasVA != 0 &&
+		m_rtShadows && m_rtShadows->IsReady()) ? 1.0f : 0.0f;
 
 	scene.SortAlphaBackToFront(camera);
 
 	render->SetCutoutAlphaState();
 	render->ApplyRasterizerState();
-	scene.Draw(render, ctx, m_frustum, scene.Alpha(), AlphaFilter::Cutout);
+	int drawsCutout = scene.Draw(render, ctx, m_frustum, scene.Alpha(), AlphaFilter::Cutout,
+		focusX, focusY, focusZ, DRAW_DISTANCE, col);
 
 	render->SetSoftAlphaState();
 	render->ApplyRasterizerState();
-	scene.Draw(render, ctx, m_frustum, scene.Alpha(), AlphaFilter::Soft);
+	int drawsSoft = scene.Draw(render, ctx, m_frustum, scene.Alpha(), AlphaFilter::Soft,
+		focusX, focusY, focusZ, DRAW_DISTANCE, col);
+
+	static int s_frameLog = 0;
+	if (s_frameLog < 3) {
+		XMVECTOR cam = camera->GetPosition();
+		char line[512];
+		sprintf_s(line,
+			"[Info] Frame %d draws opaque=%d alphaOp=%d cutout=%d soft=%d cam=(%.1f,%.1f,%.1f) rtPS=%d rtReady=%d\n",
+			s_frameLog,
+			drawsOpaque, drawsAlphaOp, drawsCutout, drawsSoft,
+			XMVectorGetX(cam), XMVectorGetY(cam), XMVectorGetZ(cam),
+			Mesh::HasRtPixelShader() ? 1 : 0,
+			(m_rtShadows && m_rtShadows->IsReady()) ? 1 : 0);
+		printf("%s", line);
+		fflush(stdout);
+		FILE* vf = nullptr;
+		if (fopen_s(&vf, "openvice_verify.log", "a") == 0 && vf) {
+			fputs(line, vf);
+			fclose(vf);
+		}
+		s_frameLog++;
+	}
 
 	if (settings.physicsDebugVisible && m_physicsDebug && world.Collision()) {
 		XMVECTOR camPos = camera->GetPosition();
@@ -204,13 +416,30 @@ void SceneRenderer::Render(DXRender* render, Camera* camera, Scene& scene, GameW
 	}
 
 	const bool needDepth =
+#if ENABLE_SSAO
 		(m_ssao && settings.ssaoEnabled) ||
+#endif
+#if ENABLE_RT_BOUNCE_PASS
+		(m_rtBounce && m_rtShadows && m_rtShadows->IsReady()) ||
+#endif
 		(m_godRays && settings.godRaysEnabled);
 	if (needDepth)
 		render->ResolveDepthForSSAO();
 
+#if ENABLE_SSAO
 	if (m_ssao && settings.ssaoEnabled)
 		m_ssao->Apply(render, camera);
+#endif
+
+#if ENABLE_RT_BOUNCE_PASS
+	if (m_rtBounce && m_rtShadows && m_rtShadows->IsReady()) {
+		D3D12_GPU_VIRTUAL_ADDRESS tlas = m_rtShadows->GetGpuAddress();
+		if (tlas == 0)
+			tlas = render->GetFallbackTlasVA();
+		if (tlas != 0)
+			m_rtBounce->Apply(render, camera, sunDir, tlas);
+	}
+#endif
 
 	render->ResolveMSAA();
 

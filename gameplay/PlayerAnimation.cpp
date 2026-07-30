@@ -1,5 +1,6 @@
 #include "Player.h"
 #include "graphics/TextureFactory.h"
+#include "graphics/GpuTextureCache.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -50,10 +51,16 @@ bool Player::InitPipeline(DXRender* render)
 	}
 
 	ID3DBlob* psBlob = nullptr;
-	hr = D3DReadFileToBlob(L"pixel_shader.cso", &psBlob);
+	const bool wantRt = render->SupportsRaytracing() && Mesh::HasRtPixelShader();
+	const wchar_t* psPath = wantRt ? L"pixel_shader.cso" : L"pixel_shader_nort.cso";
+	hr = D3DReadFileToBlob(psPath, &psBlob);
+	if (FAILED(hr) && wantRt) {
+		printf("[Warn] Player: RT PS missing — using pixel_shader_nort.cso\n");
+		hr = D3DReadFileToBlob(L"pixel_shader_nort.cso", &psBlob);
+	}
 	if (FAILED(hr)) {
 		vsBlob->Release();
-		printf("[Error] Player: cannot read pixel_shader.cso\n");
+		printf("[Error] Player: cannot read pixel shader cso\n");
 		return false;
 	}
 
@@ -86,7 +93,7 @@ bool Player::InitPipeline(DXRender* render)
 	samp1.NumDescriptors = 1;
 	samp1.BaseShaderRegister = 1;
 
-	D3D12_ROOT_PARAMETER params[6] = {};
+	D3D12_ROOT_PARAMETER params[7] = {};
 	params[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
 	params[0].Descriptor.ShaderRegister = 0;
 	params[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
@@ -105,18 +112,22 @@ bool Player::InitPipeline(DXRender* render)
 	params[3].DescriptorTable.pDescriptorRanges = &srv1;
 	params[3].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 
-	params[4].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-	params[4].DescriptorTable.NumDescriptorRanges = 1;
-	params[4].DescriptorTable.pDescriptorRanges = &samp0;
+	params[4].ParameterType = D3D12_ROOT_PARAMETER_TYPE_SRV;
+	params[4].Descriptor.ShaderRegister = 2;
 	params[4].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 
 	params[5].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
 	params[5].DescriptorTable.NumDescriptorRanges = 1;
-	params[5].DescriptorTable.pDescriptorRanges = &samp1;
+	params[5].DescriptorTable.pDescriptorRanges = &samp0;
 	params[5].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 
+	params[6].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+	params[6].DescriptorTable.NumDescriptorRanges = 1;
+	params[6].DescriptorTable.pDescriptorRanges = &samp1;
+	params[6].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+
 	D3D12_ROOT_SIGNATURE_DESC rsDesc = {};
-	rsDesc.NumParameters = 6;
+	rsDesc.NumParameters = 7;
 	rsDesc.pParameters = params;
 	rsDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
 
@@ -178,11 +189,21 @@ bool Player::InitPipeline(DXRender* render)
 	psoColor.DSVFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
 	psoColor.SampleDesc.Count = 1;
 	hr = render->GetDevice()->CreateGraphicsPipelineState(&psoColor, IID_PPV_ARGS(&m_psoColor));
+	if (FAILED(hr) && wantRt) {
+		printf("[Warn] Player: RT color PSO failed (0x%08X) — retrying nort\n", (unsigned)hr);
+		psBlob->Release();
+		psBlob = nullptr;
+		hr = D3DReadFileToBlob(L"pixel_shader_nort.cso", &psBlob);
+		if (SUCCEEDED(hr)) {
+			psoColor.PS = { psBlob->GetBufferPointer(), psBlob->GetBufferSize() };
+			hr = render->GetDevice()->CreateGraphicsPipelineState(&psoColor, IID_PPV_ARGS(&m_psoColor));
+		}
+	}
 	if (FAILED(hr)) {
 		vsBlob->Release();
-		psBlob->Release();
+		if (psBlob) psBlob->Release();
 		shadowPsBlob->Release();
-		printf("[Error] Player: CreateGraphicsPipelineState color failed\n");
+		printf("[Error] Player: CreateGraphicsPipelineState color failed (0x%08X)\n", (unsigned)hr);
 		return false;
 	}
 
@@ -384,10 +405,14 @@ bool Player::LoadModel(IMG* img, DXRender* render)
 		}
 	}
 
-	/* Build GPU meshes from binmesh splits. */
+	/* Build GPU meshes from binmesh splits (always triangle lists). */
 	for (uint32_t si = 0; si < skinGeom->splits.size(); si++) {
-		Split& split = skinGeom->splits[si];
 		uint32_t vCount = skinGeom->vertexCount;
+
+		std::vector<uint32_t> triIndices;
+		skinGeom->CollectSplitTriangles(si, triIndices);
+		if (triIndices.empty())
+			continue;
 
 		std::vector<SkinnedVertex> verts(vCount);
 		for (uint32_t v = 0; v < vCount; v++) {
@@ -415,11 +440,9 @@ bool Player::LoadModel(IMG* img, DXRender* render)
 		}
 
 		SkinnedMeshPart part = {};
-		part.indexCount = split.m_numIndices;
+		part.indexCount = (uint32_t)triIndices.size();
 		part.vertexCount = vCount;
-		part.topology = skinGeom->faceType == FACETYPE_STRIP
-			? D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP
-			: D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+		part.topology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 		part.hasAlpha = false;
 
 		if (FAILED(render->CreateDefaultBuffer(
@@ -430,21 +453,31 @@ bool Player::LoadModel(IMG* img, DXRender* render)
 		}
 
 		if (FAILED(render->CreateDefaultBuffer(
-			split.indices, (UINT64)(sizeof(unsigned int) * split.m_numIndices), &part.ib))) {
+			triIndices.data(), (UINT64)(sizeof(uint32_t) * triIndices.size()), &part.ib))) {
 			clump->Clear();
 			delete clump;
 			return false;
 		}
 
-		if (split.matIndex < skinGeom->m_numMaterials) {
-			Material* mat = skinGeom->materialList[split.matIndex];
+		if (skinGeom->splits[si].matIndex < skinGeom->m_numMaterials) {
+			Material* mat = skinGeom->materialList[skinGeom->splits[si].matIndex];
 			int ti = FindTexIndex(mat->texture.name);
 			if (ti >= 0) {
-				CreateTextureSRV(render, m_textures[ti], &part.texture);
-				part.hasAlpha = m_textures[ti].isAlpha;
+				if (FAILED(CreateTextureSRV(render, m_textures[ti], &part.texture)) ||
+					!part.texture.Valid()) {
+					part.texture = GpuTextureCache::Instance().ResolveOrBlack(render, nullptr);
+					printf("[Warn] Player: texture '%s' upload failed (black stub)\n",
+						mat->texture.name);
+				} else {
+					part.hasAlpha = m_textures[ti].isAlpha;
+				}
 			} else {
-				printf("[Warn] Player: texture '%s' not found\n", mat->texture.name);
+				part.texture = GpuTextureCache::Instance().ResolveOrBlack(render, nullptr);
+				printf("[Warn] Player: texture '%s' not found (black stub)\n",
+					mat->texture.name);
 			}
+		} else {
+			part.texture = GpuTextureCache::Instance().ResolveOrBlack(render, nullptr);
 		}
 
 		m_meshes.push_back(part);

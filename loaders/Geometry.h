@@ -169,6 +169,12 @@ struct Geometry {
 	void readMeshExtension(char* bytes, size_t* offset);
 
 	/*
+	 * Build a triangle list for one binmesh split.
+	 * Prefers BINMESH split indices (what re3/RW actually draw), then faces[].
+	 */
+	void CollectSplitTriangles(uint32_t splitIndex, std::vector<uint32_t>& outIndices) const;
+
+	/*
 	 * Expand a binmesh split to a triangle list for D3D12.
 	 * RW STRIP meshes use degenerate restarts; drawing them as
 	 * TRIANGLESTRIP drops / wrongly culls many faces.

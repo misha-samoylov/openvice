@@ -70,6 +70,13 @@ public:
 	/* Vertical cast for suspension / ground (engine Y-up). */
 	bool CastDownLine(float x, float z, float startY, float endY, float* hitY, ColVec3* hitNormal = nullptr) const;
 
+	/* Closest hit along a segment (engine Y-up). Used for occlusion culling. */
+	bool RayTestClosest(
+		float x0, float y0, float z0,
+		float x1, float y1, float z1,
+		float* hitX, float* hitY, float* hitZ,
+		ColVec3* hitNormal = nullptr) const;
+
 	size_t GetInstanceCount() const { return m_staticBodies.size(); }
 
 private:
@@ -87,12 +94,6 @@ private:
 	btCollisionShape* CreateMeshShape(ColModel* model, ShapeEntry& entry);
 	btCollisionShape* CreateCompoundShape(ColModel* model, ShapeEntry& entry);
 	void DestroyShapeEntry(ShapeEntry& entry);
-
-	bool RayTestClosest(
-		float x0, float y0, float z0,
-		float x1, float y1, float z1,
-		float* hitX, float* hitY, float* hitZ,
-		ColVec3* hitNormal) const;
 
 	btDefaultCollisionConfiguration* m_collisionConfig;
 	btCollisionDispatcher* m_dispatcher;

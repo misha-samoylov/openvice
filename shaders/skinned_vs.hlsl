@@ -11,7 +11,9 @@ cbuffer cbPerObject : register(b0)
 	float shadowBias;
 	float windTime;
 	float windAmount;
-	float2 padWind;
+	float2 padWindAlign;
+	float3 sunDir;
+	float padSun;
 };
 
 cbuffer cbBones : register(b1)

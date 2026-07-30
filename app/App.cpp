@@ -1,8 +1,10 @@
 #include "app/App.h"
 #include "core/GameConfig.h"
 #include "Utils.hpp"
+#include "assets/ContentLoader.h"
 
 #include <stdio.h>
+#include <vector>
 
 bool App::Initialize(HINSTANCE hInstance, int nCmdShow)
 {
@@ -35,6 +37,21 @@ bool App::Initialize(HINSTANCE hInstance, int nCmdShow)
 	TCHAR dirPath[] = GTA_VC_DIR_PATH;
 	m_img->Open(imgPath, dirPath);
 
+#if ENABLE_SINGLE_OBJECT_RT_DEMO
+	printf("[Info] RT MAP DEMO — IPL=cisland+golf, player/water/clouds disabled, free camera\n");
+	{
+		ContentLoader loader;
+		loader.LoadMapContent(m_img.get(), m_render.get(), m_assets);
+	}
+	m_scene.BuildFromAssets(m_assets, WORLD_HOUR);
+	if (m_scene.Opaque().empty() && m_scene.Alpha().empty()) {
+		printf("[Error] No instances placed from %s.ipl\n", DEMO_IPL_NAME);
+		MessageBoxA(NULL, "cisland.ipl produced an empty scene", "Error", MB_OK);
+		return false;
+	}
+	m_world.InitWater(m_render.get());
+	/* No player/vehicle/clouds/collision — water feeds RT sea plane. */
+#else
 	ContentLoader loader;
 	loader.LoadMapContent(m_img.get(), m_render.get(), m_assets);
 
@@ -42,14 +59,75 @@ bool App::Initialize(HINSTANCE hInstance, int nCmdShow)
 
 	m_world.InitFromAssets(
 		m_assets, m_scene, m_img.get(), m_render.get(), m_renderer.PhysicsDebug());
+#endif
 
 	/* Finish pending DEFAULT-buffer / texture uploads from ContentLoader + world. */
 	m_render->FlushUploads();
 	printf("[Info] SRV descriptors used: %u\n", m_render->GetSrvCount());
 
-	m_session.InitCameraState();
+#if ENABLE_RT_SHADOWS
+	if (!m_renderer.BuildRayTracing(m_render.get(), m_scene))
+		printf("[Warn] Scene TLAS not ready — using empty fallback TLAS for RayQuery\n");
+#endif
 
-	printf("[Info] %s loaded\n", PROJECT_NAME);
+	m_session.InitCameraState();
+#if ENABLE_SINGLE_OBJECT_RT_DEMO
+	{
+		/* Spawn free-cam above the island centroid. */
+		double sx = 0, sy = 0, sz = 0;
+		size_t n = 0;
+		auto accum = [&](const std::vector<SceneInstance>& list) {
+			for (size_t i = 0; i < list.size(); i++) {
+				sx += list[i].x;
+				sy += list[i].y;
+				sz += list[i].z;
+				n++;
+			}
+		};
+		accum(m_scene.Opaque());
+		accum(m_scene.Alpha());
+		if (n > 0) {
+			float cx = (float)(sx / (double)n);
+			float cy = (float)(sy / (double)n);
+			float cz = (float)(sz / (double)n);
+			/* Sit above/south of the island and look toward the centroid. */
+			m_camera->SetPosition(cx, cy + 60.0f, cz - 140.0f);
+			m_session.SetFreeCamLook(0.0f, 0.28f);
+			m_camera->Update(0.28f, 0.0f, 0.0f, 0.0f);
+			printf("[Info] Free cam start (%.1f, %.1f, %.1f) look→(%.1f,%.1f,%.1f) instances=%zu\n",
+				cx, cy + 60.0f, cz - 140.0f, cx, cy, cz, n);
+		}
+	}
+#endif
+
+	const bool fullRt =
+#if ENABLE_RT_FULL_SCENE
+		m_renderer.GetRtFull() && m_renderer.GetRtFull()->IsReady();
+#else
+		false;
+#endif
+
+	printf("[Info] %s loaded - opaque=%zu alpha=%zu rtPS=%d fullRT=%d fallbackTlas=0x%llX\n",
+		PROJECT_NAME,
+		m_scene.Opaque().size(),
+		m_scene.Alpha().size(),
+		Mesh::HasRtPixelShader() ? 1 : 0,
+		fullRt ? 1 : 0,
+		(unsigned long long)m_render->GetFallbackTlasVA());
+	fflush(stdout);
+	{
+		FILE* vf = nullptr;
+		if (fopen_s(&vf, "openvice_verify.log", "w") == 0 && vf) {
+			fprintf(vf, "[Info] %s loaded - opaque=%zu alpha=%zu rtPS=%d fullRT=%d fallbackTlas=0x%llX\n",
+				PROJECT_NAME,
+				m_scene.Opaque().size(),
+				m_scene.Alpha().size(),
+				Mesh::HasRtPixelShader() ? 1 : 0,
+				fullRt ? 1 : 0,
+				(unsigned long long)m_render->GetFallbackTlasVA());
+			fclose(vf);
+		}
+	}
 	return true;
 }
 

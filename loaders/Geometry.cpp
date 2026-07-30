@@ -10,6 +10,9 @@ void Geometry::read(char* bytes, size_t* offset)
 
 	header.read(bytes, offset); // CHUNK_GEOMETRY
 	header.read(bytes, offset); // CHUNK_STRUCT
+	const uint32_t structLen = header.length;
+	const uint32_t structVersion = header.version;
+	const size_t structEnd = *offset + structLen;
 
 	flags = readUInt16(bytes, offset);
 	numUVs = readUInt8(bytes, offset);
@@ -22,16 +25,37 @@ void Geometry::read(char* bytes, size_t* offset)
 
 	*offset += 4; /* number of morph targets, uninteresting */
 
-	// skip light info
-	if (header.version < 0x34000)
-		// rw.seekg(12, ios::cur);
-		*offset += 12;
+	/*
+	 * Old RW (< 3.4) stored ambient/specular/diffuse here. GTA VC/III PC
+	 * library IDs (e.g. 0x1003FFFF) decode to version 0x3000x but omit those
+	 * 12 bytes — blindly skipping desyncs faces/vertices (e.g. odn_majest_dy).
+	 * Only skip when the STRUCT size actually includes the lighting block.
+	 */
+	if (structVersion < 0x34000) {
+		size_t need = 0;
+		if (!hasNativeGeometry) {
+			if (flags & FLAGS_PRELIT)
+				need += 4u * vertexCount;
+			if (flags & FLAGS_TEXTURED)
+				need += 8u * vertexCount;
+			if (flags & FLAGS_TEXTURED2)
+				need += 8u * vertexCount * numUVs;
+			need += 8u * triangleCount;
+		}
+		need += 16u + 8u; /* boundingSphere + hasPositions/hasNormals */
+		if (!hasNativeGeometry) {
+			need += 12u * vertexCount;
+			if (flags & FLAGS_NORMALS)
+				need += 12u * vertexCount;
+		}
+		const size_t remaining = (structEnd > *offset) ? (structEnd - *offset) : 0;
+		if (remaining == need + 12)
+			*offset += 12;
+	}
 
 	if (!hasNativeGeometry) {
 		if (flags & FLAGS_PRELIT) {
 			vertexColors.resize(4 * vertexCount);
-			//rw.read((char *) (&vertexColors[0]),
-			//         4*vertexCount*sizeof(uint8_t));
 			memcpy((char*)(&vertexColors[0]),
 				&bytes[*offset],
 				4 * vertexCount * sizeof(uint8_t));
@@ -39,8 +63,6 @@ void Geometry::read(char* bytes, size_t* offset)
 		}
 		if (flags & FLAGS_TEXTURED) {
 			texCoords[0].resize(2 * vertexCount);
-			//rw.read((char *) (&texCoords[0][0]),
-			//         2*vertexCount*sizeof(float));
 			memcpy((char*)(&texCoords[0][0]),
 				&bytes[*offset],
 				2 * vertexCount * sizeof(float));
@@ -50,9 +72,6 @@ void Geometry::read(char* bytes, size_t* offset)
 		if (flags & FLAGS_TEXTURED2) {
 			for (uint32_t i = 0; i < numUVs; i++) {
 				texCoords[i].resize(2 * vertexCount);
-				//rw.read((char *) (&texCoords[i][0]),
-				//	 2*vertexCount*sizeof(float));
-
 				memcpy((char*)(&texCoords[i][0]),
 					&bytes[*offset],
 					2 * vertexCount * sizeof(float));
@@ -60,7 +79,6 @@ void Geometry::read(char* bytes, size_t* offset)
 			}
 		}
 		faces.resize(4 * triangleCount);
-		//rw.read((char *) (&faces[0]), 4*triangleCount*sizeof(uint16_t));
 		memcpy((char*)(&faces[0]),
 			&bytes[*offset],
 			4 * triangleCount * sizeof(uint16_t));
@@ -68,22 +86,18 @@ void Geometry::read(char* bytes, size_t* offset)
 	}
 
 	/* morph targets, only 1 in gta */
-	//rw.read((char *)(boundingSphere), 4*sizeof(float));
 	memcpy((char*)(boundingSphere),
 		&bytes[*offset],
 		4 * sizeof(float));
 	*offset += 4 * sizeof(float);
 
-	//hasPositions = (flags & FLAGS_POSITIONS) ? 1 : 0;
 	hasPositions = readUInt32(bytes, offset);
 	hasNormals = readUInt32(bytes, offset);
-	// need to recompute:
 	hasPositions = 1;
 	hasNormals = (flags & FLAGS_NORMALS) ? 1 : 0;
 
 	if (!hasNativeGeometry) {
 		size_t sz = 3 * vertexCount * sizeof(float);
-		// TODO: Free memory vertices
 		vertices = (float*)malloc(sz);
 		memcpy(
 			(char*)(&vertices[0]),
@@ -93,32 +107,27 @@ void Geometry::read(char* bytes, size_t* offset)
 		*offset += sz;
 
 		if (flags & FLAGS_NORMALS) {
-			// TODO: Free memory normals
-			size_t sz = 3 * vertexCount * sizeof(float);
-			normals = (float*)malloc(sz);
+			size_t nsz = 3 * vertexCount * sizeof(float);
+			normals = (float*)malloc(nsz);
 			memcpy(
 				(char*)(&normals[0]),
 				&bytes[*offset],
-				sz
+				nsz
 			);
-			*offset += sz;
-
+			*offset += nsz;
 		}
-
 	}
+
+	/* Resync to STRUCT end in case of padding / unknown trailing bytes. */
+	if (*offset != structEnd)
+		*offset = structEnd;
 
 	header.read(bytes, offset); // CHUNK_MATLIST
 	header.read(bytes, offset); // CHUNK_STRUCT
 
 	m_numMaterials = readUInt32(bytes, offset);
-	//rw.seekg(numMaterials*4, ios::cur);
-	*offset += m_numMaterials * 4; // constrant
+	*offset += m_numMaterials * 4;
 
-
-	// Material
-	/**
-	* TODO: Free materialList.
-	*/
 	materialList = new Material * [m_numMaterials];
 
 	for (uint32_t i = 0; i < m_numMaterials; i++)
@@ -151,19 +160,22 @@ void Geometry::readExtension(char* bytes, size_t* offset)
 			splits.resize(numSplits);
 			bool hasData = header.length > 12 + numSplits * 8;
 			for (uint32_t i = 0; i < numSplits; i++) {
-				uint32_t numIndices = readUInt32(bytes, offset);
+				uint32_t splitIndexCount = readUInt32(bytes, offset);
 				splits[i].matIndex = readUInt32(bytes, offset);
-				splits[i].m_numIndices = numIndices;
-				// TODO: Free indices
-				splits[i].indices = (uint32_t*)malloc(sizeof(uint32_t) * numIndices);
+				splits[i].m_numIndices = splitIndexCount;
+				splits[i].indices = (uint32_t*)malloc(sizeof(uint32_t) * splitIndexCount);
 				if (hasData) {
-					/* OpenGL Data */
 					if (hasNativeGeometry)
-						for (uint32_t j = 0; j < numIndices; j++)
+						for (uint32_t j = 0; j < splitIndexCount; j++)
 							splits[i].indices[j] = readUInt16(bytes, offset);
 					else
-						for (uint32_t j = 0; j < numIndices; j++)
+						for (uint32_t j = 0; j < splitIndexCount; j++)
 							splits[i].indices[j] = readUInt32(bytes, offset);
+				} else {
+					/* Header-only binmesh — no index payload; do not leave garbage. */
+					free(splits[i].indices);
+					splits[i].indices = nullptr;
+					splits[i].m_numIndices = 0;
 				}
 			}
 			break;
@@ -175,21 +187,15 @@ void Geometry::readExtension(char* bytes, size_t* offset)
 
 			if (header.build == build && header.type == CHUNK_STRUCT) {
 				uint32_t platform = readUInt32(bytes, offset);
-				//rw.seekg(beg, ios::beg);
-				*offset += beg;
-
-				//if(platform == PLATFORM_PS2)
-				//	readPs2NativeData(rw);
-				//else if(platform == PLATFORM_XBOX)
-				//	readXboxNativeData(rw);
-				//else
-				std::cout << "unknown platform " <<
-					platform << std::endl;
+				/* seekg(beg) — absolute reset, not += */
+				*offset = beg;
+				(void)platform;
+				/* Platform native decode not implemented — skip chunk. */
+				*offset = beg + size;
 			}
 			else {
-				//rw.seekg(beg, ios::beg);
-				*offset += beg;
-				//readOglNativeData(rw, size);
+				*offset = beg;
+				*offset = beg + size;
 			}
 			break;
 		}
@@ -230,27 +236,21 @@ void Geometry::readExtension(char* bytes, size_t* offset)
 		} case CHUNK_SKIN: {
 			if (hasNativeGeometry) {
 				size_t beg = *offset;
-				//rw.seekg(0x0c, ios::cur);
 				*offset += 0x0c;
 
 				uint32_t platform = readUInt32(bytes, offset);
-				//rw.seekg(beg, ios::beg);
-				*offset += beg;
+				/* seekg(beg) — absolute reset, not += */
+				*offset = beg;
 
-				//				streampos end = beg+header.length;
 				if (platform == PLATFORM_OGL ||
 					platform == PLATFORM_PS2) {
 					hasSkin = true;
 					readNativeSkinMatrices(bytes, offset);
-					//}else if(platform == PLATFORM_XBOX){
-					//	hasSkin = true;
-					//	readXboxNativeSkin(rw);
 				}
 				else {
 					std::cout << "skin: unknown platform "
 						<< platform << std::endl;
-					//rw.seekg(header.length, ios::cur);
-					*offset = header.length;
+					*offset = beg + header.length;
 				}
 			}
 			else {
@@ -480,6 +480,52 @@ bool Geometry::isDegenerateFace(uint32_t i, uint32_t j, uint32_t k)
 	return false;
 }
 
+void Geometry::CollectSplitTriangles(uint32_t splitIndex, std::vector<uint32_t>& outIndices) const
+{
+	outIndices.clear();
+	if (splitIndex >= splits.size())
+		return;
+
+	const Split& s = splits[splitIndex];
+
+	/*
+	 * re3 / RenderWare draw from Bin Mesh PLG (splits), not geometry faces[].
+	 * faces[] can disagree with BINMESH (blimp_day: same tri count, different
+	 * connectivity) and produce needle/spike artefacts when used for D3D lists.
+	 * Prefer expanding the split whenever index payload is present.
+	 */
+	if (s.indices && s.m_numIndices >= 3) {
+		ExpandSplitToTriangles(splitIndex, outIndices);
+		if (!outIndices.empty())
+			return;
+	}
+
+	/*
+	 * Fallback: STRUCT RpTriangle list
+	 *   { vertex2, vertex1, materialId, vertex3 } → draw (v1, v2, v3)
+	 */
+	if (!faces.empty() && vertexCount > 0) {
+		const uint32_t mat = s.matIndex;
+		const uint32_t triCount = (uint32_t)(faces.size() / 4);
+		outIndices.reserve(triCount * 3);
+		for (uint32_t t = 0; t < triCount; t++) {
+			const uint32_t v2 = faces[t * 4 + 0];
+			const uint32_t v1 = faces[t * 4 + 1];
+			const uint32_t faceMat = faces[t * 4 + 2];
+			const uint32_t v3 = faces[t * 4 + 3];
+			if (faceMat != mat)
+				continue;
+			if (v1 >= vertexCount || v2 >= vertexCount || v3 >= vertexCount)
+				continue;
+			if (v1 == v2 || v1 == v3 || v2 == v3)
+				continue;
+			outIndices.push_back(v1);
+			outIndices.push_back(v2);
+			outIndices.push_back(v3);
+		}
+	}
+}
+
 void Geometry::ExpandSplitToTriangles(uint32_t splitIndex, std::vector<uint32_t>& outIndices) const
 {
 	outIndices.clear();
@@ -489,6 +535,8 @@ void Geometry::ExpandSplitToTriangles(uint32_t splitIndex, std::vector<uint32_t>
 	const Split& s = splits[splitIndex];
 	if (!s.indices || s.m_numIndices < 3)
 		return;
+
+	const uint32_t vCount = vertexCount;
 
 	if (faceType == FACETYPE_STRIP) {
 		/*
@@ -502,6 +550,8 @@ void Geometry::ExpandSplitToTriangles(uint32_t splitIndex, std::vector<uint32_t>
 			uint32_t i2 = s.indices[j + 2];
 			if (i0 == i1 || i0 == i2 || i1 == i2)
 				continue;
+			if (vCount > 0 && (i0 >= vCount || i1 >= vCount || i2 >= vCount))
+				continue;
 			if ((j & 1) == 0) {
 				outIndices.push_back(i0);
 				outIndices.push_back(i1);
@@ -514,9 +564,16 @@ void Geometry::ExpandSplitToTriangles(uint32_t splitIndex, std::vector<uint32_t>
 		}
 	} else {
 		for (uint32_t j = 0; j + 2 < s.m_numIndices; j += 3) {
-			outIndices.push_back(s.indices[j + 0]);
-			outIndices.push_back(s.indices[j + 1]);
-			outIndices.push_back(s.indices[j + 2]);
+			uint32_t i0 = s.indices[j + 0];
+			uint32_t i1 = s.indices[j + 1];
+			uint32_t i2 = s.indices[j + 2];
+			if (i0 == i1 || i0 == i2 || i1 == i2)
+				continue;
+			if (vCount > 0 && (i0 >= vCount || i1 >= vCount || i2 >= vCount))
+				continue;
+			outIndices.push_back(i0);
+			outIndices.push_back(i1);
+			outIndices.push_back(i2);
 		}
 	}
 }

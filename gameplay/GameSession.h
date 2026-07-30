@@ -12,6 +12,7 @@ public:
 	GameSession();
 
 	void InitCameraState();
+	void SetFreeCamLook(float yaw, float pitch);
 	void HandleFrame(
 		float frameTime,
 		Input* input,

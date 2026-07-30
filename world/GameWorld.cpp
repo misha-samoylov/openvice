@@ -72,7 +72,11 @@ bool GameWorld::InitFromAssets(
 
 	ContentLoader::LoadTexturesFromTxd(img, assets, "cheetah");
 	char cheetahName[] = "cheetah";
-	if (DffLoader::LoadVehicleDff(img, render, assets, cheetahName, MI_CHEETAH) == 0) {
+	assets.Txd().PushCurrentTxd();
+	assets.Txd().SetCurrentTxdByName("cheetah");
+	int cheetahLoad = DffLoader::LoadVehicleDff(img, render, assets, cheetahName, MI_CHEETAH);
+	assets.Txd().PopCurrentTxd();
+	if (cheetahLoad == 0) {
 		Model* cheetahModel = assets.FindModelById(MI_CHEETAH);
 		ColModel* cheetahCol = assets.Col() ? assets.Col()->FindByName("cheetah") : nullptr;
 		m_vehicle.reset(new Vehicle());
@@ -110,9 +114,15 @@ bool GameWorld::InitFromAssets(
 			m_player.reset();
 		} else {
 			m_player->SetCollisionWorld(m_collision.get());
-			m_player->SetPosition(0.0f, 50.0f, 0.0f);
+			float sx = 0.0f, sy = 50.0f, sz = 0.0f;
+			if (scene.GetSpawnHint(&sx, &sy, &sz)) {
+				printf("[Info] Spawn hint from scene: %.1f %.1f %.1f\n", sx, sy, sz);
+			} else {
+				printf("[Warn] No scene spawn hint — using origin\n");
+			}
+			m_player->SetPosition(sx, sy, sz);
 			if (!m_player->PlaceOnGround()) {
-				printf("[Warn] Player PlaceOnGround failed at spawn, keeping Y=50\n");
+				printf("[Warn] Player PlaceOnGround failed at spawn, keeping Y=%.1f\n", sy);
 			} else {
 				XMVECTOR p = m_player->GetPosition();
 				printf("[Info] Player placed on ground at %.2f %.2f %.2f\n",
@@ -128,6 +138,18 @@ bool GameWorld::InitFromAssets(
 		}
 	}
 
+	return true;
+}
+
+bool GameWorld::InitWater(DXRender* render)
+{
+	m_water.reset(new Water());
+	if (!m_water->Init(render, GTA_VC_WATERPRO, GTA_VC_PARTICLE_TXD)) {
+		printf("[Warn] Water failed to init, continuing without water\n");
+		m_water.reset();
+		return false;
+	}
+	printf("[Info] RT water ready — seaY=%.3f\n", m_water->GetSeaLevelY());
 	return true;
 }
 

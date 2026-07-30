@@ -1,5 +1,7 @@
 ﻿#include "Mesh.hpp"
 #include "graphics/TextureFactory.h"
+#include "graphics/GpuTextureCache.h"
+#include "core/GameConfig.h"
 
 #include <d3dcompiler.h>
 
@@ -15,6 +17,7 @@ ID3D12PipelineState* Mesh::s_psoWire = nullptr;
 UINT Mesh::s_samplerIndex = UINT_MAX;
 UINT Mesh::s_shadowSamplerIndex = UINT_MAX;
 int Mesh::s_sharedRefCount = 0;
+bool Mesh::s_rtPixelShader = false;
 ID3DBlob* Mesh::s_vsBlob = nullptr;
 ID3DBlob* Mesh::s_psBlob = nullptr;
 ID3DBlob* Mesh::s_shadowPsBlob = nullptr;
@@ -109,18 +112,46 @@ HRESULT Mesh::EnsureSharedPipeline(DXRender* pRender)
 
 	HRESULT hr = D3DReadFileToBlob(L"vertex_shader.cso", &s_vsBlob);
 	if (FAILED(hr)) {
-		printf("Error: cannot read compiled vertex shader\n");
-		return hr;
-	}
-	hr = D3DReadFileToBlob(L"pixel_shader.cso", &s_psBlob);
-	if (FAILED(hr)) {
-		printf("Error: cannot read compiled pixel shader\n");
+		printf("Error: cannot read compiled vertex shader (0x%08X)\n", (unsigned)hr);
 		return hr;
 	}
 	hr = D3DReadFileToBlob(L"shadow_ps.cso", &s_shadowPsBlob);
 	if (FAILED(hr)) {
-		printf("Error: cannot read compiled shadow pixel shader\n");
+		printf("Error: cannot read compiled shadow pixel shader (0x%08X)\n", (unsigned)hr);
 		return hr;
+	}
+
+	/*
+	 * Per-pixel RayQuery (SM 6.5) TDRs on this scene/GPU — ENABLE_RT_INLINE_PS=0.
+	 * pixel_shader.cso is analytical sun lighting only (no acceleration structure).
+	 */
+	s_rtPixelShader = false;
+	hr = D3DReadFileToBlob(L"pixel_shader.cso", &s_psBlob);
+	if (FAILED(hr)) {
+		printf("[Warn] pixel_shader.cso missing (0x%08X) — trying pixel_shader_nort.cso\n",
+			(unsigned)hr);
+	}
+#if ENABLE_RT_INLINE_PS
+	else if (pRender->SupportsRaytracing()) {
+		s_rtPixelShader = true;
+	} else {
+		printf("[Warn] GPU has no DXR — using non-RT pixel shader\n");
+		s_psBlob->Release();
+		s_psBlob = nullptr;
+	}
+#else
+	else {
+		printf("[Info] Inline RT mesh PS disabled (ENABLE_RT_INLINE_PS=0) — analytical sun\n");
+	}
+#endif
+
+	if (!s_psBlob) {
+		hr = D3DReadFileToBlob(L"pixel_shader_nort.cso", &s_psBlob);
+		if (FAILED(hr)) {
+			printf("Error: cannot read pixel_shader_nort.cso (0x%08X)\n", (unsigned)hr);
+			return hr;
+		}
+		s_rtPixelShader = false;
 	}
 
 	D3D12_DESCRIPTOR_RANGE srv0 = {};
@@ -143,7 +174,8 @@ HRESULT Mesh::EnsureSharedPipeline(DXRender* pRender)
 	samp1.NumDescriptors = 1;
 	samp1.BaseShaderRegister = 1;
 
-	D3D12_ROOT_PARAMETER params[5] = {};
+	/* t2 = root SRV (TLAS GPU VA) — required for RayQuery; unused by nort PS. */
+	D3D12_ROOT_PARAMETER params[6] = {};
 	params[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
 	params[0].Descriptor.ShaderRegister = 0;
 	params[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
@@ -158,18 +190,22 @@ HRESULT Mesh::EnsureSharedPipeline(DXRender* pRender)
 	params[2].DescriptorTable.pDescriptorRanges = &srv1;
 	params[2].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 
-	params[3].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-	params[3].DescriptorTable.NumDescriptorRanges = 1;
-	params[3].DescriptorTable.pDescriptorRanges = &samp0;
+	params[3].ParameterType = D3D12_ROOT_PARAMETER_TYPE_SRV;
+	params[3].Descriptor.ShaderRegister = 2;
 	params[3].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 
 	params[4].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
 	params[4].DescriptorTable.NumDescriptorRanges = 1;
-	params[4].DescriptorTable.pDescriptorRanges = &samp1;
+	params[4].DescriptorTable.pDescriptorRanges = &samp0;
 	params[4].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 
+	params[5].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+	params[5].DescriptorTable.NumDescriptorRanges = 1;
+	params[5].DescriptorTable.pDescriptorRanges = &samp1;
+	params[5].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+
 	D3D12_ROOT_SIGNATURE_DESC rsDesc = {};
-	rsDesc.NumParameters = 5;
+	rsDesc.NumParameters = 6;
 	rsDesc.pParameters = params;
 	rsDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
 
@@ -186,42 +222,75 @@ HRESULT Mesh::EnsureSharedPipeline(DXRender* pRender)
 	hr = pRender->GetDevice()->CreateRootSignature(
 		0, sigBlob->GetBufferPointer(), sigBlob->GetBufferSize(), IID_PPV_ARGS(&s_rootSig));
 	sigBlob->Release();
-	if (FAILED(hr))
+	if (FAILED(hr)) {
+		printf("Error: CreateRootSignature failed (0x%08X)\n", (unsigned)hr);
 		return hr;
+	}
 
 	const DXGI_FORMAT rtv = DXGI_FORMAT_R8G8B8A8_UNORM;
-	hr = CreateMeshPso(pRender->GetDevice(), s_rootSig, s_vsBlob, s_psBlob,
-		MakeBlendOpaque(false), MakeRaster(D3D12_CULL_MODE_FRONT, false), MakeDepth(true),
-		rtv, false, &s_psoOpaque);
-	if (FAILED(hr))
+
+	auto createColorPsos = [&](ID3DBlob* ps) -> HRESULT {
+		HRESULT e = CreateMeshPso(pRender->GetDevice(), s_rootSig, s_vsBlob, ps,
+			MakeBlendOpaque(false), MakeRaster(D3D12_CULL_MODE_FRONT, false), MakeDepth(true),
+			rtv, false, &s_psoOpaque);
+		if (FAILED(e)) return e;
+		e = CreateMeshPso(pRender->GetDevice(), s_rootSig, s_vsBlob, ps,
+			MakeBlendOpaque(true), MakeRaster(D3D12_CULL_MODE_FRONT, false), MakeDepth(true),
+			rtv, false, &s_psoCutout);
+		if (FAILED(e)) return e;
+		e = CreateMeshPso(pRender->GetDevice(), s_rootSig, s_vsBlob, ps,
+			MakeBlendSoft(), MakeRaster(D3D12_CULL_MODE_FRONT, false), MakeDepth(false),
+			rtv, false, &s_psoSoft);
+		if (FAILED(e)) return e;
+		e = CreateMeshPso(pRender->GetDevice(), s_rootSig, s_vsBlob, ps,
+			MakeBlendOpaque(false), MakeRaster(D3D12_CULL_MODE_NONE, false), MakeDepth(true),
+			rtv, false, &s_psoOpaqueCullNone);
+		if (FAILED(e)) return e;
+		e = CreateMeshPso(pRender->GetDevice(), s_rootSig, s_vsBlob, ps,
+			MakeBlendOpaque(true), MakeRaster(D3D12_CULL_MODE_NONE, false), MakeDepth(true),
+			rtv, false, &s_psoCutoutCullNone);
+		if (FAILED(e)) return e;
+		e = CreateMeshPso(pRender->GetDevice(), s_rootSig, s_vsBlob, ps,
+			MakeBlendSoft(), MakeRaster(D3D12_CULL_MODE_NONE, false), MakeDepth(false),
+			rtv, false, &s_psoSoftCullNone);
+		if (FAILED(e)) return e;
+		e = CreateMeshPso(pRender->GetDevice(), s_rootSig, s_vsBlob, ps,
+			MakeBlendOpaque(false), MakeRaster(D3D12_CULL_MODE_NONE, true), MakeDepth(true),
+			rtv, false, &s_psoWire);
+		return e;
+	};
+
+	auto releaseColorPsos = [&]() {
+		if (s_psoOpaque) { s_psoOpaque->Release(); s_psoOpaque = nullptr; }
+		if (s_psoCutout) { s_psoCutout->Release(); s_psoCutout = nullptr; }
+		if (s_psoSoft) { s_psoSoft->Release(); s_psoSoft = nullptr; }
+		if (s_psoOpaqueCullNone) { s_psoOpaqueCullNone->Release(); s_psoOpaqueCullNone = nullptr; }
+		if (s_psoCutoutCullNone) { s_psoCutoutCullNone->Release(); s_psoCutoutCullNone = nullptr; }
+		if (s_psoSoftCullNone) { s_psoSoftCullNone->Release(); s_psoSoftCullNone = nullptr; }
+		if (s_psoWire) { s_psoWire->Release(); s_psoWire = nullptr; }
+	};
+
+	hr = createColorPsos(s_psBlob);
+	if (FAILED(hr) && s_rtPixelShader) {
+		printf("[Warn] RT mesh PSO failed (0x%08X) — falling back to pixel_shader_nort.cso\n",
+			(unsigned)hr);
+		releaseColorPsos();
+		s_psBlob->Release();
+		s_psBlob = nullptr;
+		s_rtPixelShader = false;
+		hr = D3DReadFileToBlob(L"pixel_shader_nort.cso", &s_psBlob);
+		if (FAILED(hr)) {
+			printf("Error: cannot read pixel_shader_nort.cso (0x%08X)\n", (unsigned)hr);
+			return hr;
+		}
+		hr = createColorPsos(s_psBlob);
+	}
+	if (FAILED(hr)) {
+		printf("Error: CreateGraphicsPipelineState (color) failed (0x%08X)\n", (unsigned)hr);
 		return hr;
-	hr = CreateMeshPso(pRender->GetDevice(), s_rootSig, s_vsBlob, s_psBlob,
-		MakeBlendOpaque(true), MakeRaster(D3D12_CULL_MODE_FRONT, false), MakeDepth(true),
-		rtv, false, &s_psoCutout);
-	if (FAILED(hr))
-		return hr;
-	hr = CreateMeshPso(pRender->GetDevice(), s_rootSig, s_vsBlob, s_psBlob,
-		MakeBlendSoft(), MakeRaster(D3D12_CULL_MODE_FRONT, false), MakeDepth(false),
-		rtv, false, &s_psoSoft);
-	if (FAILED(hr))
-		return hr;
-	hr = CreateMeshPso(pRender->GetDevice(), s_rootSig, s_vsBlob, s_psBlob,
-		MakeBlendOpaque(false), MakeRaster(D3D12_CULL_MODE_NONE, false), MakeDepth(true),
-		rtv, false, &s_psoOpaqueCullNone);
-	if (FAILED(hr))
-		return hr;
-	hr = CreateMeshPso(pRender->GetDevice(), s_rootSig, s_vsBlob, s_psBlob,
-		MakeBlendOpaque(true), MakeRaster(D3D12_CULL_MODE_NONE, false), MakeDepth(true),
-		rtv, false, &s_psoCutoutCullNone);
-	if (FAILED(hr))
-		return hr;
-	hr = CreateMeshPso(pRender->GetDevice(), s_rootSig, s_vsBlob, s_psBlob,
-		MakeBlendSoft(), MakeRaster(D3D12_CULL_MODE_NONE, false), MakeDepth(false),
-		rtv, false, &s_psoSoftCullNone);
-	if (FAILED(hr))
-		return hr;
+	}
+
 	{
-		/* Depth bias formerly set via ShadowMap rasterizer state. */
 		D3D12_RASTERIZER_DESC shadowR = MakeRaster(D3D12_CULL_MODE_NONE, false);
 		shadowR.DepthBias = 16;
 		shadowR.DepthBiasClamp = 0.00018f;
@@ -230,13 +299,10 @@ HRESULT Mesh::EnsureSharedPipeline(DXRender* pRender)
 			MakeBlendOpaque(false), shadowR, MakeDepth(true),
 			rtv, true, &s_psoShadow);
 	}
-	if (FAILED(hr))
+	if (FAILED(hr)) {
+		printf("Error: CreateGraphicsPipelineState (shadow) failed (0x%08X)\n", (unsigned)hr);
 		return hr;
-	hr = CreateMeshPso(pRender->GetDevice(), s_rootSig, s_vsBlob, s_psBlob,
-		MakeBlendOpaque(false), MakeRaster(D3D12_CULL_MODE_NONE, true), MakeDepth(true),
-		rtv, false, &s_psoWire);
-	if (FAILED(hr))
-		return hr;
+	}
 
 	D3D12_SAMPLER_DESC samp = {};
 	samp.Filter = D3D12_FILTER_ANISOTROPIC;
@@ -256,7 +322,11 @@ HRESULT Mesh::EnsureSharedPipeline(DXRender* pRender)
 	cmp.ComparisonFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
 	cmp.BorderColor[0] = cmp.BorderColor[1] = cmp.BorderColor[2] = cmp.BorderColor[3] = 1.0f;
 	s_shadowSamplerIndex = pRender->CreateSampler(cmp);
-	return (s_shadowSamplerIndex != UINT_MAX) ? S_OK : E_FAIL;
+	if (s_shadowSamplerIndex == UINT_MAX)
+		return E_FAIL;
+
+	printf("[Info] Mesh pipeline ready (RT pixel shader=%d)\n", s_rtPixelShader ? 1 : 0);
+	return S_OK;
 }
 
 void Mesh::ReleaseSharedResources()
@@ -276,6 +346,7 @@ void Mesh::ReleaseSharedResources()
 	s_samplerIndex = UINT_MAX;
 	s_shadowSamplerIndex = UINT_MAX;
 	s_sharedRefCount = 0;
+	s_rtPixelShader = false;
 }
 
 void Mesh::Cleanup()
@@ -288,11 +359,12 @@ void Mesh::Cleanup()
 		m_pIndexBuffer->Release();
 		m_pIndexBuffer = nullptr;
 	}
-	if (m_texture.resource) {
+	if (m_ownsTexture && m_texture.resource) {
 		m_texture.resource->Release();
-		m_texture.resource = nullptr;
-		m_texture.srvIndex = UINT_MAX;
 	}
+	m_texture.resource = nullptr;
+	m_texture.srvIndex = UINT_MAX;
+	m_ownsTexture = true;
 	m_vertexData.clear();
 
 	if (s_sharedRefCount > 0) {
@@ -379,11 +451,16 @@ void Mesh::Render(DXRender* pRender, MeshRenderContext& ctx)
 	m_objectConstBuffer.fogEnd = ctx.fogEnd;
 	m_objectConstBuffer.receiveShadows =
 		(ctx.pass == MESH_PASS_COLOR) ? ctx.receiveShadows : 0.0f;
+	/* RT PS needs a TLAS VA; without it draw unshadowed (never skip the mesh). */
+	if (s_rtPixelShader && ctx.rtAccelVA == 0)
+		m_objectConstBuffer.receiveShadows = 0.0f;
 	m_objectConstBuffer.shadowBias = ctx.shadowBias;
 	m_objectConstBuffer.windTime = ctx.windTime;
 	m_objectConstBuffer.windAmount = m_windAmount;
-	m_objectConstBuffer.padWind[0] = 0.0f;
-	m_objectConstBuffer.padWind[1] = 0.0f;
+	m_objectConstBuffer.padWindAlign[0] = 0.0f;
+	m_objectConstBuffer.padWindAlign[1] = 0.0f;
+	m_objectConstBuffer.sunDir = ctx.sunDir;
+	m_objectConstBuffer.padSun = 0.0f;
 
 	D3D12_GPU_VIRTUAL_ADDRESS cbAddr = 0;
 	void* cbPtr = pRender->AllocFrameConstants(sizeof(m_objectConstBuffer), &cbAddr);
@@ -393,22 +470,42 @@ void Mesh::Render(DXRender* pRender, MeshRenderContext& ctx)
 	cmd->SetGraphicsRootConstantBufferView(0, cbAddr);
 
 	UINT texSrv = m_texture.srvIndex;
-	if (texSrv == UINT_MAX)
-		return;
+	if (texSrv == UINT_MAX) {
+		GpuTextureCache::Instance().EnsureBlack(pRender);
+		if (GpuTextureCache::Instance().HasBlack())
+			texSrv = GpuTextureCache::Instance().Black().srvIndex;
+		else
+			return;
+	}
 
 	/* Separate root tables — never rewrite a shared scratch descriptor (GPU reads at execute). */
 	cmd->SetGraphicsRootDescriptorTable(1, pRender->GetSrvGpu(texSrv));
+	/* t1 is Texture2D placeholder (CSM off) — same type as albedo, never a Texture2DArray. */
 	UINT shadowSrv = (ctx.pass == MESH_PASS_COLOR && ctx.shadowSrvIndex != UINT_MAX)
 		? ctx.shadowSrvIndex : texSrv;
 	cmd->SetGraphicsRootDescriptorTable(2, pRender->GetSrvGpu(shadowSrv));
 
+	/*
+	 * t2 is a root SRV (TLAS VA). Never bind 0 — that TDR/whitescreens with RayQuery PS.
+	 */
+	D3D12_GPU_VIRTUAL_ADDRESS tlasVA = ctx.rtAccelVA;
+	if (s_rtPixelShader) {
+		if (tlasVA == 0)
+			tlasVA = pRender->GetFallbackTlasVA();
+		if (tlasVA == 0)
+			return;
+		cmd->SetGraphicsRootShaderResourceView(3, tlasVA);
+	} else {
+		cmd->SetGraphicsRootShaderResourceView(3, 0);
+	}
+
 	UINT samp = (ctx.samplerIndex != UINT_MAX) ? ctx.samplerIndex : s_samplerIndex;
-	cmd->SetGraphicsRootDescriptorTable(3, pRender->GetSamplerGpu(samp));
+	if (samp == UINT_MAX)
+		return;
+	cmd->SetGraphicsRootDescriptorTable(4, pRender->GetSamplerGpu(samp));
 	UINT shadowSamp = (ctx.pass == MESH_PASS_COLOR && ctx.shadowSamplerIndex != UINT_MAX)
-		? ctx.shadowSamplerIndex : s_shadowSamplerIndex;
-	if (shadowSamp == UINT_MAX)
-		shadowSamp = samp;
-	cmd->SetGraphicsRootDescriptorTable(4, pRender->GetSamplerGpu(shadowSamp));
+		? ctx.shadowSamplerIndex : samp;
+	cmd->SetGraphicsRootDescriptorTable(5, pRender->GetSamplerGpu(shadowSamp));
 
 	cmd->DrawIndexedInstanced(m_countIndices, 1, 0, 0, 0);
 }
@@ -424,12 +521,38 @@ void Mesh::SetPosition(float x, float y, float z,
 	m_World = modelRotation * modelScale * modelTranslation;
 }
 
+void Mesh::SetSharedTexture(const GpuTexture& tex)
+{
+	if (m_ownsTexture && m_texture.resource) {
+		m_texture.resource->Release();
+		m_texture.resource = nullptr;
+		m_texture.srvIndex = UINT_MAX;
+	}
+	m_texture = tex;
+	m_ownsTexture = false;
+}
+
 HRESULT Mesh::SetDataDDS(DXRender* pRender, uint8_t* pDataSourceDDS, size_t fileSizeDDS,
 	uint32_t width, uint32_t height, uint32_t dxtCompression, uint32_t depth)
 {
 	(void)depth;
-	return TextureFactory::CreateSrvFromDxt(
+	if (m_ownsTexture && m_texture.resource) {
+		m_texture.resource->Release();
+		m_texture.resource = nullptr;
+		m_texture.srvIndex = UINT_MAX;
+	}
+	m_ownsTexture = true;
+	HRESULT hr = TextureFactory::CreateSrvFromDxt(
 		pRender, pDataSourceDDS, fileSizeDDS, width, height, dxtCompression, &m_texture);
+	if (FAILED(hr) || !m_texture.Valid()) {
+		GpuTextureCache::Instance().EnsureBlack(pRender);
+		if (GpuTextureCache::Instance().HasBlack()) {
+			m_texture = GpuTextureCache::Instance().Black();
+			m_ownsTexture = false;
+			return S_OK;
+		}
+	}
+	return hr;
 }
 
 HRESULT Mesh::CreateDataBuffer(
@@ -440,6 +563,7 @@ HRESULT Mesh::CreateDataBuffer(
 	int indicesCount)
 {
 	m_vertexData.assign(pVertices, pVertices + verticesCount);
+	m_indexData.assign(pIndices, pIndices + indicesCount);
 
 	HRESULT hr = pRender->CreateDefaultBuffer(
 		m_vertexData.data(), sizeof(float) * verticesCount, &m_pVertexBuffer);
@@ -462,6 +586,7 @@ HRESULT Mesh::Init(DXRender* pRender, float* pVertices, int verticesCount,
 	m_alphaCutout = false;
 	m_windAmount = 0.0f;
 	m_texture = {};
+	m_ownsTexture = true;
 	m_pVertexBuffer = nullptr;
 	m_pIndexBuffer = nullptr;
 	m_countIndices = indicesCount;

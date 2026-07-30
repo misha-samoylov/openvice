@@ -203,6 +203,21 @@ UINT DXRender::CreateTypedBufferSrv(ID3D12Resource* resource, UINT elementCount,
 	return index;
 }
 
+UINT DXRender::CreateAccelerationStructureSrv(ID3D12Resource* accelerationStructure)
+{
+	UINT index = AllocSrvIndex();
+	if (index == UINT_MAX || !accelerationStructure)
+		return UINT_MAX;
+
+	D3D12_SHADER_RESOURCE_VIEW_DESC srv = {};
+	srv.Format = DXGI_FORMAT_UNKNOWN;
+	srv.ViewDimension = D3D12_SRV_DIMENSION_RAYTRACING_ACCELERATION_STRUCTURE;
+	srv.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+	srv.RaytracingAccelerationStructure.Location = accelerationStructure->GetGPUVirtualAddress();
+	m_device->CreateShaderResourceView(nullptr, &srv, GetSrvCpu(index));
+	return index;
+}
+
 UINT DXRender::CreateSampler(const D3D12_SAMPLER_DESC& desc)
 {
 	if (m_samplerCount >= kSamplerHeapSize) {
@@ -332,6 +347,21 @@ HRESULT DXRender::CreateDevice()
 		return hr;
 	}
 	SetDebugName(m_device.Get(), "DXRenderDevice");
+
+	m_device.As(&m_device5);
+	{
+		D3D12_FEATURE_DATA_D3D12_OPTIONS5 opts5 = {};
+		if (SUCCEEDED(m_device->CheckFeatureSupport(
+			D3D12_FEATURE_D3D12_OPTIONS5, &opts5, sizeof(opts5)))) {
+			m_raytracingTier = opts5.RaytracingTier;
+		}
+		if (m_raytracingTier == D3D12_RAYTRACING_TIER_NOT_SUPPORTED) {
+			printf("[Warn] DXR not supported on this GPU — RT shadows unavailable\n");
+			m_device5.Reset();
+		} else {
+			printf("[Info] DXR tier %u available\n", (unsigned)m_raytracingTier);
+		}
+	}
 
 	D3D12_COMMAND_QUEUE_DESC qd = {};
 	qd.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
@@ -577,6 +607,8 @@ HRESULT DXRender::CreateDefaultBuffer(const void* data, UINT64 size, ID3D12Resou
 		b.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
 		m_uploadList->ResourceBarrier(1, &b);
 		m_uploadKeepAlive.push_back(upload);
+		/* Dest must outlive Close() even if the owner Releases early. */
+		m_uploadKeepAlive.push_back(buffer);
 	}
 
 	*outResource = buffer.Detach();
@@ -683,6 +715,12 @@ HRESULT DXRender::UploadTexture2D(
 
 	m_uploadList->CopyTextureRegion(&dstLoc, 0, 0, 0, &srcLoc, nullptr);
 	m_uploadKeepAlive.push_back(upload);
+	{
+		ComPtr<ID3D12Resource> destKeep;
+		dest->AddRef();
+		destKeep.Attach(dest);
+		m_uploadKeepAlive.push_back(destKeep);
+	}
 	return S_OK;
 }
 
@@ -815,6 +853,7 @@ HRESULT DXRender::CreateGpuTextureFromDdsMemory(const void* ddsData, size_t ddsS
 	b.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
 	m_uploadList->ResourceBarrier(1, &b);
 	m_uploadKeepAlive.push_back(upload);
+	m_uploadKeepAlive.push_back(tex);
 
 	outTex->srvIndex = CreateTextureSrv(tex.Get(), meta.format);
 	if (outTex->srvIndex == UINT_MAX) {
@@ -1023,6 +1062,95 @@ HRESULT DXRender::Init(HWND hWnd, bool vsync)
 		return hr;
 
 	printf("[Info] DX12 FL 12_0, %ux%u, no MSAA\n", m_width, m_height);
+	if (SupportsRaytracing()) {
+		HRESULT rtHr = EnsureFallbackTlas();
+		if (FAILED(rtHr))
+			printf("[Warn] Fallback empty TLAS failed (0x%08X)\n", (unsigned)rtHr);
+		else
+			printf("[Info] Fallback empty TLAS ready (VA=0x%llX)\n",
+				(unsigned long long)m_fallbackTlasVA);
+	}
+	return S_OK;
+}
+
+HRESULT DXRender::EnsureFallbackTlas()
+{
+	if (m_fallbackTlasVA != 0)
+		return S_OK;
+	if (!m_device5)
+		return E_FAIL;
+
+	D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS inputs = {};
+	inputs.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL;
+	inputs.Flags = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_TRACE;
+	inputs.NumDescs = 0;
+	inputs.DescsLayout = D3D12_ELEMENTS_LAYOUT_ARRAY;
+	inputs.InstanceDescs = 0;
+
+	D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO prebuild = {};
+	m_device5->GetRaytracingAccelerationStructurePrebuildInfo(&inputs, &prebuild);
+	if (prebuild.ResultDataMaxSizeInBytes == 0)
+		return E_FAIL;
+
+	D3D12_HEAP_PROPERTIES heap = {};
+	heap.Type = D3D12_HEAP_TYPE_DEFAULT;
+	D3D12_RESOURCE_DESC asDesc = {};
+	asDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+	asDesc.Width = prebuild.ResultDataMaxSizeInBytes;
+	asDesc.Height = 1;
+	asDesc.DepthOrArraySize = 1;
+	asDesc.MipLevels = 1;
+	asDesc.SampleDesc.Count = 1;
+	asDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+	asDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
+
+	HRESULT hr = m_device5->CreateCommittedResource(
+		&heap, D3D12_HEAP_FLAG_NONE, &asDesc,
+		D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE,
+		nullptr, IID_PPV_ARGS(&m_fallbackTlas));
+	if (FAILED(hr))
+		return hr;
+
+	ComPtr<ID3D12Resource> scratch;
+	if (prebuild.ScratchDataSizeInBytes > 0) {
+		D3D12_RESOURCE_DESC scratchDesc = asDesc;
+		scratchDesc.Width = prebuild.ScratchDataSizeInBytes;
+		hr = m_device5->CreateCommittedResource(
+			&heap, D3D12_HEAP_FLAG_NONE, &scratchDesc,
+			D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+			nullptr, IID_PPV_ARGS(&scratch));
+		if (FAILED(hr))
+			return hr;
+	}
+
+	ComPtr<ID3D12CommandAllocator> alloc;
+	ComPtr<ID3D12GraphicsCommandList4> list4;
+	hr = m_device5->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&alloc));
+	if (FAILED(hr))
+		return hr;
+	{
+		ComPtr<ID3D12GraphicsCommandList> list;
+		hr = m_device5->CreateCommandList(
+			0, D3D12_COMMAND_LIST_TYPE_DIRECT, alloc.Get(), nullptr, IID_PPV_ARGS(&list));
+		if (FAILED(hr))
+			return hr;
+		hr = list.As(&list4);
+		if (FAILED(hr))
+			return hr;
+	}
+
+	D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC build = {};
+	build.Inputs = inputs;
+	build.DestAccelerationStructureData = m_fallbackTlas->GetGPUVirtualAddress();
+	build.ScratchAccelerationStructureData = scratch ? scratch->GetGPUVirtualAddress() : 0;
+	list4->BuildRaytracingAccelerationStructure(&build, 0, nullptr);
+	list4->Close();
+
+	ID3D12CommandList* lists[] = { list4.Get() };
+	m_queue->ExecuteCommandLists(1, lists);
+	WaitForGpu();
+
+	m_fallbackTlasVA = m_fallbackTlas->GetGPUVirtualAddress();
 	return S_OK;
 }
 
@@ -1049,6 +1177,8 @@ void DXRender::Cleanup()
 		m_renderTargets[i].Reset();
 	}
 	m_depth.Reset();
+	m_fallbackTlas.Reset();
+	m_fallbackTlasVA = 0;
 	m_srvHeap.Reset();
 	m_samplerHeap.Reset();
 	m_rtvHeap.Reset();
@@ -1061,6 +1191,8 @@ void DXRender::Cleanup()
 		m_fenceEvent = nullptr;
 	}
 	m_device.Reset();
+	m_device5.Reset();
+	m_raytracingTier = D3D12_RAYTRACING_TIER_NOT_SUPPORTED;
 }
 
 void DXRender::MoveToNextFrame()
@@ -1122,6 +1254,30 @@ void DXRender::RenderEnd()
 	m_commandList->Close();
 	ID3D12CommandList* lists[] = { m_commandList.Get() };
 	m_queue->ExecuteCommandLists(1, lists);
-	m_swapChain->Present(m_vsync ? 1 : 0, 0);
+	HRESULT presentHr = m_swapChain->Present(m_vsync ? 1 : 0, 0);
+	if (FAILED(presentHr)) {
+		HRESULT removed = m_device ? m_device->GetDeviceRemovedReason() : presentHr;
+		printf("[Error] Present failed (0x%08X) deviceRemoved=0x%08X\n",
+			(unsigned)presentHr, (unsigned)removed);
+		fflush(stdout);
+#if defined(_DEBUG)
+		ComPtr<ID3D12InfoQueue> iq;
+		if (m_device && SUCCEEDED(m_device->QueryInterface(IID_PPV_ARGS(&iq)))) {
+			const UINT64 n = iq->GetNumStoredMessages();
+			UINT64 start = (n > 16) ? (n - 16) : 0;
+			for (UINT64 i = start; i < n; i++) {
+				SIZE_T bytes = 0;
+				iq->GetMessage(i, nullptr, &bytes);
+				if (bytes == 0)
+					continue;
+				std::vector<char> buf(bytes);
+				auto* msg = reinterpret_cast<D3D12_MESSAGE*>(buf.data());
+				if (SUCCEEDED(iq->GetMessage(i, msg, &bytes)) && msg->pDescription)
+					printf("[D3D12] %s\n", msg->pDescription);
+			}
+			fflush(stdout);
+		}
+#endif
+	}
 	MoveToNextFrame();
 }

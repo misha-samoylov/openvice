@@ -50,20 +50,14 @@ bool Input::IsKey(BYTE key)
 
 HRESULT Input::Detect()
 {
-	HRESULT hr;
+	/* Don't abort the whole frame if keyboard Acquire fails (unfocused) —
+	 * still try to read mouse so free-cam look keeps working. */
+	m_pDIKeyboard->Acquire();
+	m_pDIMouse->Acquire();
 
-	hr = m_pDIKeyboard->Acquire();
-	if (FAILED(hr))
-		return hr;
-	hr = m_pDIMouse->Acquire();
-	if (FAILED(hr))
-		return hr;
-
-	hr = m_pDIMouse->GetDeviceState(sizeof(DIMOUSESTATE), &m_mouseCurrState);
-	if (FAILED(hr))
-		return hr;
-	hr = m_pDIKeyboard->GetDeviceState(sizeof(m_keyboardState), (LPVOID)&m_keyboardState);
-	return hr;
+	m_pDIMouse->GetDeviceState(sizeof(DIMOUSESTATE), &m_mouseCurrState);
+	m_pDIKeyboard->GetDeviceState(sizeof(m_keyboardState), (LPVOID)&m_keyboardState);
+	return S_OK;
 }
 
 float Input::GetMouseSpeedX()

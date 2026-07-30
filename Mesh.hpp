@@ -38,7 +38,9 @@ struct objectConstBuffer
 	float shadowBias;
 	float windTime;
 	float windAmount;
-	float padWind[2];
+	float padWindAlign[2]; /* HLSL: float3 cannot pack into remaining .zw */
+	XMFLOAT3 sunDir;
+	float padSun;
 };
 
 enum MeshPass
@@ -66,6 +68,9 @@ struct MeshRenderContext
 	UINT shadowSrvIndex;
 	UINT samplerIndex;
 	UINT shadowSamplerIndex;
+	UINT rtAccelSrvIndex;
+	D3D12_GPU_VIRTUAL_ADDRESS rtAccelVA;
+	XMFLOAT3 sunDir;
 	D3D12_PRIMITIVE_TOPOLOGY topology;
 
 	MeshRenderContext()
@@ -84,6 +89,9 @@ struct MeshRenderContext
 		, shadowSrvIndex(UINT_MAX)
 		, samplerIndex(UINT_MAX)
 		, shadowSamplerIndex(UINT_MAX)
+		, rtAccelSrvIndex(UINT_MAX)
+		, rtAccelVA(0)
+		, sunDir(0.0f, 1.0f, 0.0f)
 		, topology(D3D_PRIMITIVE_TOPOLOGY_UNDEFINED)
 	{
 		viewProj = XMMatrixIdentity();
@@ -100,6 +108,7 @@ struct MeshRenderContext
 		shadowSrvIndex = UINT_MAX;
 		samplerIndex = UINT_MAX;
 		shadowSamplerIndex = UINT_MAX;
+		/* Keep rtAccelVA / sunDir across ClearBindings — set per frame. */
 		topology = D3D_PRIMITIVE_TOPOLOGY_UNDEFINED;
 	}
 };
@@ -126,6 +135,8 @@ public:
 		uint32_t dxtCompression,
 		uint32_t depth
 	);
+	/* Bind a shared GPU texture (cache / black stub). Mesh does not Release it. */
+	void SetSharedTexture(const GpuTexture& tex);
 	void SetWorld(CXMMATRIX world) { m_World = world; }
 	void SetPosition(
 		float x, float y, float z,
@@ -147,10 +158,17 @@ public:
 
 	std::vector<float>& GetVertexData() { return m_vertexData; }
 	const std::vector<float>& GetVertexData() const { return m_vertexData; }
+	const std::vector<unsigned int>& GetIndexData() const { return m_indexData; }
 	int GetVertexCount() const { return (int)m_vertexData.size() / 5; }
+	ID3D12Resource* GetVertexBuffer() const { return m_pVertexBuffer; }
+	ID3D12Resource* GetIndexBuffer() const { return m_pIndexBuffer; }
+	unsigned int GetIndexCount() const { return m_countIndices; }
+	UINT GetTextureSrvIndex() const { return m_texture.srvIndex; }
+	D3D_PRIMITIVE_TOPOLOGY GetPrimitiveTopology() const { return m_primitiveTopology; }
 	void UploadVertices(DXRender* pRender);
 
 	static void ReleaseSharedResources();
+	static bool HasRtPixelShader() { return s_rtPixelShader; }
 
 private:
 	static HRESULT EnsureSharedPipeline(DXRender* pRender);
@@ -166,11 +184,13 @@ private:
 	ID3D12Resource* m_pVertexBuffer;
 	ID3D12Resource* m_pIndexBuffer;
 	GpuTexture m_texture;
+	bool m_ownsTexture;
 
 	struct objectConstBuffer m_objectConstBuffer;
 
 	XMMATRIX m_World;
 	std::vector<float> m_vertexData;
+	std::vector<unsigned int> m_indexData;
 
 	unsigned int m_countIndices;
 	D3D_PRIMITIVE_TOPOLOGY m_primitiveTopology;
@@ -192,6 +212,7 @@ private:
 	static UINT s_samplerIndex;
 	static UINT s_shadowSamplerIndex;
 	static int s_sharedRefCount;
+	static bool s_rtPixelShader;
 	static ID3DBlob* s_vsBlob;
 	static ID3DBlob* s_psBlob;
 	static ID3DBlob* s_shadowPsBlob;

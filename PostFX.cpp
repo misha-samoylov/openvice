@@ -148,7 +148,7 @@ HRESULT PostFX::Init(DXRender* render)
 	m_frontTex = nullptr;
 	m_backSrv = m_frontSrv = UINT_MAX;
 	m_width = m_height = 0;
-	m_mode = MODE_MOTION_BLUR;
+	m_mode = MODE_OFF;
 	m_justInitialised = true;
 	m_blurR = DEFAULT_R;
 	m_blurG = DEFAULT_G;
