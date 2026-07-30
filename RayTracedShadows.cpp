@@ -47,16 +47,16 @@ void RayTracedShadows::Cleanup()
 
 static void StoreInstanceTransform(const XMMATRIX& world, D3D12_RAYTRACING_INSTANCE_DESC* desc)
 {
-	/* DXR wants a 3x4 row-major affine matrix with translation in [0][3],[1][3],[2][3].
-	 * DirectXMath keeps translation in row 3 — memcpy of the first 12 floats drops it
-	 * (broke every non-origin IPL placement → empty sky). */
+	/* DXR float3x4 is applied as mul(M, float4(p,1)) (column vector).
+	 * DirectXMath uses row vectors (p' = p * W), so pack columns of W:
+	 *   row0 = (_11,_21,_31,_41), etc. — NOT the matrix memory rows. */
 	XMFLOAT4X4 m;
 	XMStoreFloat4x4(&m, world);
-	desc->Transform[0][0] = m._11; desc->Transform[0][1] = m._12;
-	desc->Transform[0][2] = m._13; desc->Transform[0][3] = m._41;
-	desc->Transform[1][0] = m._21; desc->Transform[1][1] = m._22;
-	desc->Transform[1][2] = m._23; desc->Transform[1][3] = m._42;
-	desc->Transform[2][0] = m._31; desc->Transform[2][1] = m._32;
+	desc->Transform[0][0] = m._11; desc->Transform[0][1] = m._21;
+	desc->Transform[0][2] = m._31; desc->Transform[0][3] = m._41;
+	desc->Transform[1][0] = m._12; desc->Transform[1][1] = m._22;
+	desc->Transform[1][2] = m._32; desc->Transform[1][3] = m._42;
+	desc->Transform[2][0] = m._13; desc->Transform[2][1] = m._23;
 	desc->Transform[2][2] = m._33; desc->Transform[2][3] = m._43;
 }
 

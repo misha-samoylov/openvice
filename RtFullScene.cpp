@@ -65,11 +65,12 @@ static XMMATRIX InstanceWorld(const SceneInstance& inst)
 
 static void StoreWorldRows(const XMMATRIX& world, RtInstCPU* out)
 {
+	/* Same column packing as DXR instance transform / XMVector3Transform. */
 	XMFLOAT4X4 m;
 	XMStoreFloat4x4(&m, world);
-	out->row0 = XMFLOAT4(m._11, m._12, m._13, m._41);
-	out->row1 = XMFLOAT4(m._21, m._22, m._23, m._42);
-	out->row2 = XMFLOAT4(m._31, m._32, m._33, m._43);
+	out->row0 = XMFLOAT4(m._11, m._21, m._31, m._41);
+	out->row1 = XMFLOAT4(m._12, m._22, m._32, m._42);
+	out->row2 = XMFLOAT4(m._13, m._23, m._33, m._43);
 }
 
 static bool BakeMeshLocal(
