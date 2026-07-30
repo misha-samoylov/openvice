@@ -32,7 +32,10 @@ public:
 		FXMVECTOR sunDirToward,
 		D3D12_GPU_VIRTUAL_ADDRESS tlasVA,
 		float seaLevelY = 5.5f,
-		float timeSec = 0.0f);
+		float timeSec = 0.0f,
+		UINT waterTexSrv = UINT_MAX,
+		float waterUvU = 0.0f,
+		float waterUvV = 0.0f);
 
 	bool IsReady() const { return m_ready; }
 

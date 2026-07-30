@@ -292,12 +292,18 @@ void SceneRenderer::Render(DXRender* render, Camera* camera, Scene& scene, GameW
 			tlas = render->GetFallbackTlasVA();
 		float seaY = 5.5f;
 		float waterTime = 0.0f;
+		UINT waterTex = UINT_MAX;
+		float waterUvU = 0.0f, waterUvV = 0.0f;
 		if (world.GetWater() && world.GetWater()->IsReady()) {
 			seaY = world.GetWater()->GetSeaLevelY();
 			waterTime = world.GetWater()->GetTime();
+			waterTex = world.GetWater()->GetTextureSrvIndex();
+			waterUvU = world.GetWater()->GetUvU();
+			waterUvV = world.GetWater()->GetUvV();
 		}
 		if (tlas != 0)
-			m_rtFull->Apply(render, camera, sunDir, tlas, seaY, waterTime);
+			m_rtFull->Apply(render, camera, sunDir, tlas, seaY, waterTime,
+				waterTex, waterUvU, waterUvV);
 
 		static int s_frameLog = 0;
 		if (s_frameLog < 3) {

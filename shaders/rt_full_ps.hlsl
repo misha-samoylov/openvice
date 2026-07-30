@@ -14,7 +14,13 @@ cbuffer RtFullCB : register(b0)
 	float Ambient;
 	float Time;
 	float SunCos;
-	float2 Pad1;
+	float2 WaterUvScroll;
+	uint WaterTexIndex;
+	float FogStart;
+	float FogEnd;
+	float PadWater;
+	float4 WaterTint;
+	float4 FogColor;
 };
 
 RaytracingAccelerationStructure SceneBVH : register(t0);
@@ -387,6 +393,24 @@ float3 EvalSkyWithClouds(float3 dir, float2 pixelXY)
 	return saturate(col);
 }
 
+/* Match water_vs WaveHeight. */
+float WaveHeight(float2 xz, float t)
+{
+	float2 d0 = float2(0.96f, 0.28f);
+	float2 d1 = float2(-0.42f, 0.91f);
+	float2 d2 = float2(0.71f, -0.70f);
+	float2 d3 = float2(-0.85f, -0.52f);
+	float2 dSwell = float2(0.98f, 0.18f);
+
+	float h = 0.0f;
+	h += sin(dot(xz, dSwell) * 0.048f + t * 0.55f) * 0.18f;
+	h += sin(dot(xz, d0) * 0.085f + t * 0.72f) * 0.22f;
+	h += sin(dot(xz, d1) * 0.12f + t * 0.58f) * 0.16f;
+	h += sin(dot(xz, d2) * 0.21f + t * 0.95f) * 0.10f;
+	h += sin(dot(xz, d3) * 0.33f + t * 0.80f) * 0.07f;
+	return h;
+}
+
 bool IntersectSea(float3 origin, float3 dir, float seaY, out float tHit, out float3 P)
 {
 	tHit = 0.0f;
@@ -398,6 +422,8 @@ bool IntersectSea(float3 origin, float3 dir, float seaY, out float tHit, out flo
 		return false;
 	tHit = t;
 	P = origin + dir * t;
+	/* Match water_vs WaveHeight displacement for shading UVs / view. */
+	P.y = seaY + WaveHeight(P.xz, Time);
 	return true;
 }
 
@@ -428,32 +454,55 @@ float3 CalmRippleNormal(float2 xz, float t)
 float3 ShadeWater(float3 P, float3 V, float3 L)
 {
 	float3 N = CalmRippleNormal(P.xz, Time);
+	float3 viewDir = V;
 
-	float NdotV = saturate(dot(N, V));
+	/* Coast/ocean tiles: 32 world units → 1 UV (Water.cpp). */
+	float2 baseTex = P.xz * (1.0f / 32.0f) + WaterUvScroll + float2(Time * 0.028f, Time * 0.019f);
+
+	float2 flowA = float2(Time * 0.045f, Time * 0.028f);
+	float2 flowB = float2(-Time * 0.032f, Time * 0.041f);
+	float2 distort;
+	distort.x = sin(P.x * 0.11f + P.z * 0.07f + Time * 1.4f) * 0.055f;
+	distort.y = cos(P.z * 0.10f - P.x * 0.06f + Time * 1.15f) * 0.055f;
+	distort += N.xz * 0.12f;
+
+	float2 uvA = baseTex + flowA + distort;
+	float2 uvB = baseTex * 1.73f - WaterUvScroll * 0.55f + flowB - distort * 0.65f;
+
+	float4 texA = float4(0.12f, 0.28f, 0.32f, 1.0f);
+	float4 texB = texA;
+	if (WaterTexIndex != 0xFFFFFFFFu) {
+		texA = BindlessTex[NonUniformResourceIndex(WaterTexIndex)].SampleLevel(LinSamp, uvA, 0);
+		texB = BindlessTex[NonUniformResourceIndex(WaterTexIndex)].SampleLevel(LinSamp, uvB, 0);
+	}
+	float3 texColor = lerp(texA.rgb, texB.rgb, 0.42f);
+
+	float3 deepColor = float3(0.056f, 0.1568f, 0.2016f);
+	float3 shallowColor = texColor * WaterTint.rgb;
+	float3 skyColor = FogColor.rgb * 1.05f;
+
+	float NdotV = saturate(dot(N, viewDir));
 	float F0 = 0.035f;
 	float fresnel = F0 + (1.0f - F0) * pow(1.0f - NdotV, 5.0f);
 
-	float3 R = reflect(-V, N);
+	float3 R = reflect(-viewDir, N);
 	R = normalize(R + float3(0.0f, 0.08f, 0.0f));
-
-	float3 skyColor = SkyColor * 1.05f;
 	float4 clouds = SampleCloudReflection(P, R);
 	float3 reflectColor = lerp(skyColor, clouds.rgb, clouds.a);
-	/* Sun glint in reflection direction. */
-	reflectColor += EvalSun(R) * 0.65f;
 
-	float3 deepColor = float3(0.056f, 0.1568f, 0.2016f);
-	float3 shallowColor = float3(0.08f, 0.30f, 0.34f);
 	float3 waterBody = lerp(deepColor, shallowColor, 0.55f + 0.25f * NdotV);
 	float3 color = lerp(waterBody, reflectColor, fresnel * 0.78f);
 
-	float shadow = TraceShadow(P + N * 0.15f, L, MaxRayT);
-	float3 H = normalize(L + V);
+	float3 H = normalize(L + viewDir);
 	float NdotH = saturate(dot(N, H));
 	float NdotL = saturate(dot(N, L));
 	float spec = pow(NdotH, 420.0f) * NdotL;
 	spec += pow(NdotH, 48.0f) * NdotL * 0.084f;
-	color += float3(0.92f, 0.96f, 1.0f) * spec * 0.5775f * shadow * SunStrength;
+	color += float3(0.92f, 0.96f, 1.0f) * spec * 0.5775f;
+
+	float fogDist = length(P - CamPos);
+	float fogFactor = saturate((FogEnd - fogDist) / max(FogEnd - FogStart, 1e-3f));
+	color = lerp(FogColor.rgb, color, fogFactor);
 
 	return saturate(color);
 }

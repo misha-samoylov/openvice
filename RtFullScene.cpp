@@ -49,7 +49,13 @@ struct RtFullCB
 	float Ambient;
 	float Time;
 	float SunCos;
-	XMFLOAT2 Pad1;
+	XMFLOAT2 WaterUvScroll;
+	UINT WaterTexIndex;
+	float FogStart;
+	float FogEnd;
+	float PadWater;
+	XMFLOAT4 WaterTint;
+	XMFLOAT4 FogColor;
 };
 
 static_assert(sizeof(RtShadeTriCPU) == 80, "RtShadeTri size");
@@ -559,7 +565,10 @@ void RtFullScene::Apply(
 	FXMVECTOR sunDirToward,
 	D3D12_GPU_VIRTUAL_ADDRESS tlasVA,
 	float seaLevelY,
-	float timeSec)
+	float timeSec,
+	UINT waterTexSrv,
+	float waterUvU,
+	float waterUvV)
 {
 	if (!m_ready || !m_pso || tlasVA == 0)
 		return;
@@ -582,6 +591,14 @@ void RtFullScene::Apply(
 	cb.Time = timeSec;
 	/* ~0.55° sun angular radius → cos(theta). */
 	cb.SunCos = 0.9996f;
+	cb.WaterUvScroll = XMFLOAT2(waterUvU, waterUvV);
+	cb.WaterTexIndex = waterTexSrv;
+	cb.FogStart = DRAW_DISTANCE * 0.40f;
+	cb.FogEnd = DRAW_DISTANCE * 0.82f;
+	cb.PadWater = 0.0f;
+	/* Match Water::BindPipeline tint / fog. */
+	cb.WaterTint = XMFLOAT4(0.2352f, 0.3472f, 0.4032f, 0.82f);
+	cb.FogColor = XMFLOAT4(SKY_COLOR_R, SKY_COLOR_G, SKY_COLOR_B, 1.0f);
 
 #if ENABLE_RT_FULL_HALF_RES
 	if (!m_halfTex || m_fullW != render->GetBackBufferWidth() ||
