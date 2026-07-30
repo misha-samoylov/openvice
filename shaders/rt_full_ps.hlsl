@@ -468,6 +468,76 @@ float3 ShadeMesh(float3 P, float3 N, float3 L, float4 albedo)
 	return saturate(lit);
 }
 
+/* Skip alpha-cutout foliage (palm leaves, etc.): transparent texels must not
+   block the ray — otherwise holes show the sea plane instead of what's behind. */
+bool TracePrimaryCutout(
+	float3 origin,
+	float3 dir,
+	out float hitT,
+	out float3 hitP,
+	out float3 hitN,
+	out float4 hitAlb)
+{
+	hitT = MaxRayT + 1.0f;
+	hitP = 0.0f;
+	hitN = float3(0, 1, 0);
+	hitAlb = 0.0f;
+
+	float tMin = 0.05f;
+	[loop]
+	for (uint i = 0; i < 12u; ++i) {
+		RayDesc primary;
+		primary.Origin = origin;
+		primary.Direction = dir;
+		primary.TMin = tMin;
+		primary.TMax = MaxRayT;
+
+		RayQuery<RAY_FLAG_FORCE_OPAQUE |
+			RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES> q;
+		q.TraceRayInline(SceneBVH, RAY_FLAG_NONE, 0xFF, primary);
+		q.Proceed();
+
+		if (q.CommittedStatus() != COMMITTED_TRIANGLE_HIT)
+			return false;
+
+		uint instId = q.CommittedInstanceID();
+		uint primId = q.CommittedPrimitiveIndex();
+		RtInst inst = Insts[instId];
+		if (primId >= inst.triCount)
+			return false;
+
+		RtShadeTri tri = Tris[inst.triStart + primId];
+		float2 bary = q.CommittedTriangleBarycentrics();
+		float w = 1.0f - bary.x - bary.y;
+		float3 localP = w * tri.p0 + bary.x * tri.p1 + bary.y * tri.p2;
+		float2 texUv = w * tri.uv0 + bary.x * tri.uv1 + bary.y * tri.uv2;
+		float3 localN = normalize(cross(tri.p1 - tri.p0, tri.p2 - tri.p0));
+		float3 P = XformPoint(inst, localP);
+		float3 N = XformNormal(inst, localN);
+		if (dot(N, -dir) < 0.0f)
+			N = -N;
+
+		float4 alb = float4(0.65f, 0.65f, 0.65f, 1.0f);
+		if (tri.texIndex != 0xFFFFFFFFu)
+			alb = BindlessTex[NonUniformResourceIndex(tri.texIndex)].SampleLevel(LinSamp, texUv, 0);
+
+		float t = q.CommittedRayT();
+		/* Match raster clip(a - 0.01): punch through cutout holes. */
+		if (alb.a >= 0.01f) {
+			hitT = t;
+			hitP = P;
+			hitN = N;
+			hitAlb = alb;
+			return true;
+		}
+
+		tMin = t + max(0.002f, t * 1e-4f);
+		if (tMin >= MaxRayT)
+			return false;
+	}
+	return false;
+}
+
 float4 main(VS_OUTPUT input) : SV_TARGET
 {
 	float2 uv = input.UV;
@@ -477,47 +547,11 @@ float4 main(VS_OUTPUT input) : SV_TARGET
 	float3 farW = farH.xyz / max(farH.w, 1e-6f);
 	float3 dir = normalize(farW - CamPos);
 
-	RayDesc primary;
-	primary.Origin = CamPos;
-	primary.Direction = dir;
-	primary.TMin = 0.05f;
-	primary.TMax = MaxRayT;
-
-	RayQuery<RAY_FLAG_FORCE_OPAQUE |
-		RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES> q;
-	q.TraceRayInline(SceneBVH, RAY_FLAG_NONE, 0xFF, primary);
-	q.Proceed();
-
 	float meshT = MaxRayT + 1.0f;
 	float3 meshP = 0.0f;
 	float3 meshN = float3(0, 1, 0);
 	float4 meshAlb = 0.0f;
-	bool hitMesh = false;
-
-	if (q.CommittedStatus() == COMMITTED_TRIANGLE_HIT) {
-		uint instId = q.CommittedInstanceID();
-		uint primId = q.CommittedPrimitiveIndex();
-		RtInst inst = Insts[instId];
-		if (primId < inst.triCount) {
-			RtShadeTri tri = Tris[inst.triStart + primId];
-			float2 bary = q.CommittedTriangleBarycentrics();
-			float w = 1.0f - bary.x - bary.y;
-			float3 localP = w * tri.p0 + bary.x * tri.p1 + bary.y * tri.p2;
-			float2 texUv = w * tri.uv0 + bary.x * tri.uv1 + bary.y * tri.uv2;
-			float3 localN = normalize(cross(tri.p1 - tri.p0, tri.p2 - tri.p0));
-			meshP = XformPoint(inst, localP);
-			meshN = XformNormal(inst, localN);
-			if (dot(meshN, -dir) < 0.0f)
-				meshN = -meshN;
-			meshAlb = float4(0.65f, 0.65f, 0.65f, 1.0f);
-			if (tri.texIndex != 0xFFFFFFFFu)
-				meshAlb = BindlessTex[NonUniformResourceIndex(tri.texIndex)].SampleLevel(LinSamp, texUv, 0);
-			if (meshAlb.a >= 0.01f) {
-				hitMesh = true;
-				meshT = q.CommittedRayT();
-			}
-		}
-	}
+	bool hitMesh = TracePrimaryCutout(CamPos, dir, meshT, meshP, meshN, meshAlb);
 
 	float waterT = MaxRayT + 1.0f;
 	float3 waterP = 0.0f;

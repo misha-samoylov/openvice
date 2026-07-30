@@ -8,8 +8,8 @@
 /* RT map demo: full VC map (IPL interior 0/13), RayQuery, free camera, no player. */
 #define ENABLE_SINGLE_OBJECT_RT_DEMO 1
 
-#define WINDOW_WIDTH 1280
-#define WINDOW_HEIGHT 720
+#define WINDOW_WIDTH 1920
+#define WINDOW_HEIGHT 1080
 #if ENABLE_SINGLE_OBJECT_RT_DEMO
 #define WINDOW_TITLE L"openvice — full map RT demo"
 #else
