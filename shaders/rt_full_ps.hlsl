@@ -89,20 +89,52 @@ static const int CLOUD_PRIMARY_STEPS = 20;
 static const float CLOUD_MAX_STEP = 18.0f;
 static const int CLOUD_REFLECT_STEPS = 10;
 
+/* Soft shadow visibility: 1 = lit. Punch through leaf cutout holes
+   (same threshold as shadow_ps / primary TracePrimaryCutout). */
 float TraceShadow(float3 origin, float3 dir, float tMax)
 {
-	RayDesc ray;
-	ray.Origin = origin;
-	ray.Direction = normalize(dir);
-	ray.TMin = 0.02f;
-	ray.TMax = tMax;
+	float3 d = normalize(dir);
+	float tMin = 0.02f;
+	[loop]
+	for (uint i = 0; i < 8u; ++i) {
+		RayDesc ray;
+		ray.Origin = origin;
+		ray.Direction = d;
+		ray.TMin = tMin;
+		ray.TMax = tMax;
 
-	RayQuery<RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH |
-		RAY_FLAG_FORCE_OPAQUE |
-		RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES> q;
-	q.TraceRayInline(SceneBVH, RAY_FLAG_NONE, 0xFF, ray);
-	q.Proceed();
-	return (q.CommittedStatus() == COMMITTED_TRIANGLE_HIT) ? 0.0f : 1.0f;
+		RayQuery<RAY_FLAG_FORCE_OPAQUE |
+			RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES> q;
+		q.TraceRayInline(SceneBVH, RAY_FLAG_NONE, 0xFF, ray);
+		q.Proceed();
+
+		if (q.CommittedStatus() != COMMITTED_TRIANGLE_HIT)
+			return 1.0f;
+
+		uint instId = q.CommittedInstanceID();
+		uint primId = q.CommittedPrimitiveIndex();
+		RtInst inst = Insts[instId];
+		if (primId >= inst.triCount)
+			return 0.0f;
+
+		RtShadeTri tri = Tris[inst.triStart + primId];
+		float a = 1.0f;
+		if (tri.texIndex != 0xFFFFFFFFu) {
+			float2 bary = q.CommittedTriangleBarycentrics();
+			float w = 1.0f - bary.x - bary.y;
+			float2 texUv = w * tri.uv0 + bary.x * tri.uv1 + bary.y * tri.uv2;
+			a = BindlessTex[NonUniformResourceIndex(tri.texIndex)].SampleLevel(LinSamp, texUv, 0).a;
+		}
+
+		if (a >= 0.01f)
+			return 0.0f;
+
+		float t = q.CommittedRayT();
+		tMin = t + max(0.002f, t * 1e-4f);
+		if (tMin >= tMax)
+			return 1.0f;
+	}
+	return 0.0f;
 }
 
 float Hash13(float3 p)
