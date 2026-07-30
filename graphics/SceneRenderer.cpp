@@ -305,23 +305,32 @@ void SceneRenderer::Render(DXRender* render, Camera* camera, Scene& scene, GameW
 			m_rtFull->Apply(render, camera, sunDir, tlas, seaY, waterTime,
 				waterTex, waterUvU, waterUvV);
 
-		static int s_frameLog = 0;
-		if (s_frameLog < 3) {
-			XMVECTOR cam = camera->GetPosition();
-			char line[256];
-			sprintf_s(line,
-				"[Info] Frame %d fullRT=1 seaY=%.2f cam=(%.1f,%.1f,%.1f) tlas=%d\n",
-				s_frameLog, seaY,
-				XMVectorGetX(cam), XMVectorGetY(cam), XMVectorGetZ(cam),
-				tlas != 0 ? 1 : 0);
-			printf("%s", line);
-			fflush(stdout);
-			FILE* vf = nullptr;
-			if (fopen_s(&vf, "openvice_verify.log", "a") == 0 && vf) {
-				fputs(line, vf);
-				fclose(vf);
-			}
-			s_frameLog++;
+		/* Player/Cheetah are not in the static TLAS — draw them over the RT world. */
+		ctx.ClearBindings();
+		ctx.pass = MESH_PASS_COLOR;
+		ctx.viewProj = XMMatrixMultiply(view, proj);
+		FillCascadeMatrices(ctx, nullptr);
+		ctx.shadowSrvIndex = UINT_MAX;
+		ctx.shadowSamplerIndex = UINT_MAX;
+		ctx.rtAccelVA = 0;
+		ctx.receiveShadows = 0.0f;
+		XMStoreFloat3(&ctx.sunDir, sunDir);
+		render->SetOpaqueState();
+		render->ApplyRasterizerState();
+		if (world.GetVehicle())
+			world.GetVehicle()->Render(render, ctx);
+		if (world.GetPlayer() && !world.ControllingVehicle())
+			world.GetPlayer()->Render(render, ctx);
+
+		if (m_physicsDebug && settings.physicsDebugVisible && world.Collision()) {
+			XMVECTOR camPos = camera->GetPosition();
+			m_physicsDebug->BeginFrame();
+			m_physicsDebug->SetViewProjection(ctx.viewProj);
+			m_physicsDebug->SetCullSphere(
+				XMVectorGetX(camPos), XMVectorGetY(camPos), XMVectorGetZ(camPos), 120.0f);
+			world.Collision()->DebugDrawWorld(settings.physicsDebugFilter);
+			render->SetOpaqueState();
+			m_physicsDebug->Render(render);
 		}
 
 		if (m_postFX)
@@ -331,10 +340,8 @@ void SceneRenderer::Render(DXRender* render, Camera* camera, Scene& scene, GameW
 	}
 #endif
 
-#if !ENABLE_SINGLE_OBJECT_RT_DEMO
 	if (world.GetClouds())
 		world.GetClouds()->Render(render, camera, sunDir, settings.cloudsEnabled);
-#endif
 	ctx.ClearBindings();
 	ctx.shadowSrvIndex = shadowsOn ? m_shadowMap->GetSrvIndex() : UINT_MAX;
 	ctx.shadowSamplerIndex = shadowsOn ? m_shadowMap->GetCmpSamplerIndex() : UINT_MAX;
@@ -342,11 +349,7 @@ void SceneRenderer::Render(DXRender* render, Camera* camera, Scene& scene, GameW
 	ctx.receiveShadows = (Mesh::HasRtPixelShader() && tlasVA != 0 &&
 		m_rtShadows && m_rtShadows->IsReady()) ? 1.0f : 0.0f;
 
-#if ENABLE_SINGLE_OBJECT_RT_DEMO
-	const CollisionWorld* col = nullptr;
-#else
 	const CollisionWorld* col = world.Collision();
-#endif
 
 	render->SetOpaqueState();
 	render->ApplyRasterizerState();
@@ -355,7 +358,6 @@ void SceneRenderer::Render(DXRender* render, Camera* camera, Scene& scene, GameW
 	int drawsAlphaOp = scene.Draw(render, ctx, m_frustum, scene.Alpha(), AlphaFilter::OpaqueOnly,
 		focusX, focusY, focusZ, DRAW_DISTANCE, col);
 
-#if !ENABLE_SINGLE_OBJECT_RT_DEMO
 	if (world.GetVehicle())
 		world.GetVehicle()->Render(render, ctx);
 	if (world.GetPlayer() && !world.ControllingVehicle())
@@ -366,7 +368,6 @@ void SceneRenderer::Render(DXRender* render, Camera* camera, Scene& scene, GameW
 		world.GetWater()->Render(render, camera, m_frustum, DRAW_DISTANCE, sunDir,
 			reflectClouds);
 	}
-#endif
 
 	ctx.ClearBindings();
 	ctx.viewProj = XMMatrixMultiply(view, proj);

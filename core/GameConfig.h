@@ -5,18 +5,13 @@
 
 #define PROJECT_NAME "openvice"
 
-/* RT map demo: full VC map (IPL interior 0/13), RayQuery, free camera, no player. */
-#define ENABLE_SINGLE_OBJECT_RT_DEMO 1
+/* Full game (Tommy / Cheetah / physics / NUMPAD modes). Was used for map-only RT demo. */
+#define ENABLE_SINGLE_OBJECT_RT_DEMO 0
 
 #define WINDOW_WIDTH 3840
 #define WINDOW_HEIGHT 2160
-#if ENABLE_SINGLE_OBJECT_RT_DEMO
-#define WINDOW_TITLE L"openvice — full map RT demo"
-#else
 #define WINDOW_TITLE L"openvice"
-#endif
 
-#if ENABLE_SINGLE_OBJECT_RT_DEMO
 #define CAMERA_FAR_PLANE 800.0f
 #define DRAW_DISTANCE 700.0f
 #define FOG_START_FACTOR 0.70f
@@ -27,22 +22,9 @@
 #define ENABLE_RT_SHADOWS 1
 #define ENABLE_RT_INLINE_PS 0
 #define ENABLE_RT_BOUNCE_PASS 0
-#define ENABLE_RT_FULL_SCENE 1 /* primary rays + shade + sun shadow */
-#define ENABLE_RT_FULL_HALF_RES 1 /* half-res ray pass — avoids TDR on full map */
-#else
-#define CAMERA_FAR_PLANE 300.0f
-#define DRAW_DISTANCE 300.0f
-#define FOG_START_FACTOR 0.55f
-#define FOG_END_FACTOR 0.92f
-#define ENABLE_OCCLUSION_CULLING 1
-#define ENABLE_CSM_SHADOWS 0
-#define ENABLE_SSAO 0
-#define ENABLE_RT_SHADOWS 1
-#define ENABLE_RT_INLINE_PS 0
-#define ENABLE_RT_BOUNCE_PASS 1
-#define ENABLE_RT_FULL_SCENE 0
-#define ENABLE_RT_FULL_HALF_RES 0
-#endif
+/* Primary rays + shade + sun shadow (world). Player/vehicle rasterized on top. */
+#define ENABLE_RT_FULL_SCENE 1
+#define ENABLE_RT_FULL_HALF_RES 1
 
 /* Daytime hour for tobj visibility (re3 CTimeModelInfo). Night lights are off. */
 #define WORLD_HOUR 12

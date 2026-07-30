@@ -37,29 +37,18 @@ bool App::Initialize(HINSTANCE hInstance, int nCmdShow)
 	TCHAR dirPath[] = GTA_VC_DIR_PATH;
 	m_img->Open(imgPath, dirPath);
 
-#if ENABLE_SINGLE_OBJECT_RT_DEMO
-	printf("[Info] RT MAP DEMO — all IPLs (interior 0/13), free camera, water/clouds via RT\n");
-	{
-		ContentLoader loader;
-		loader.LoadMapContent(m_img.get(), m_render.get(), m_assets);
-	}
+	ContentLoader loader;
+	loader.LoadMapContent(m_img.get(), m_render.get(), m_assets);
+
 	m_scene.BuildFromAssets(m_assets, WORLD_HOUR);
 	if (m_scene.Opaque().empty() && m_scene.Alpha().empty()) {
 		printf("[Error] No instances placed from IPL (interior 0/13)\n");
 		MessageBoxA(NULL, "Scene build produced an empty map", "Error", MB_OK);
 		return false;
 	}
-	m_world.InitWater(m_render.get());
-	/* No player/vehicle/collision — water feeds RT sea plane. */
-#else
-	ContentLoader loader;
-	loader.LoadMapContent(m_img.get(), m_render.get(), m_assets);
-
-	m_scene.BuildFromAssets(m_assets, WORLD_HOUR);
 
 	m_world.InitFromAssets(
 		m_assets, m_scene, m_img.get(), m_render.get(), m_renderer.PhysicsDebug());
-#endif
 
 	/* Finish pending DEFAULT-buffer / texture uploads from ContentLoader + world. */
 	m_render->FlushUploads();
@@ -71,34 +60,11 @@ bool App::Initialize(HINSTANCE hInstance, int nCmdShow)
 #endif
 
 	m_session.InitCameraState();
-#if ENABLE_SINGLE_OBJECT_RT_DEMO
-	{
-		/* Spawn free-cam above the island centroid. */
-		double sx = 0, sy = 0, sz = 0;
-		size_t n = 0;
-		auto accum = [&](const std::vector<SceneInstance>& list) {
-			for (size_t i = 0; i < list.size(); i++) {
-				sx += list[i].x;
-				sy += list[i].y;
-				sz += list[i].z;
-				n++;
-			}
-		};
-		accum(m_scene.Opaque());
-		accum(m_scene.Alpha());
-		if (n > 0) {
-			float cx = (float)(sx / (double)n);
-			float cy = (float)(sy / (double)n);
-			float cz = (float)(sz / (double)n);
-			/* Sit above/south of the island and look toward the centroid. */
-			m_camera->SetPosition(cx, cy + 60.0f, cz - 140.0f);
-			m_session.SetFreeCamLook(0.0f, 0.28f);
-			m_camera->Update(0.28f, 0.0f, 0.0f, 0.0f);
-			printf("[Info] Free cam start (%.1f, %.1f, %.1f) look→(%.1f,%.1f,%.1f) instances=%zu\n",
-				cx, cy + 60.0f, cz - 140.0f, cx, cy, cz, n);
-		}
+	if (m_world.GetPlayer()) {
+		XMVECTOR p = m_world.GetPlayer()->GetPosition();
+		m_camera->SetPosition(
+			XMVectorGetX(p), XMVectorGetY(p) + 2.0f, XMVectorGetZ(p) - 8.0f);
 	}
-#endif
 
 	const bool fullRt =
 #if ENABLE_RT_FULL_SCENE

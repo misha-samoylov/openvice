@@ -20,13 +20,11 @@ GameSession::GameSession()
 
 void GameSession::InitCameraState()
 {
-#if ENABLE_SINGLE_OBJECT_RT_DEMO
 	m_camYaw = 0.0f;
-	m_camPitch = 0.35f;
-	m_camDistance = 45.0f;
-	m_freeCamSpeed = 2.5f;
-	m_freeCamera = true;
-#endif
+	m_camPitch = 0.25f;
+	m_camDistance = 14.0f;
+	m_freeCamSpeed = 1.0f;
+	m_freeCamera = false;
 }
 
 void GameSession::SetFreeCamLook(float yaw, float pitch)
@@ -144,43 +142,68 @@ void GameSession::HandleCameraModeHotkeys(Input* input, Camera* camera, GameWorl
 		camera->SetPosition(XMVectorGetX(cp), XMVectorGetY(cp), XMVectorGetZ(cp));
 		printf("[Info] Free camera (NUMPAD1)\n");
 	}
-	if (np0 && !m_numpad0WasDown && m_freeCamera) {
-		m_freeCamera = false;
-		XMVECTOR cp = camera->GetPosition();
-		float cx = XMVectorGetX(cp);
-		float cy = XMVectorGetY(cp);
-		float cz = XMVectorGetZ(cp);
-		if (world.ControllingVehicle() && world.GetVehicle()) {
-			world.GetVehicle()->SetPosition(cx, cy + 2.5f, cz);
-			world.GetVehicle()->PlaceOnGround();
-		} else if (world.GetPlayer()) {
-			world.GetPlayer()->SetPosition(cx, cy + 1.0f, cz);
+	if (np0 && !m_numpad0WasDown) {
+		if (m_freeCamera) {
+			m_freeCamera = false;
+			XMVECTOR cp = camera->GetPosition();
+			float cx = XMVectorGetX(cp);
+			float cy = XMVectorGetY(cp);
+			float cz = XMVectorGetZ(cp);
+			/* NUMPAD0 = Tommy: leave free-cam into character control at this spot. */
+			if (world.ControllingVehicle()) {
+				world.SetControllingVehicle(false);
+				if (world.GetPlayer())
+					world.GetPlayer()->SetCollisionEnabled(true);
+			}
+			if (world.GetPlayer()) {
+				world.GetPlayer()->SetPosition(cx, cy + 1.0f, cz);
+				world.GetPlayer()->PlaceOnGround();
+			}
+			printf("[Info] Follow camera (NUMPAD0) - Tommy at free-cam position\n");
+		} else if (world.ControllingVehicle() && world.GetPlayer() && world.GetVehicle()) {
+			world.SetControllingVehicle(false);
+			XMVECTOR p = world.GetVehicle()->GetPosition();
+			world.GetPlayer()->SetPosition(
+				XMVectorGetX(p) + 2.0f, XMVectorGetY(p) + 1.0f, XMVectorGetZ(p));
 			world.GetPlayer()->PlaceOnGround();
+			world.GetPlayer()->SetCollisionEnabled(true);
+			printf("[Info] Controlling Tommy (NUMPAD0)\n");
 		}
-		printf("[Info] Follow camera (NUMPAD0) - spawned at free-cam position\n");
 	}
 	if (np2 && !m_numpad2WasDown && world.GetVehicle()) {
-		world.SetControllingVehicle(!world.ControllingVehicle());
-		if (world.ControllingVehicle()) {
+		if (m_freeCamera) {
+			m_freeCamera = false;
+			XMVECTOR cp = camera->GetPosition();
 			if (world.GetPlayer())
 				world.GetPlayer()->SetCollisionEnabled(false);
-			if (world.GetPlayer()) {
-				XMVECTOR p = world.GetPlayer()->GetPosition();
-				world.GetVehicle()->SetPosition(
-					XMVectorGetX(p), XMVectorGetY(p) + 2.5f, XMVectorGetZ(p));
-				world.GetVehicle()->SetHeading(world.GetPlayer()->GetHeading());
-				world.GetVehicle()->PlaceOnGround();
-			}
-			printf("[Info] Driving Cheetah (NUMPAD2) - Tommy collision OFF\n");
+			world.SetControllingVehicle(true);
+			world.GetVehicle()->SetPosition(
+				XMVectorGetX(cp), XMVectorGetY(cp) + 2.5f, XMVectorGetZ(cp));
+			world.GetVehicle()->PlaceOnGround();
+			printf("[Info] Driving Cheetah (NUMPAD2) - from free-cam\n");
 		} else {
-			if (world.GetPlayer() && world.GetVehicle()) {
-				XMVECTOR p = world.GetVehicle()->GetPosition();
-				world.GetPlayer()->SetPosition(
-					XMVectorGetX(p) + 2.0f, XMVectorGetY(p) + 1.0f, XMVectorGetZ(p));
-				world.GetPlayer()->PlaceOnGround();
-				world.GetPlayer()->SetCollisionEnabled(true);
+			world.SetControllingVehicle(!world.ControllingVehicle());
+			if (world.ControllingVehicle()) {
+				if (world.GetPlayer())
+					world.GetPlayer()->SetCollisionEnabled(false);
+				if (world.GetPlayer()) {
+					XMVECTOR p = world.GetPlayer()->GetPosition();
+					world.GetVehicle()->SetPosition(
+						XMVectorGetX(p), XMVectorGetY(p) + 2.5f, XMVectorGetZ(p));
+					world.GetVehicle()->SetHeading(world.GetPlayer()->GetHeading());
+					world.GetVehicle()->PlaceOnGround();
+				}
+				printf("[Info] Driving Cheetah (NUMPAD2) - Tommy collision OFF\n");
+			} else {
+				if (world.GetPlayer() && world.GetVehicle()) {
+					XMVECTOR p = world.GetVehicle()->GetPosition();
+					world.GetPlayer()->SetPosition(
+						XMVectorGetX(p) + 2.0f, XMVectorGetY(p) + 1.0f, XMVectorGetZ(p));
+					world.GetPlayer()->PlaceOnGround();
+					world.GetPlayer()->SetCollisionEnabled(true);
+				}
+				printf("[Info] Controlling Tommy (NUMPAD2) - collision ON\n");
 			}
-			printf("[Info] Controlling Tommy (NUMPAD2) - collision ON\n");
 		}
 	}
 	m_numpad1WasDown = np1;
@@ -320,56 +343,7 @@ void GameSession::HandleFrame(
 	if (input->IsKey(DIK_ESCAPE))
 		PostQuitMessage(EXIT_SUCCESS);
 
-	#if ENABLE_SINGLE_OBJECT_RT_DEMO
-	(void)render;
-	(void)renderer;
-
-	if (world.GetWater())
-		world.GetWater()->Update(frameTime);
-
-	/* Free-fly: WASD + mouse look, Shift=faster, wheel=speed. */
-	float speed = 25.0f * m_freeCamSpeed * frameTime;
-	if (input->IsKey(DIK_LSHIFT) || input->IsKey(DIK_RSHIFT))
-		speed *= 4.0f;
-
-	float moveLeftRight = 0.0f;
-	float moveBackForward = 0.0f;
-	if (input->IsKey(DIK_W)) moveBackForward += 1.0f;
-	if (input->IsKey(DIK_A)) moveLeftRight -= 1.0f;
-	if (input->IsKey(DIK_S)) moveBackForward -= 1.0f;
-	if (input->IsKey(DIK_D)) moveLeftRight += 1.0f;
-	if (input->IsKey(DIK_E) || input->IsKey(DIK_SPACE)) {
-		XMVECTOR p = camera->GetPosition();
-		camera->SetPosition(XMVectorGetX(p), XMVectorGetY(p) + speed, XMVectorGetZ(p));
-	}
-	if (input->IsKey(DIK_Q) || input->IsKey(DIK_LCONTROL)) {
-		XMVECTOR p = camera->GetPosition();
-		camera->SetPosition(XMVectorGetX(p), XMVectorGetY(p) - speed, XMVectorGetZ(p));
-	}
-
-	float mx = input->GetMouseSpeedX();
-	float my = input->GetMouseSpeedY();
-	if (mx != 0.0f || my != 0.0f) {
-		m_camYaw += mx * 0.0025f;
-		m_camPitch += my * 0.0025f;
-		if (m_camPitch > 1.55f) m_camPitch = 1.55f;
-		if (m_camPitch < -1.55f) m_camPitch = -1.55f;
-	}
-
-	float wheel = input->GetMouseWheel();
-	if (wheel != 0.0f) {
-		float factor = 1.0f + wheel * 0.0015f;
-		if (factor < 0.5f) factor = 0.5f;
-		if (factor > 2.0f) factor = 2.0f;
-		m_freeCamSpeed *= factor;
-		if (m_freeCamSpeed < 0.2f) m_freeCamSpeed = 0.2f;
-		if (m_freeCamSpeed > 40.0f) m_freeCamSpeed = 40.0f;
-	}
-
-	camera->Update(m_camPitch, m_camYaw, moveLeftRight * speed, moveBackForward * speed);
-#else
 	HandleDebugHotkeys(input, render, world, renderer);
 	HandleCameraModeHotkeys(input, camera, world);
 	UpdateMovement(frameTime, input, camera, world);
-#endif
 }
