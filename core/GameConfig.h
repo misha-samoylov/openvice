@@ -5,14 +5,13 @@
 
 #define PROJECT_NAME "openvice"
 
-/* RT map demo: filtered IPL(s), full-scene RayQuery, free camera, no player/water. */
+/* RT map demo: full VC map (IPL interior 0/13), RayQuery, free camera, no player. */
 #define ENABLE_SINGLE_OBJECT_RT_DEMO 1
-#define DEMO_IPL_NAME "cisland"
 
 #define WINDOW_WIDTH 1280
 #define WINDOW_HEIGHT 720
 #if ENABLE_SINGLE_OBJECT_RT_DEMO
-#define WINDOW_TITLE L"openvice — cisland+golf RT demo"
+#define WINDOW_TITLE L"openvice — full map RT demo"
 #else
 #define WINDOW_TITLE L"openvice"
 #endif
@@ -29,7 +28,7 @@
 #define ENABLE_RT_INLINE_PS 0
 #define ENABLE_RT_BOUNCE_PASS 0
 #define ENABLE_RT_FULL_SCENE 1 /* primary rays + shade + sun shadow */
-#define ENABLE_RT_FULL_HALF_RES 1 /* half-res ray pass — avoids TDR on island */
+#define ENABLE_RT_FULL_HALF_RES 1 /* half-res ray pass — avoids TDR on full map */
 #else
 #define CAMERA_FAR_PLANE 300.0f
 #define DRAW_DISTANCE 300.0f
@@ -76,5 +75,5 @@
 /* Map IDE/IPL basenames under data/maps/<name>/<name>.ide|.ipl */
 #define GTA_VC_MAP_COUNT 31
 
-/* Temporary: only load/place listed IPL basenames. Set 0 to load all maps. */
-#define GTA_VC_IPL_FILTER_ENABLED 1
+/* Set 1 to load only listed IPL basenames; 0 = all maps (interior 0/13 still filtered in Scene). */
+#define GTA_VC_IPL_FILTER_ENABLED 0

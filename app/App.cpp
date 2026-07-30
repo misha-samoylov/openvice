@@ -38,19 +38,19 @@ bool App::Initialize(HINSTANCE hInstance, int nCmdShow)
 	m_img->Open(imgPath, dirPath);
 
 #if ENABLE_SINGLE_OBJECT_RT_DEMO
-	printf("[Info] RT MAP DEMO — IPL=cisland+golf, player/water/clouds disabled, free camera\n");
+	printf("[Info] RT MAP DEMO — all IPLs (interior 0/13), free camera, water/clouds via RT\n");
 	{
 		ContentLoader loader;
 		loader.LoadMapContent(m_img.get(), m_render.get(), m_assets);
 	}
 	m_scene.BuildFromAssets(m_assets, WORLD_HOUR);
 	if (m_scene.Opaque().empty() && m_scene.Alpha().empty()) {
-		printf("[Error] No instances placed from %s.ipl\n", DEMO_IPL_NAME);
-		MessageBoxA(NULL, "cisland.ipl produced an empty scene", "Error", MB_OK);
+		printf("[Error] No instances placed from IPL (interior 0/13)\n");
+		MessageBoxA(NULL, "Scene build produced an empty map", "Error", MB_OK);
 		return false;
 	}
 	m_world.InitWater(m_render.get());
-	/* No player/vehicle/clouds/collision — water feeds RT sea plane. */
+	/* No player/vehicle/collision — water feeds RT sea plane. */
 #else
 	ContentLoader loader;
 	loader.LoadMapContent(m_img.get(), m_render.get(), m_assets);

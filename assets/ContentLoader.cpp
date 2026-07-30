@@ -21,12 +21,8 @@ namespace
 	};
 
 #if GTA_VC_IPL_FILTER_ENABLED
-#if ENABLE_SINGLE_OBJECT_RT_DEMO
-	const char* kIplAllow[] = { "cisland", "golf" };
-#else
 	/* Temporary allowlist — add/remove basenames as needed. */
 	const char* kIplAllow[] = { "starisl", "golf" };
-#endif
 	const int kIplAllowCount = (int)(sizeof(kIplAllow) / sizeof(kIplAllow[0]));
 
 	bool IsIplAllowed(const char* name)

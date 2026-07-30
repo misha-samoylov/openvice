@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <cmath>
 #include <d3dcompiler.h>
+#include <unordered_map>
 
 #pragma comment(lib, "d3dcompiler.lib")
 
@@ -22,12 +23,16 @@ struct RtShadeTriCPU
 	UINT pad3;
 };
 
+/* Must match TLAS instance order. Tris are local-space; rows are world 3x4. */
 struct RtInstCPU
 {
 	UINT triStart;
 	UINT triCount;
 	UINT pad0;
 	UINT pad1;
+	XMFLOAT4 row0;
+	XMFLOAT4 row1;
+	XMFLOAT4 row2;
 };
 
 struct RtFullCB
@@ -48,7 +53,7 @@ struct RtFullCB
 };
 
 static_assert(sizeof(RtShadeTriCPU) == 80, "RtShadeTri size");
-static_assert(sizeof(RtInstCPU) == 16, "RtInst size");
+static_assert(sizeof(RtInstCPU) == 64, "RtInst size");
 
 static XMMATRIX InstanceWorld(const SceneInstance& inst)
 {
@@ -58,11 +63,63 @@ static XMMATRIX InstanceWorld(const SceneInstance& inst)
 		XMMatrixTranslation(inst.x, inst.y, inst.z);
 }
 
+static void StoreWorldRows(const XMMATRIX& world, RtInstCPU* out)
+{
+	XMFLOAT4X4 m;
+	XMStoreFloat4x4(&m, world);
+	out->row0 = XMFLOAT4(m._11, m._12, m._13, m._41);
+	out->row1 = XMFLOAT4(m._21, m._22, m._23, m._42);
+	out->row2 = XMFLOAT4(m._31, m._32, m._33, m._43);
+}
+
+static bool BakeMeshLocal(
+	Mesh* mesh,
+	std::vector<RtShadeTriCPU>& tris,
+	UINT* outStart,
+	UINT* outCount)
+{
+	const std::vector<float>& vd = mesh->GetVertexData();
+	const std::vector<unsigned int>& id = mesh->GetIndexData();
+	if (vd.empty() || id.size() < 3 || id.size() != mesh->GetIndexCount())
+		return false;
+
+	*outStart = (UINT)tris.size();
+	UINT tex = mesh->GetTextureSrvIndex();
+	if (tex == UINT_MAX)
+		tex = 0xFFFFFFFFu;
+
+	for (size_t t = 0; t + 2 < id.size(); t += 3) {
+		unsigned int i0 = id[t], i1 = id[t + 1], i2 = id[t + 2];
+		auto load = [&](unsigned int idx, XMFLOAT3* p, XMFLOAT2* uv) {
+			if ((size_t)idx * 5 + 4 >= vd.size()) {
+				*p = XMFLOAT3(0, 0, 0);
+				*uv = XMFLOAT2(0, 0);
+				return;
+			}
+			p->x = vd[(size_t)idx * 5 + 0];
+			p->y = vd[(size_t)idx * 5 + 1];
+			p->z = vd[(size_t)idx * 5 + 2];
+			uv->x = vd[(size_t)idx * 5 + 3];
+			uv->y = vd[(size_t)idx * 5 + 4];
+		};
+		RtShadeTriCPU tri = {};
+		load(i0, &tri.p0, &tri.uv0);
+		load(i1, &tri.p1, &tri.uv1);
+		load(i2, &tri.p2, &tri.uv2);
+		tri.texIndex = tex;
+		tris.push_back(tri);
+	}
+
+	*outCount = (UINT)tris.size() - *outStart;
+	return *outCount > 0;
+}
+
 static void AppendShadeMeshes(
 	const std::vector<SceneInstance>& instances,
 	RayTracedShadows* rt,
 	std::vector<RtShadeTriCPU>& tris,
-	std::vector<RtInstCPU>& insts)
+	std::vector<RtInstCPU>& insts,
+	std::unordered_map<Mesh*, std::pair<UINT, UINT>>& meshRanges)
 {
 	for (size_t i = 0; i < instances.size(); i++) {
 		const SceneInstance& inst = instances[i];
@@ -80,47 +137,19 @@ static void AppendShadeMeshes(
 			if (mesh->GetPrimitiveTopology() != D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST)
 				continue;
 
-			const std::vector<float>& vd = mesh->GetVertexData();
-			const std::vector<unsigned int>& id = mesh->GetIndexData();
-			if (vd.empty() || id.size() < 3 || id.size() != mesh->GetIndexCount())
-				continue;
-
-			RtInstCPU rec = {};
-			rec.triStart = (UINT)tris.size();
-			UINT tex = mesh->GetTextureSrvIndex();
-			if (tex == UINT_MAX)
-				tex = 0xFFFFFFFFu;
-
-			/* Emit exactly IndexCount/3 tris — same order as BLAS PrimitiveIndex. */
-			for (size_t t = 0; t + 2 < id.size(); t += 3) {
-				unsigned int i0 = id[t], i1 = id[t + 1], i2 = id[t + 2];
-
-				auto load = [&](unsigned int idx, XMFLOAT3* p, XMFLOAT2* uv) {
-					if ((size_t)idx * 5 + 4 >= vd.size()) {
-						*p = XMFLOAT3(0, 0, 0);
-						*uv = XMFLOAT2(0, 0);
-						return;
-					}
-					float lx = vd[(size_t)idx * 5 + 0];
-					float ly = vd[(size_t)idx * 5 + 1];
-					float lz = vd[(size_t)idx * 5 + 2];
-					XMVECTOR wp = XMVector3Transform(XMVectorSet(lx, ly, lz, 1.0f), world);
-					XMStoreFloat3(p, wp);
-					uv->x = vd[(size_t)idx * 5 + 3];
-					uv->y = vd[(size_t)idx * 5 + 4];
-				};
-
-				RtShadeTriCPU tri = {};
-				load(i0, &tri.p0, &tri.uv0);
-				load(i1, &tri.p1, &tri.uv1);
-				load(i2, &tri.p2, &tri.uv2);
-				tri.texIndex = tex;
-				tris.push_back(tri);
+			std::unordered_map<Mesh*, std::pair<UINT, UINT>>::iterator it = meshRanges.find(mesh);
+			if (it == meshRanges.end()) {
+				UINT start = 0, count = 0;
+				if (!BakeMeshLocal(mesh, tris, &start, &count))
+					continue;
+				it = meshRanges.insert(std::make_pair(mesh, std::make_pair(start, count))).first;
 			}
 
-			rec.triCount = (UINT)tris.size() - rec.triStart;
-			if (rec.triCount > 0)
-				insts.push_back(rec);
+			RtInstCPU rec = {};
+			rec.triStart = it->second.first;
+			rec.triCount = it->second.second;
+			StoreWorldRows(world, &rec);
+			insts.push_back(rec);
 		}
 	}
 }
@@ -407,9 +436,11 @@ bool RtFullScene::BuildShadeData(DXRender* render, const Scene& scene, RayTraced
 
 	std::vector<RtShadeTriCPU> tris;
 	std::vector<RtInstCPU> insts;
-	tris.reserve(65536);
-	AppendShadeMeshes(scene.Opaque(), rt, tris, insts);
-	AppendShadeMeshes(scene.Alpha(), rt, tris, insts);
+	std::unordered_map<Mesh*, std::pair<UINT, UINT>> meshRanges;
+	tris.reserve(256 * 1024);
+	insts.reserve(65536);
+	AppendShadeMeshes(scene.Opaque(), rt, tris, insts, meshRanges);
+	AppendShadeMeshes(scene.Alpha(), rt, tris, insts, meshRanges);
 	if (tris.empty() || insts.empty()) {
 		char buf[256];
 		sprintf_s(buf, "[Error] RtFullScene: no shade triangles (opaque=%zu alpha=%zu)\n",
@@ -424,8 +455,8 @@ bool RtFullScene::BuildShadeData(DXRender* render, const Scene& scene, RayTraced
 
 	{
 		char buf[192];
-		sprintf_s(buf, "[Info] RtFullScene baking tris=%zu bytes=%llu insts=%zu\n",
-			tris.size(), (unsigned long long)triBytes, insts.size());
+		sprintf_s(buf, "[Info] RtFullScene baking uniqueTris=%zu bytes=%llu insts=%zu meshes=%zu\n",
+			tris.size(), (unsigned long long)triBytes, insts.size(), meshRanges.size());
 		dlog(buf);
 	}
 
