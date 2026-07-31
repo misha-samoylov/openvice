@@ -19,14 +19,16 @@ struct RenderSettings
 {
 	bool shadowsEnabled;
 	bool ssaoEnabled;
+	bool rtaoEnabled;
 	bool godRaysEnabled;
 	bool cloudsEnabled;
 	bool physicsDebugVisible;
 	int physicsDebugFilter;
 
 	RenderSettings()
-		: shadowsEnabled(false) /* CSM off; lighting is RT-only */
+		: shadowsEnabled(true) /* RT sun shadows (F7); CSM is compile-off */
 		, ssaoEnabled(false)
+		, rtaoEnabled(true)
 		, godRaysEnabled(false) /* screen-space; lighting is RT sun */
 		, cloudsEnabled(true)
 		, physicsDebugVisible(false)

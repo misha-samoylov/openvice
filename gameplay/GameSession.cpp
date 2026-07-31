@@ -91,7 +91,7 @@ void GameSession::HandleDebugHotkeys(
 
 	static bool f7WasDown = false;
 	bool f7Down = input->IsKey(DIK_F7);
-	if (f7Down && !f7WasDown && renderer.Shadows()) {
+	if (f7Down && !f7WasDown && (renderer.GetRtBounce() || renderer.Shadows())) {
 		world.Settings().shadowsEnabled = !world.Settings().shadowsEnabled;
 		printf("[Info] Shadows %s (F7)\n", world.Settings().shadowsEnabled ? "ON" : "OFF");
 	}
@@ -99,9 +99,9 @@ void GameSession::HandleDebugHotkeys(
 
 	static bool f8WasDown = false;
 	bool f8Down = input->IsKey(DIK_F8);
-	if (f8Down && !f8WasDown && renderer.GetSSAO()) {
-		world.Settings().ssaoEnabled = !world.Settings().ssaoEnabled;
-		printf("[Info] SSAO %s (F8)\n", world.Settings().ssaoEnabled ? "ON" : "OFF");
+	if (f8Down && !f8WasDown && renderer.GetRtBounce()) {
+		world.Settings().rtaoEnabled = !world.Settings().rtaoEnabled;
+		printf("[Info] RTAO %s (F8)\n", world.Settings().rtaoEnabled ? "ON" : "OFF");
 	}
 	f8WasDown = f8Down;
 

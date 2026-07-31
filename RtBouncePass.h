@@ -12,10 +12,10 @@ using Microsoft::WRL::ComPtr;
 using namespace DirectX;
 
 /*
- * Master-look RT sun shadows (DX12):
- *   full-res soft RayQuery toward the sun + alpha punch-through
- *   (cutout foliage/fences don't cast solid card quads).
- *   color *= lerp(0.625, 1.0, lit) — same darken as DX11 CSM.
+ * Master-look RT sun shadows + RTAO (DX12):
+ *   soft RayQuery sun shadows with alpha punch-through,
+ *   plus short-range ray-traced ambient occlusion.
+ *   color *= lerp(0.625, 1.0, lit) * ao.
  */
 class RtBouncePass
 {
@@ -30,7 +30,9 @@ public:
 		DXRender* render,
 		Camera* camera,
 		FXMVECTOR sunDirToward,
-		D3D12_GPU_VIRTUAL_ADDRESS tlasVA);
+		D3D12_GPU_VIRTUAL_ADDRESS tlasVA,
+		bool enableShadows = true,
+		bool enableRtao = true);
 
 	bool HasShadeData() const { return m_shadeReady; }
 

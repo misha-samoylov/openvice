@@ -435,7 +435,7 @@ HRESULT RtBouncePass::Init(DXRender* render)
 	if (FAILED(hr))
 		return hr;
 
-	printf("[Info] RT sun shadows ready (%ux%u) — soft + alpha cutout\n", m_rtW, m_rtH);
+	printf("[Info] RT sun shadows + RTAO ready (%ux%u)\n", m_rtW, m_rtH);
 	return S_OK;
 }
 
@@ -554,7 +554,9 @@ void RtBouncePass::Apply(
 	DXRender* render,
 	Camera* camera,
 	FXMVECTOR sunDirToward,
-	D3D12_GPU_VIRTUAL_ADDRESS tlasVA)
+	D3D12_GPU_VIRTUAL_ADDRESS tlasVA,
+	bool enableShadows,
+	bool enableRtao)
 {
 	if (!m_rootSig || !m_psoTrace || !m_colorTex || tlasVA == 0 || !m_shadeReady)
 		return;
@@ -592,11 +594,16 @@ void RtBouncePass::Apply(
 	XMVECTOR cam = camera->GetPosition();
 	cb.CamPos = XMFLOAT3(XMVectorGetX(cam), XMVectorGetY(cam), XMVectorGetZ(cam));
 	XMStoreFloat3(&cb.SunDir, XMVector3Normalize(sunDirToward));
-	cb.SunStrength = 1.0f;
+	/* SunStrength>0.5 enables soft RT sun shadows in the shader. */
+	cb.SunStrength = enableShadows ? 1.0f : 0.0f;
 	cb.SkyColor = XMFLOAT3(SKY_COLOR_R, SKY_COLOR_G, SKY_COLOR_B);
 	cb.ShadowBias = 0.08f;
 	/* Shadow rays travel farther than mesh draw distance so distant casters still shade. */
 	cb.MaxRayT = DRAW_DISTANCE * 2.0f;
+	cb.AoRadius = 2.5f;
+	cb.AoStrength = enableRtao ? 0.50f : 0.0f;
+	cb.BounceStrength = 0.0f;
+	cb.ReflectStrength = 0.0f;
 
 	D3D12_GPU_VIRTUAL_ADDRESS cbAddr = 0;
 	void* ptr = render->AllocFrameConstants(sizeof(cb), &cbAddr);

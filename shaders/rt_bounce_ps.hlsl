@@ -1,5 +1,5 @@
-/* Master-look RT sun shadows: soft penumbra + alpha punch-through.
- * color *= lerp(0.625, 1.0, lit) in composite. */
+/* Master-look RT sun shadows + RTAO.
+ * Composite: color *= lerp(0.625, 1.0, lit) * ao. */
 cbuffer RtBounceCB : register(b0)
 {
 	float4x4 InvViewProj;
@@ -70,14 +70,15 @@ float3 Hash23(float2 p)
 	return frac((p3.xxy + p3.yxx) * p3.zyx);
 }
 
-/* Soft shadow with cutout alpha punch-through (no solid card quads). lit=1. */
-float TraceSunLitDir(float3 origin, float3 dir, float tMax)
+/* Soft shadow with cutout alpha punch-through (no solid card quads). lit=1.
+ * maxSteps limits work for short AO rays. */
+float TraceOccludedDir(float3 origin, float3 dir, float tMax, uint maxSteps)
 {
 	float3 d = normalize(dir);
 	float tMin = 0.02f;
 
 	[loop]
-	for (uint i = 0; i < 8u; ++i) {
+	for (uint i = 0; i < maxSteps; ++i) {
 		RayDesc ray;
 		ray.Origin = origin;
 		ray.Direction = d;
@@ -106,7 +107,6 @@ float TraceSunLitDir(float3 origin, float3 dir, float tMax)
 			a = BindlessTex[NonUniformResourceIndex(tri.texIndex)].SampleLevel(LinSamp, texUv, 0).a;
 		}
 
-		/* Opaque / cutout solid — blocks sun. Transparent hole — continue. */
 		if (a >= 0.01f)
 			return 0.0f;
 
@@ -118,33 +118,96 @@ float TraceSunLitDir(float3 origin, float3 dir, float tMax)
 	return 0.0f;
 }
 
-/* Contact-hardening soft shadow (4 taps). */
+float TraceSunLitDir(float3 origin, float3 dir, float tMax)
+{
+	return TraceOccludedDir(origin, dir, tMax, 8u);
+}
+
+/* Soft sun shadow: fixed Vogel disk (stable) + light noise rotation. */
 float TraceSoftSun(float3 origin, float3 L, float tMax, float2 noise)
 {
 	float3 up = abs(L.y) < 0.99f ? float3(0, 1, 0) : float3(1, 0, 0);
 	float3 t = normalize(cross(L, up));
 	float3 b = cross(L, t);
 
-	/* First ray estimates blocker distance for penumbra size. */
-	float3 d0 = L;
-	float lit0 = TraceSunLitDir(origin, d0, tMax);
-
-	/* If fully lit, skip extra taps. */
+	float lit0 = TraceSunLitDir(origin, L, tMax);
 	if (lit0 > 0.99f)
 		return 1.0f;
 
-	/* Penumbra grows with travel; keep modest for VC scale. */
-	float penumbra = 0.022f;
-	float2 o = (noise.xy * 2.0f - 1.0f);
-	float3 d1 = normalize(L + (t * o.x + b * o.y) * penumbra);
-	float3 d2 = normalize(L + (t * -o.y + b * o.x) * penumbra);
-	float3 d3 = normalize(L + (t * o.y + b * -o.x) * (penumbra * 0.7f));
+	/* Modest penumbra — large random offsets were the main noise source. */
+	const float penumbra = 0.016f;
+	const float golden = 2.3999632f; /* 2*pi / golden ratio */
+	float rot = noise.x * 6.2831853f;
 
 	float lit = lit0;
-	lit += TraceSunLitDir(origin, d1, tMax);
-	lit += TraceSunLitDir(origin, d2, tMax);
-	lit += TraceSunLitDir(origin, d3, tMax);
-	return lit * 0.25f;
+	const int kShadowSamples = 8;
+	[unroll]
+	for (int i = 1; i < kShadowSamples; ++i) {
+		float r = sqrt(((float)i + 0.5f) / (float)kShadowSamples);
+		float a = (float)i * golden + rot;
+		float2 d = float2(cos(a), sin(a)) * r * penumbra;
+		float3 dir = normalize(L + t * d.x + b * d.y);
+		lit += TraceSunLitDir(origin, dir, tMax);
+	}
+	return lit * (1.0f / (float)kShadowSamples);
+}
+
+/* Ray-traced AO: cosine hemisphere, distance-weighted, alpha-aware. */
+float TraceRTAO(float3 origin, float3 N, float radius, float2 noise)
+{
+	float3 t = normalize(cross(N, abs(N.y) < 0.99f ? float3(0, 1, 0) : float3(1, 0, 0)));
+	float3 b = cross(N, t);
+
+	float ao = 0.0f;
+	const int kAoSamples = 8;
+	[unroll]
+	for (int i = 0; i < kAoSamples; ++i) {
+		float2 u = Hash23(noise + float2(i * 19.7f, i * 11.3f)).xy;
+		float phi = u.x * 6.2831853f;
+		float cosTheta = sqrt(u.y);
+		float sinTheta = sqrt(1.0f - u.y);
+		float3 dir = normalize(
+			(cos(phi) * sinTheta) * t +
+			(sin(phi) * sinTheta) * b +
+			cosTheta * N);
+
+		float3 d = normalize(dir);
+		RayDesc ray;
+		ray.Origin = origin;
+		ray.Direction = d;
+		ray.TMin = 0.02f;
+		ray.TMax = radius;
+
+		RayQuery<RAY_FLAG_FORCE_OPAQUE | RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES> q;
+		q.TraceRayInline(SceneBVH, RAY_FLAG_NONE, 0xFF, ray);
+		q.Proceed();
+
+		float vis = 1.0f;
+		if (q.CommittedStatus() == COMMITTED_TRIANGLE_HIT) {
+			uint instId = q.CommittedInstanceID();
+			uint primId = q.CommittedPrimitiveIndex();
+			RtInst inst = Insts[instId];
+			bool solid = true;
+			if (primId < inst.triCount) {
+				RtShadeTri tri = Tris[inst.triStart + primId];
+				if (tri.texIndex != 0xFFFFFFFFu) {
+					float2 bary = q.CommittedTriangleBarycentrics();
+					float w = 1.0f - bary.x - bary.y;
+					float2 texUv = w * tri.uv0 + bary.x * tri.uv1 + bary.y * tri.uv2;
+					float a = BindlessTex[NonUniformResourceIndex(tri.texIndex)].SampleLevel(LinSamp, texUv, 0).a;
+					solid = (a >= 0.01f);
+				}
+			}
+			if (solid) {
+				float hitT = q.CommittedRayT();
+				float wOcc = saturate(1.0f - hitT / max(radius, 1e-3f));
+				/* Softer curve — less salt-and-pepper than linear. */
+				vis = 1.0f - (wOcc * wOcc);
+			}
+		}
+		ao += vis;
+	}
+	return ao * (1.0f / (float)kAoSamples);
 }
 
 float4 main(VS_OUTPUT input) : SV_TARGET
@@ -164,15 +227,22 @@ float4 main(VS_OUTPUT input) : SV_TARGET
 
 	float3 L = normalize(SunDir);
 	float bias = max(ShadowBias, 0.06f);
-	/* Stronger bias at grazing to reduce acne without losing contact. */
 	float ndotl = saturate(abs(dot(N, L)));
 	bias = lerp(bias * 2.5f, bias, ndotl);
 	float3 origin = P + N * bias + L * (bias * 0.35f);
+	float3 aoOrigin = P + N * max(bias, 0.05f);
 
 	float2 noise = Hash23(uv * float2(input.Pos.x, input.Pos.y) + CamPos.xz).xy;
-	float lit = TraceSoftSun(origin, L, MaxRayT, noise);
+	float lit = 1.0f;
+	if (SunStrength > 0.5f)
+		lit = TraceSoftSun(origin, L, MaxRayT, noise);
 
-	/* Master CSM darken. */
-	float shade = lerp(0.625f, 1.0f, lit);
-	return float4(0.0f, 0.0f, 0.0f, shade);
+	float ao = 1.0f;
+	if (AoStrength > 0.001f && AoRadius > 0.001f)
+		ao = TraceRTAO(aoOrigin, N, AoRadius, noise + 0.71f);
+	ao = lerp(1.0f, ao, saturate(AoStrength));
+
+	/* r = AO (blurred in composite), a = sun shadow darken (kept sharper). */
+	float shadow = lerp(0.625f, 1.0f, lit);
+	return float4(saturate(ao), 0.0f, 0.0f, saturate(shadow));
 }

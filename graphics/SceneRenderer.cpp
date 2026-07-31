@@ -444,7 +444,8 @@ void SceneRenderer::Render(DXRender* render, Camera* camera, Scene& scene, GameW
 		(m_ssao && settings.ssaoEnabled) ||
 #endif
 #if ENABLE_RT_BOUNCE_PASS
-		(m_rtBounce && m_rtShadows && m_rtShadows->IsReady()) ||
+		(m_rtBounce && m_rtShadows && m_rtShadows->IsReady() &&
+			(settings.shadowsEnabled || settings.rtaoEnabled)) ||
 #endif
 		(m_godRays && settings.godRaysEnabled);
 	if (needDepth)
@@ -456,15 +457,17 @@ void SceneRenderer::Render(DXRender* render, Camera* camera, Scene& scene, GameW
 #endif
 
 	/* =====================================================================
-	 * STAGE 2 — RT sun shadows (replace master CSM): lerp(0.625, 1.0, lit)
+	 * STAGE 2 — RT sun shadows + RTAO: lerp(0.625,1,lit) * ao
 	 * ===================================================================== */
 #if ENABLE_RT_BOUNCE_PASS
-	if (m_rtBounce && m_rtShadows && m_rtShadows->IsReady() && m_rtBounce->HasShadeData()) {
+	if (m_rtBounce && m_rtShadows && m_rtShadows->IsReady() && m_rtBounce->HasShadeData() &&
+		(settings.shadowsEnabled || settings.rtaoEnabled)) {
 		D3D12_GPU_VIRTUAL_ADDRESS tlas = m_rtShadows->GetGpuAddress();
 		if (tlas == 0)
 			tlas = render->GetFallbackTlasVA();
 		if (tlas != 0)
-			m_rtBounce->Apply(render, camera, sunDir, tlas);
+			m_rtBounce->Apply(render, camera, sunDir, tlas,
+				settings.shadowsEnabled, settings.rtaoEnabled);
 	}
 #endif
 

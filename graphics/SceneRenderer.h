@@ -32,6 +32,7 @@ public:
 	PostFX* GetPostFX() { return m_postFX.get(); }
 	GodRays* GetGodRays() { return m_godRays.get(); }
 	RayTracedShadows* GetRtShadows() { return m_rtShadows.get(); }
+	RtBouncePass* GetRtBounce() { return m_rtBounce.get(); }
 	RtFullScene* GetRtFull() { return m_rtFull.get(); }
 	PhysicsDebugDraw* PhysicsDebug() { return m_physicsDebug.get(); }
 
