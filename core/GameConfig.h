@@ -10,6 +10,7 @@
 
 #define WINDOW_WIDTH 3840
 #define WINDOW_HEIGHT 2160
+#define WINDOW_FULLSCREEN 1
 #define WINDOW_TITLE L"openvice"
 
 #define CAMERA_FAR_PLANE 800.0f

@@ -1,4 +1,5 @@
 #include "Window.hpp"
+#include "core/GameConfig.h"
 
 HWND Window::GetHandleWindow()
 {
@@ -41,16 +42,29 @@ HRESULT Window::CreateWindowApp(HINSTANCE hInstance, int nCmdShow,
 		return E_FAIL;
 	}
 
-	RECT rc = { 0, 0, width, height };
-	AdjustWindowRect(&rc, WS_OVERLAPPEDWINDOW, FALSE);
+	DWORD style = WINDOW_FULLSCREEN ? WS_POPUP : WS_OVERLAPPEDWINDOW;
+	int x = CW_USEDEFAULT;
+	int y = CW_USEDEFAULT;
+	int w = width;
+	int h = height;
+
+	if (WINDOW_FULLSCREEN) {
+		x = 0;
+		y = 0;
+	} else {
+		RECT rc = { 0, 0, width, height };
+		AdjustWindowRect(&rc, style, FALSE);
+		w = rc.right - rc.left;
+		h = rc.bottom - rc.top;
+	}
 
 	m_hWnd = CreateWindowEx(
 		0, /* extended styles */
 		CLASS_NAME,
 		windowTitle,
-		WS_OVERLAPPEDWINDOW, /* style */
-		CW_USEDEFAULT, CW_USEDEFAULT, /* position: x, y */
-		rc.right - rc.left, rc.bottom - rc.top, /* size: weight, height */
+		style,
+		x, y,
+		w, h,
 		NULL, /* parent window */
 		NULL, /* menu */
 		hInstance,
