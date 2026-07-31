@@ -1,4 +1,4 @@
-/* re3 POSTFX_NORMAL — colourfilterVC.frag port. */
+/* re3 POSTFX_NORMAL — colourfilterVC.frag port (master). */
 Texture2D SceneTex : register(t0);
 SamplerState PointSamp : register(s0);
 

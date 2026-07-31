@@ -344,17 +344,18 @@ void RayTracedShadows::AppendInstances(
 			Mesh* mesh = meshes[m];
 			if (!mesh)
 				continue;
-#if !ENABLE_SINGLE_OBJECT_RT_DEMO && !ENABLE_RT_FULL_SCENE
+
 			if (cutoutOnly) {
 				if (!mesh->GetAlpha() || !mesh->IsAlphaCutout())
 					continue;
 			} else {
+#if ENABLE_RT_FULL_SCENE || ENABLE_SINGLE_OBJECT_RT_DEMO || ENABLE_RT_BOUNCE_PASS
+				/* Include every mesh from this list (opaque call or all-alpha call). */
+#else
 				if (mesh->GetAlpha())
 					continue;
-			}
-#else
-			(void)cutoutOnly;
 #endif
+			}
 
 			std::unordered_map<Mesh*, BlasEntry>::iterator it = m_blas.find(mesh);
 			if (it == m_blas.end())
@@ -399,7 +400,7 @@ bool RayTracedShadows::Build(DXRender* render, const Scene& scene)
 				Mesh* mesh = meshes[m];
 				if (!mesh)
 					continue;
-#if ENABLE_RT_FULL_SCENE || ENABLE_SINGLE_OBJECT_RT_DEMO
+#if ENABLE_RT_FULL_SCENE || ENABLE_SINGLE_OBJECT_RT_DEMO || ENABLE_RT_BOUNCE_PASS
 				(void)cutoutOnly;
 #else
 				if (cutoutOnly) {
@@ -417,10 +418,11 @@ bool RayTracedShadows::Build(DXRender* render, const Scene& scene)
 		}
 	};
 	collect(scene.Opaque(), false);
-#if ENABLE_RT_FULL_SCENE || ENABLE_SINGLE_OBJECT_RT_DEMO
+#if ENABLE_RT_FULL_SCENE || ENABLE_SINGLE_OBJECT_RT_DEMO || ENABLE_RT_BOUNCE_PASS
+	/* All alpha (cutout + soft) cast; shadow rays alpha-test textures to avoid card quads. */
 	collect(scene.Alpha(), false);
 #else
-	/* Opaque casters only — cutout foliage in TLAS + soft overdraw was hanging the GPU. */
+	collect(scene.Alpha(), true);
 #endif
 
 	/* Pre-size scratch BEFORE recording — growing/destroying scratch mid-list TDRs. */
@@ -493,8 +495,10 @@ bool RayTracedShadows::Build(DXRender* render, const Scene& scene)
 	std::vector<D3D12_RAYTRACING_INSTANCE_DESC> instances;
 	instances.reserve(scene.Opaque().size() + scene.Alpha().size());
 	AppendInstances(scene.Opaque(), false, instances);
-#if ENABLE_RT_FULL_SCENE || ENABLE_SINGLE_OBJECT_RT_DEMO
+#if ENABLE_RT_FULL_SCENE || ENABLE_SINGLE_OBJECT_RT_DEMO || ENABLE_RT_BOUNCE_PASS
 	AppendInstances(scene.Alpha(), false, instances);
+#else
+	AppendInstances(scene.Alpha(), true, instances);
 #endif
 
 	/* Second submit for TLAS so scratch can grow safely after BLAS completed. */

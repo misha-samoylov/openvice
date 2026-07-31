@@ -1,3 +1,5 @@
+/* Master-look mesh PS (DX12): textured + fog.
+ * Shadows from fullscreen RayQuery (master CSM darken: lerp(0.625, 1.0, lit)). */
 cbuffer cbPerObject : register(b0)
 {
 	float4x4 WVP;
@@ -21,6 +23,7 @@ SamplerState ObjSamplerState : register(s0);
 Texture2D UnusedShadowSlot : register(t1);
 SamplerState UnusedShadowSampler : register(s1);
 
+/* Bound for root-sig compatibility; shadows are fullscreen, not per-draw. */
 RaytracingAccelerationStructure SceneBVH : register(t2);
 
 struct VS_OUTPUT
@@ -31,52 +34,10 @@ struct VS_OUTPUT
 	float3 WorldPos : TEXCOORD2;
 };
 
-float3 GeometricNormal(float3 worldPos)
-{
-	float3 dx = ddx(worldPos);
-	float3 dy = ddy(worldPos);
-	float3 n = cross(dy, dx);
-	float len = length(n);
-	return (len > 1e-8f) ? (n / len) : float3(0.0f, 1.0f, 0.0f);
-}
-
-/* One ray toward the sun — hard RT shadow (no multi-bounce). */
-float SampleRtSunShadow(float3 worldPos, float3 toSun)
-{
-	float3 dir = normalize(toSun);
-	RayDesc ray;
-	ray.Origin = worldPos + dir * max(shadowBias * 200.0f, 0.08f);
-	ray.Direction = dir;
-	ray.TMin = 0.0f;
-	ray.TMax = 400.0f;
-
-	RayQuery<RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH |
-		RAY_FLAG_FORCE_OPAQUE |
-		RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES> q;
-	q.TraceRayInline(SceneBVH, RAY_FLAG_NONE, 0xFF, ray);
-	q.Proceed();
-	return (q.CommittedStatus() == COMMITTED_TRIANGLE_HIT) ? 0.0f : 1.0f;
-}
-
 float4 main(VS_OUTPUT input) : SV_TARGET
 {
-	float3 N = GeometricNormal(input.WorldPos);
-
 	float4 color = ObjTexture.Sample(ObjSamplerState, input.TexCoord);
 	clip(color.a - 0.01f);
-
-	float3 L = normalize(sunDir);
-	float ndotl = max(saturate(dot(N, L)), saturate(dot(-N, L)) * 0.35f);
-
-	float3 ambient = float3(0.18f, 0.20f, 0.26f);
-	float3 sunColor = float3(1.20f, 1.08f, 0.92f);
-
-	float shadow = 1.0f;
-	[branch]
-	if (receiveShadows > 0.5f)
-		shadow = SampleRtSunShadow(input.WorldPos, L);
-
-	color.rgb *= ambient + sunColor * ndotl * shadow;
 
 	float fogFactor = saturate((fogEnd - input.FogDist) / (fogEnd - fogStart));
 	color.rgb = lerp(fogColor.rgb, color.rgb, fogFactor);

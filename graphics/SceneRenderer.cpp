@@ -62,11 +62,13 @@ bool SceneRenderer::Init(DXRender* render)
 	if (m_rtShadows) {
 		m_rtBounce.reset(new RtBouncePass());
 		if (FAILED(m_rtBounce->Init(render))) {
-			printf("[Warn] RtBouncePass init failed — continuing without RT bounce pass\n");
+			printf("[Warn] RT sun shadow pass init failed — continuing without RT shadows\n");
 			m_rtBounce->Cleanup();
 			m_rtBounce.reset();
 		}
 	}
+#else
+	printf("[Info] RT bounce pass disabled (ENABLE_RT_BOUNCE_PASS=0)\n");
 #endif
 #if ENABLE_RT_FULL_SCENE
 	if (m_rtShadows) {
@@ -82,6 +84,8 @@ bool SceneRenderer::Init(DXRender* render)
 			m_rtFull.reset();
 		}
 	}
+#else
+	printf("[Info] Full-scene RT disabled — master look + RT sun shadows\n");
 #endif
 #endif
 
@@ -103,6 +107,15 @@ bool SceneRenderer::BuildRayTracing(DXRender* render, const Scene& scene)
 		}
 		return false;
 	}
+#if ENABLE_RT_BOUNCE_PASS
+	if (m_rtBounce) {
+		if (!m_rtBounce->BuildShadeData(render, scene, m_rtShadows.get())) {
+			printf("[Warn] RT shadow shade bake failed — alpha cutout shadows disabled\n");
+			m_rtBounce->Cleanup();
+			m_rtBounce.reset();
+		}
+	}
+#endif
 #if ENABLE_RT_FULL_SCENE
 	if (m_rtFull) {
 		if (!m_rtFull->BuildShadeData(render, scene, m_rtShadows.get())) {
@@ -285,7 +298,7 @@ void SceneRenderer::Render(DXRender* render, Camera* camera, Scene& scene, GameW
 	XMStoreFloat3(&ctx.sunDir, sunDir);
 
 #if ENABLE_RT_FULL_SCENE
-	/* Full primary-ray path: skip raster meshes; shade + sun shadow in RtFullScene. */
+	/* Alternate path: full primary-ray world (skips hybrid raster G-buffer). */
 	if (m_rtFull && m_rtFull->IsReady() && m_rtShadows && m_rtShadows->IsReady()) {
 		D3D12_GPU_VIRTUAL_ADDRESS tlas = m_rtShadows->GetGpuAddress();
 		if (tlas == 0)
@@ -340,6 +353,9 @@ void SceneRenderer::Render(DXRender* render, Camera* camera, Scene& scene, GameW
 	}
 #endif
 
+	/* =====================================================================
+	 * STAGE 1 — Raster (master look): textured meshes + fog (+ water/clouds)
+	 * ===================================================================== */
 	if (world.GetClouds())
 		world.GetClouds()->Render(render, camera, sunDir, settings.cloudsEnabled);
 	ctx.ClearBindings();
@@ -363,6 +379,7 @@ void SceneRenderer::Render(DXRender* render, Camera* camera, Scene& scene, GameW
 	if (world.GetPlayer() && !world.ControllingVehicle())
 		world.GetPlayer()->Render(render, ctx);
 
+	/* Transparency / refraction (water): still raster — RT refraction is too costly. */
 	if (world.GetWater()) {
 		const bool reflectClouds = settings.cloudsEnabled && world.GetClouds() != nullptr;
 		world.GetWater()->Render(render, camera, m_frustum, DRAW_DISTANCE, sunDir,
@@ -395,11 +412,11 @@ void SceneRenderer::Render(DXRender* render, Camera* camera, Scene& scene, GameW
 		XMVECTOR cam = camera->GetPosition();
 		char line[512];
 		sprintf_s(line,
-			"[Info] Frame %d draws opaque=%d alphaOp=%d cutout=%d soft=%d cam=(%.1f,%.1f,%.1f) rtPS=%d rtReady=%d\n",
+			"[Info] Frame %d draws opaque=%d alphaOp=%d cutout=%d soft=%d cam=(%.1f,%.1f,%.1f) hybridRT=%d rtReady=%d\n",
 			s_frameLog,
 			drawsOpaque, drawsAlphaOp, drawsCutout, drawsSoft,
 			XMVectorGetX(cam), XMVectorGetY(cam), XMVectorGetZ(cam),
-			Mesh::HasRtPixelShader() ? 1 : 0,
+			(m_rtBounce != nullptr) ? 1 : 0,
 			(m_rtShadows && m_rtShadows->IsReady()) ? 1 : 0);
 		printf("%s", line);
 		fflush(stdout);
@@ -438,8 +455,11 @@ void SceneRenderer::Render(DXRender* render, Camera* camera, Scene& scene, GameW
 		m_ssao->Apply(render, camera);
 #endif
 
+	/* =====================================================================
+	 * STAGE 2 — RT sun shadows (replace master CSM): lerp(0.625, 1.0, lit)
+	 * ===================================================================== */
 #if ENABLE_RT_BOUNCE_PASS
-	if (m_rtBounce && m_rtShadows && m_rtShadows->IsReady()) {
+	if (m_rtBounce && m_rtShadows && m_rtShadows->IsReady() && m_rtBounce->HasShadeData()) {
 		D3D12_GPU_VIRTUAL_ADDRESS tlas = m_rtShadows->GetGpuAddress();
 		if (tlas == 0)
 			tlas = render->GetFallbackTlasVA();
@@ -450,6 +470,9 @@ void SceneRenderer::Render(DXRender* render, Camera* camera, Scene& scene, GameW
 
 	render->ResolveMSAA();
 
+	/* =====================================================================
+	 * STAGE 3 — PostFX (master colour filter / motion blur)
+	 * ===================================================================== */
 	if (m_godRays && settings.godRaysEnabled) {
 		render->ResolveDepthForSSAO();
 		m_godRays->Apply(render, camera, sunDir);

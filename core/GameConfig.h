@@ -20,10 +20,16 @@
 #define ENABLE_CSM_SHADOWS 0
 #define ENABLE_SSAO 0
 #define ENABLE_RT_SHADOWS 1
+/* Per-draw RayQuery in mesh PS TDRs — shadows via fullscreen pass instead. */
 #define ENABLE_RT_INLINE_PS 0
-#define ENABLE_RT_BOUNCE_PASS 0
-/* Primary rays + shade + sun shadow (world). Player/vehicle rasterized on top. */
-#define ENABLE_RT_FULL_SCENE 1
+/*
+ * Master look + DX12 RT sun shadows:
+ *   raster = textured + fog (same as DX11 master mesh PS)
+ *   RtBouncePass = RayQuery sun shadows with master darken lerp(0.625,1,lit)
+ * Full-scene primary RT stays off.
+ */
+#define ENABLE_RT_BOUNCE_PASS 1
+#define ENABLE_RT_FULL_SCENE 0
 #define ENABLE_RT_FULL_HALF_RES 1
 
 /* Daytime hour for tobj visibility (re3 CTimeModelInfo). Night lights are off. */

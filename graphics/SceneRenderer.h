@@ -41,6 +41,7 @@ private:
 	std::unique_ptr<PostFX> m_postFX;
 	std::unique_ptr<GodRays> m_godRays;
 	std::unique_ptr<RayTracedShadows> m_rtShadows;
+	/* Hybrid RT: master-look sun shadows via RayQuery (replaces CSM). */
 	std::unique_ptr<RtBouncePass> m_rtBounce;
 	std::unique_ptr<RtFullScene> m_rtFull;
 	std::unique_ptr<PhysicsDebugDraw> m_physicsDebug;

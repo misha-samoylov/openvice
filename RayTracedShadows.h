@@ -14,8 +14,8 @@ using Microsoft::WRL::ComPtr;
 using namespace DirectX;
 
 /*
- * Static DXR TLAS for map geometry. Pixel-shader RayQuery traces toward the sun.
- * Built once after Scene::BuildFromAssets (no player/vehicle instances).
+ * Static DXR TLAS for map geometry (no player/vehicle).
+ * Hybrid / bounce: opaque + all alpha casters; shadow rays alpha-test cutouts.
  */
 class RayTracedShadows
 {

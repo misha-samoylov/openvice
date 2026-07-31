@@ -141,7 +141,7 @@ HRESULT Mesh::EnsureSharedPipeline(DXRender* pRender)
 	}
 #else
 	else {
-		printf("[Info] Inline RT mesh PS disabled (ENABLE_RT_INLINE_PS=0) — analytical sun\n");
+		printf("[Info] Inline RT mesh PS disabled (ENABLE_RT_INLINE_PS=0) — master look + fullscreen RT shadows\n");
 	}
 #endif
 
