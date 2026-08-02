@@ -346,7 +346,7 @@ void GodRays::Apply(DXRender* render, Camera* camera, FXMVECTOR sunDirToward)
 	cmd->SetGraphicsRootConstantBufferView(0, cbAddr);
 	DrawFullscreen(render, m_psoComposite, m_raysSrv, UINT_MAX, m_linearSampler);
 
-	render->RestoreMainTargets();
+	/* Stay on resolved back buffer (PostFX follows); do not rebind MSAA scene. */
 	render->ApplyRasterizerState();
 	render->SetOpaqueState();
 }

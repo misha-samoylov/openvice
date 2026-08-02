@@ -26,10 +26,10 @@ struct RenderSettings
 	int physicsDebugFilter;
 
 	RenderSettings()
-		: shadowsEnabled(true) /* RT sun shadows (F7); CSM is compile-off */
-		, ssaoEnabled(false)
-		, rtaoEnabled(true)
-		, godRaysEnabled(false) /* screen-space; lighting is RT sun */
+		: shadowsEnabled(true) /* CSM (F7) — same as DX11 master */
+		, ssaoEnabled(true)
+		, rtaoEnabled(false)
+		, godRaysEnabled(true)
 		, cloudsEnabled(true)
 		, physicsDebugVisible(false)
 		, physicsDebugFilter(COL_DEBUG_ALL)

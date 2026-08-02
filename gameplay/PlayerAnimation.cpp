@@ -187,7 +187,7 @@ bool Player::InitPipeline(DXRender* render)
 	psoColor.NumRenderTargets = 1;
 	psoColor.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
 	psoColor.DSVFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
-	psoColor.SampleDesc.Count = 1;
+	psoColor.SampleDesc.Count = render->GetMSAASampleCount();
 	hr = render->GetDevice()->CreateGraphicsPipelineState(&psoColor, IID_PPV_ARGS(&m_psoColor));
 	if (FAILED(hr) && wantRt) {
 		printf("[Warn] Player: RT color PSO failed (0x%08X) — retrying nort\n", (unsigned)hr);

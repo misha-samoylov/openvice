@@ -408,7 +408,7 @@ void Player::Render(DXRender* render, MeshRenderContext& ctx)
 		cmd->SetGraphicsRootDescriptorTable(5, render->GetSamplerGpu(samp));
 		UINT shadowSamp = (!shadowPass && ctx.shadowSamplerIndex != UINT_MAX)
 			? ctx.shadowSamplerIndex
-			: samp;
+			: ((m_shadowSamplerIndex != UINT_MAX) ? m_shadowSamplerIndex : samp);
 		cmd->SetGraphicsRootDescriptorTable(6, render->GetSamplerGpu(shadowSamp));
 
 		cmd->DrawIndexedInstanced(part.indexCount, 1, 0, 0, 0);

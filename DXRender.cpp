@@ -24,6 +24,27 @@ D3D12_CPU_DESCRIPTOR_HANDLE DXRender::GetBackBufferRtv() const
 	return GetRtvCpu(m_backBufferRtvIndices[m_frameIndex]);
 }
 
+D3D12_CPU_DESCRIPTOR_HANDLE DXRender::GetSceneRtv() const
+{
+	if (m_ownsSceneColor && m_sceneRtvIndex != UINT_MAX)
+		return GetRtvCpu(m_sceneRtvIndex);
+	return GetBackBufferRtv();
+}
+
+ID3D12Resource* DXRender::GetSceneColor() const
+{
+	if (m_ownsSceneColor && m_sceneColor)
+		return m_sceneColor.Get();
+	return GetBackBuffer();
+}
+
+UINT DXRender::GetDepthSrvIndex() const
+{
+	if (m_msaaCount > 1 && m_resolvedDepthSrvIndex != UINT_MAX)
+		return m_resolvedDepthSrvIndex;
+	return m_depthSrvIndex;
+}
+
 D3D12_CPU_DESCRIPTOR_HANDLE DXRender::GetDsv() const
 {
 	return GetDsvCpu(m_depthDsvIndex);
@@ -487,6 +508,211 @@ HRESULT DXRender::CreateFrameResources()
 	return S_OK;
 }
 
+UINT DXRender::PickMSAACount(DXGI_FORMAT format)
+{
+	D3D12_FEATURE_DATA_MULTISAMPLE_QUALITY_LEVELS ms = {};
+	ms.Format = format;
+	ms.SampleCount = kDesiredMSAA;
+	ms.Flags = D3D12_MULTISAMPLE_QUALITY_LEVELS_FLAG_NONE;
+	if (SUCCEEDED(m_device->CheckFeatureSupport(
+		D3D12_FEATURE_MULTISAMPLE_QUALITY_LEVELS, &ms, sizeof(ms))) &&
+		ms.NumQualityLevels > 0)
+		return kDesiredMSAA;
+
+	ms.SampleCount = 2;
+	if (SUCCEEDED(m_device->CheckFeatureSupport(
+		D3D12_FEATURE_MULTISAMPLE_QUALITY_LEVELS, &ms, sizeof(ms))) &&
+		ms.NumQualityLevels > 0)
+		return 2;
+
+	return 1;
+}
+
+HRESULT DXRender::CreateMSAAColor()
+{
+	m_ownsSceneColor = false;
+	m_sceneColor.Reset();
+	m_sceneRtvIndex = UINT_MAX;
+	m_sceneColorState = D3D12_RESOURCE_STATE_RENDER_TARGET;
+
+	if (m_msaaCount <= 1)
+		return S_OK;
+
+	D3D12_CLEAR_VALUE clear = {};
+	clear.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+	clear.Color[0] = 0.49804f;
+	clear.Color[1] = 0.78431f;
+	clear.Color[2] = 0.94510f;
+	clear.Color[3] = 1.0f;
+
+	D3D12_HEAP_PROPERTIES heap = {};
+	heap.Type = D3D12_HEAP_TYPE_DEFAULT;
+
+	D3D12_RESOURCE_DESC desc = {};
+	desc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+	desc.Width = m_width;
+	desc.Height = m_height;
+	desc.DepthOrArraySize = 1;
+	desc.MipLevels = 1;
+	desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+	desc.SampleDesc.Count = m_msaaCount;
+	desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+
+	HRESULT hr = m_device->CreateCommittedResource(
+		&heap, D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_RENDER_TARGET,
+		&clear, IID_PPV_ARGS(&m_sceneColor));
+	if (FAILED(hr))
+		return hr;
+	SetDebugName(m_sceneColor.Get(), "SceneColorMSAA");
+
+	m_sceneRtvIndex = AllocRtvIndex();
+	if (m_sceneRtvIndex == UINT_MAX)
+		return E_FAIL;
+	m_device->CreateRenderTargetView(m_sceneColor.Get(), nullptr, GetRtvCpu(m_sceneRtvIndex));
+	m_ownsSceneColor = true;
+	m_sceneColorState = D3D12_RESOURCE_STATE_RENDER_TARGET;
+	return S_OK;
+}
+
+HRESULT DXRender::CreateDepthResolveResources()
+{
+	m_resolvedDepth.Reset();
+	m_resolvedDepthRtvIndex = UINT_MAX;
+	m_resolvedDepthSrvIndex = UINT_MAX;
+	m_depthMsaaSrvIndex = UINT_MAX;
+	m_depthResolveRootSig.Reset();
+	m_depthResolvePso.Reset();
+
+	if (m_msaaCount <= 1)
+		return S_OK;
+
+	D3D12_CLEAR_VALUE clear = {};
+	clear.Format = DXGI_FORMAT_R32_FLOAT;
+	clear.Color[0] = 1.0f;
+
+	D3D12_HEAP_PROPERTIES heap = {};
+	heap.Type = D3D12_HEAP_TYPE_DEFAULT;
+	D3D12_RESOURCE_DESC desc = {};
+	desc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+	desc.Width = m_width;
+	desc.Height = m_height;
+	desc.DepthOrArraySize = 1;
+	desc.MipLevels = 1;
+	desc.Format = DXGI_FORMAT_R32_FLOAT;
+	desc.SampleDesc.Count = 1;
+	desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+
+	HRESULT hr = m_device->CreateCommittedResource(
+		&heap, D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_RENDER_TARGET,
+		&clear, IID_PPV_ARGS(&m_resolvedDepth));
+	if (FAILED(hr))
+		return hr;
+	SetDebugName(m_resolvedDepth.Get(), "ResolvedDepth");
+	m_resolvedDepthState = D3D12_RESOURCE_STATE_RENDER_TARGET;
+
+	m_resolvedDepthRtvIndex = AllocRtvIndex();
+	if (m_resolvedDepthRtvIndex == UINT_MAX)
+		return E_FAIL;
+	m_device->CreateRenderTargetView(
+		m_resolvedDepth.Get(), nullptr, GetRtvCpu(m_resolvedDepthRtvIndex));
+
+	m_resolvedDepthSrvIndex = CreateTextureSrv(m_resolvedDepth.Get(), DXGI_FORMAT_R32_FLOAT);
+	if (m_resolvedDepthSrvIndex == UINT_MAX)
+		return E_FAIL;
+
+	D3D12_SHADER_RESOURCE_VIEW_DESC msaaSrv = {};
+	msaaSrv.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+	msaaSrv.Format = DXGI_FORMAT_R24_UNORM_X8_TYPELESS;
+	msaaSrv.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2DMS;
+	m_depthMsaaSrvIndex = AllocSrvIndex();
+	if (m_depthMsaaSrvIndex == UINT_MAX)
+		return E_FAIL;
+	m_device->CreateShaderResourceView(m_depth.Get(), &msaaSrv, GetSrvCpu(m_depthMsaaSrvIndex));
+
+	D3D12_DESCRIPTOR_RANGE srvRange = {};
+	srvRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+	srvRange.NumDescriptors = 1;
+	srvRange.BaseShaderRegister = 0;
+
+	D3D12_ROOT_PARAMETER param = {};
+	param.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+	param.DescriptorTable.NumDescriptorRanges = 1;
+	param.DescriptorTable.pDescriptorRanges = &srvRange;
+	param.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+
+	D3D12_ROOT_SIGNATURE_DESC rsDesc = {};
+	rsDesc.NumParameters = 1;
+	rsDesc.pParameters = &param;
+	ID3DBlob* sigBlob = nullptr;
+	hr = D3D12SerializeRootSignature(&rsDesc, D3D_ROOT_SIGNATURE_VERSION_1, &sigBlob, nullptr);
+	if (FAILED(hr))
+		return hr;
+	hr = m_device->CreateRootSignature(
+		0, sigBlob->GetBufferPointer(), sigBlob->GetBufferSize(),
+		IID_PPV_ARGS(&m_depthResolveRootSig));
+	sigBlob->Release();
+	if (FAILED(hr))
+		return hr;
+
+	char resolvePS[512];
+	sprintf_s(resolvePS,
+		"Texture2DMS<float, %u> DepthMS : register(t0);\n"
+		"float4 main(float4 pos : SV_POSITION) : SV_TARGET {\n"
+		"  return DepthMS.Load(int2(pos.xy), 0).r;\n"
+		"}\n",
+		m_msaaCount);
+
+	static const char* resolveVS =
+		"struct VSOut { float4 pos : SV_POSITION; };\n"
+		"VSOut main(uint id : SV_VertexID) {\n"
+		"  VSOut o;\n"
+		"  float2 uv = float2((id << 1) & 2, id & 2);\n"
+		"  o.pos = float4(uv * float2(2, -2) + float2(-1, 1), 0, 1);\n"
+		"  return o;\n"
+		"}\n";
+
+	ID3DBlob* vsBlob = nullptr;
+	ID3DBlob* psBlob = nullptr;
+	ID3DBlob* err = nullptr;
+	hr = D3DCompile(resolveVS, strlen(resolveVS), nullptr, nullptr, nullptr,
+		"main", "vs_5_0", 0, 0, &vsBlob, &err);
+	if (FAILED(hr)) {
+		if (err) {
+			printf("Error: depth resolve VS: %s\n", (char*)err->GetBufferPointer());
+			err->Release();
+		}
+		return hr;
+	}
+	hr = D3DCompile(resolvePS, strlen(resolvePS), nullptr, nullptr, nullptr,
+		"main", "ps_5_0", 0, 0, &psBlob, &err);
+	if (FAILED(hr)) {
+		vsBlob->Release();
+		if (err) {
+			printf("Error: depth resolve PS: %s\n", (char*)err->GetBufferPointer());
+			err->Release();
+		}
+		return hr;
+	}
+
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC pso = {};
+	pso.pRootSignature = m_depthResolveRootSig.Get();
+	pso.VS = { vsBlob->GetBufferPointer(), vsBlob->GetBufferSize() };
+	pso.PS = { psBlob->GetBufferPointer(), psBlob->GetBufferSize() };
+	pso.BlendState.RenderTarget[0].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
+	pso.SampleMask = UINT_MAX;
+	pso.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID;
+	pso.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+	pso.DepthStencilState.DepthEnable = FALSE;
+	pso.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+	pso.NumRenderTargets = 1;
+	pso.RTVFormats[0] = DXGI_FORMAT_R32_FLOAT;
+	pso.SampleDesc.Count = 1;
+	hr = m_device->CreateGraphicsPipelineState(&pso, IID_PPV_ARGS(&m_depthResolvePso));
+	vsBlob->Release();
+	psBlob->Release();
+	return hr;
+}
+
 HRESULT DXRender::CreateDepth()
 {
 	D3D12_CLEAR_VALUE clear = {};
@@ -503,7 +729,7 @@ HRESULT DXRender::CreateDepth()
 	desc.DepthOrArraySize = 1;
 	desc.MipLevels = 1;
 	desc.Format = DXGI_FORMAT_R24G8_TYPELESS;
-	desc.SampleDesc.Count = 1;
+	desc.SampleDesc.Count = m_msaaCount;
 	desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
 
 	HRESULT hr = m_device->CreateCommittedResource(
@@ -515,17 +741,22 @@ HRESULT DXRender::CreateDepth()
 
 	D3D12_DEPTH_STENCIL_VIEW_DESC dsv = {};
 	dsv.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
-	dsv.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
+	dsv.ViewDimension = (m_msaaCount > 1)
+		? D3D12_DSV_DIMENSION_TEXTURE2DMS
+		: D3D12_DSV_DIMENSION_TEXTURE2D;
 	m_depthDsvIndex = AllocDsvIndex();
 	m_device->CreateDepthStencilView(m_depth.Get(), &dsv, GetDsvCpu(m_depthDsvIndex));
 
-	D3D12_SHADER_RESOURCE_VIEW_DESC srv = {};
-	srv.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-	srv.Format = DXGI_FORMAT_R24_UNORM_X8_TYPELESS;
-	srv.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-	srv.Texture2D.MipLevels = 1;
-	m_depthSrvIndex = AllocSrvIndex();
-	m_device->CreateShaderResourceView(m_depth.Get(), &srv, GetSrvCpu(m_depthSrvIndex));
+	m_depthSrvIndex = UINT_MAX;
+	if (m_msaaCount <= 1) {
+		D3D12_SHADER_RESOURCE_VIEW_DESC srv = {};
+		srv.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+		srv.Format = DXGI_FORMAT_R24_UNORM_X8_TYPELESS;
+		srv.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+		srv.Texture2D.MipLevels = 1;
+		m_depthSrvIndex = AllocSrvIndex();
+		m_device->CreateShaderResourceView(m_depth.Get(), &srv, GetSrvCpu(m_depthSrvIndex));
+	}
 	m_depthState = D3D12_RESOURCE_STATE_DEPTH_WRITE;
 	return S_OK;
 }
@@ -645,6 +876,8 @@ HRESULT DXRender::CreateTexture2D(
 		clearStorage.Format = format;
 		if (format == DXGI_FORMAT_R24G8_TYPELESS || format == DXGI_FORMAT_D24_UNORM_S8_UINT)
 			clearStorage.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+		else if (format == DXGI_FORMAT_R32_TYPELESS || format == DXGI_FORMAT_D32_FLOAT)
+			clearStorage.Format = DXGI_FORMAT_D32_FLOAT;
 		clearStorage.DepthStencil.Depth = 1.0f;
 		clear = &clearStorage;
 	}
@@ -984,8 +1217,13 @@ void* DXRender::AllocFrameConstants(UINT64 size, D3D12_GPU_VIRTUAL_ADDRESS* outG
 
 void DXRender::RestoreMainTargets()
 {
-	D3D12_CPU_DESCRIPTOR_HANDLE rtv = GetBackBufferRtv();
+	D3D12_CPU_DESCRIPTOR_HANDLE rtv = GetSceneRtv();
 	D3D12_CPU_DESCRIPTOR_HANDLE dsv = GetDsv();
+	if (m_ownsSceneColor && m_sceneColor &&
+		m_sceneColorState != D3D12_RESOURCE_STATE_RENDER_TARGET) {
+		Transition(m_sceneColor.Get(), m_sceneColorState, D3D12_RESOURCE_STATE_RENDER_TARGET);
+		m_sceneColorState = D3D12_RESOURCE_STATE_RENDER_TARGET;
+	}
 	if (m_depthState != D3D12_RESOURCE_STATE_DEPTH_WRITE) {
 		Transition(m_depth.Get(), m_depthState, D3D12_RESOURCE_STATE_DEPTH_WRITE);
 		m_depthState = D3D12_RESOURCE_STATE_DEPTH_WRITE;
@@ -999,7 +1237,12 @@ void DXRender::RestoreMainTargets()
 
 void DXRender::BindColorTargetOnly()
 {
-	D3D12_CPU_DESCRIPTOR_HANDLE rtv = GetBackBufferRtv();
+	D3D12_CPU_DESCRIPTOR_HANDLE rtv = GetSceneRtv();
+	if (m_ownsSceneColor && m_sceneColor &&
+		m_sceneColorState != D3D12_RESOURCE_STATE_RENDER_TARGET) {
+		Transition(m_sceneColor.Get(), m_sceneColorState, D3D12_RESOURCE_STATE_RENDER_TARGET);
+		m_sceneColorState = D3D12_RESOURCE_STATE_RENDER_TARGET;
+	}
 	m_commandList->OMSetRenderTargets(1, &rtv, FALSE, nullptr);
 	D3D12_VIEWPORT vp = MakeViewport();
 	D3D12_RECT sc = MakeScissor();
@@ -1009,18 +1252,81 @@ void DXRender::BindColorTargetOnly()
 
 void DXRender::BindBackBufferOnly()
 {
-	BindColorTargetOnly();
+	if (m_backBufferState[m_frameIndex] != D3D12_RESOURCE_STATE_RENDER_TARGET) {
+		Transition(m_renderTargets[m_frameIndex].Get(),
+			m_backBufferState[m_frameIndex], D3D12_RESOURCE_STATE_RENDER_TARGET);
+		m_backBufferState[m_frameIndex] = D3D12_RESOURCE_STATE_RENDER_TARGET;
+	}
+	D3D12_CPU_DESCRIPTOR_HANDLE rtv = GetBackBufferRtv();
+	m_commandList->OMSetRenderTargets(1, &rtv, FALSE, nullptr);
+	D3D12_VIEWPORT vp = MakeViewport();
+	D3D12_RECT sc = MakeScissor();
+	m_commandList->RSSetViewports(1, &vp);
+	m_commandList->RSSetScissorRects(1, &sc);
 }
 
-void DXRender::ResolveMSAA() {}
+void DXRender::ResolveMSAA()
+{
+	if (!m_ownsSceneColor || m_msaaCount <= 1 || !m_sceneColor)
+		return;
+
+	if (m_sceneColorState != D3D12_RESOURCE_STATE_RESOLVE_SOURCE) {
+		Transition(m_sceneColor.Get(), m_sceneColorState, D3D12_RESOURCE_STATE_RESOLVE_SOURCE);
+		m_sceneColorState = D3D12_RESOURCE_STATE_RESOLVE_SOURCE;
+	}
+	if (m_backBufferState[m_frameIndex] != D3D12_RESOURCE_STATE_RESOLVE_DEST) {
+		Transition(m_renderTargets[m_frameIndex].Get(),
+			m_backBufferState[m_frameIndex], D3D12_RESOURCE_STATE_RESOLVE_DEST);
+		m_backBufferState[m_frameIndex] = D3D12_RESOURCE_STATE_RESOLVE_DEST;
+	}
+
+	m_commandList->ResolveSubresource(
+		m_renderTargets[m_frameIndex].Get(), 0,
+		m_sceneColor.Get(), 0,
+		DXGI_FORMAT_R8G8B8A8_UNORM);
+
+	Transition(m_renderTargets[m_frameIndex].Get(),
+		D3D12_RESOURCE_STATE_RESOLVE_DEST, D3D12_RESOURCE_STATE_RENDER_TARGET);
+	m_backBufferState[m_frameIndex] = D3D12_RESOURCE_STATE_RENDER_TARGET;
+}
 
 void DXRender::ResolveDepthForSSAO()
 {
-	/* Single-sample depth: just transition to SRV for sampling. */
+	if (m_msaaCount <= 1 || !m_depthResolvePso || m_depthMsaaSrvIndex == UINT_MAX) {
+		/* Single-sample depth: just transition to SRV for sampling. */
+		if (m_depthState != D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE) {
+			Transition(m_depth.Get(), m_depthState, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+			m_depthState = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+		}
+		return;
+	}
+
 	if (m_depthState != D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE) {
 		Transition(m_depth.Get(), m_depthState, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 		m_depthState = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
 	}
+	if (m_resolvedDepthState != D3D12_RESOURCE_STATE_RENDER_TARGET) {
+		Transition(m_resolvedDepth.Get(), m_resolvedDepthState, D3D12_RESOURCE_STATE_RENDER_TARGET);
+		m_resolvedDepthState = D3D12_RESOURCE_STATE_RENDER_TARGET;
+	}
+
+	D3D12_CPU_DESCRIPTOR_HANDLE rtv = GetRtvCpu(m_resolvedDepthRtvIndex);
+	m_commandList->OMSetRenderTargets(1, &rtv, FALSE, nullptr);
+	D3D12_VIEWPORT vp = MakeViewport();
+	D3D12_RECT sc = MakeScissor();
+	m_commandList->RSSetViewports(1, &vp);
+	m_commandList->RSSetScissorRects(1, &sc);
+
+	BindDescriptorHeaps();
+	m_commandList->SetGraphicsRootSignature(m_depthResolveRootSig.Get());
+	m_commandList->SetPipelineState(m_depthResolvePso.Get());
+	m_commandList->SetGraphicsRootDescriptorTable(0, GetSrvGpu(m_depthMsaaSrvIndex));
+	m_commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	m_commandList->DrawInstanced(3, 1, 0, 0);
+
+	Transition(m_resolvedDepth.Get(),
+		D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+	m_resolvedDepthState = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
 }
 
 HRESULT DXRender::Init(HWND hWnd, bool vsync)
@@ -1054,14 +1360,26 @@ HRESULT DXRender::Init(HWND hWnd, bool vsync)
 	hr = CreateFrameResources();
 	if (FAILED(hr))
 		return hr;
+
+	m_msaaCount = PickMSAACount(DXGI_FORMAT_R8G8B8A8_UNORM);
+	hr = CreateMSAAColor();
+	if (FAILED(hr)) {
+		printf("Error: cannot CreateMSAAColor\n");
+		return hr;
+	}
 	hr = CreateDepth();
 	if (FAILED(hr))
 		return hr;
+	hr = CreateDepthResolveResources();
+	if (FAILED(hr)) {
+		printf("Error: cannot CreateDepthResolveResources\n");
+		return hr;
+	}
 	hr = CreateUploadRing();
 	if (FAILED(hr))
 		return hr;
 
-	printf("[Info] DX12 FL 12_0, %ux%u, no MSAA\n", m_width, m_height);
+	printf("[Info] DX12 FL 12_0, %ux%u, MSAA %ux\n", m_width, m_height, m_msaaCount);
 	if (SupportsRaytracing()) {
 		HRESULT rtHr = EnsureFallbackTlas();
 		if (FAILED(rtHr))
@@ -1176,7 +1494,14 @@ void DXRender::Cleanup()
 		m_frames[i].allocator.Reset();
 		m_renderTargets[i].Reset();
 	}
+	m_sceneColor.Reset();
+	m_ownsSceneColor = false;
+	m_sceneRtvIndex = UINT_MAX;
+	m_resolvedDepth.Reset();
+	m_depthResolvePso.Reset();
+	m_depthResolveRootSig.Reset();
 	m_depth.Reset();
+	m_msaaCount = 1;
 	m_fallbackTlas.Reset();
 	m_fallbackTlasVA = 0;
 	m_srvHeap.Reset();
@@ -1225,7 +1550,12 @@ void DXRender::RenderStart()
 	m_commandList->Reset(frame.allocator.Get(), nullptr);
 	BindDescriptorHeaps();
 
-	if (m_backBufferState[m_frameIndex] != D3D12_RESOURCE_STATE_RENDER_TARGET) {
+	if (m_ownsSceneColor && m_sceneColor) {
+		if (m_sceneColorState != D3D12_RESOURCE_STATE_RENDER_TARGET) {
+			Transition(m_sceneColor.Get(), m_sceneColorState, D3D12_RESOURCE_STATE_RENDER_TARGET);
+			m_sceneColorState = D3D12_RESOURCE_STATE_RENDER_TARGET;
+		}
+	} else if (m_backBufferState[m_frameIndex] != D3D12_RESOURCE_STATE_RENDER_TARGET) {
 		Transition(m_renderTargets[m_frameIndex].Get(),
 			m_backBufferState[m_frameIndex], D3D12_RESOURCE_STATE_RENDER_TARGET);
 		m_backBufferState[m_frameIndex] = D3D12_RESOURCE_STATE_RENDER_TARGET;
@@ -1236,7 +1566,7 @@ void DXRender::RenderStart()
 	}
 
 	const float clearColor[4] = { 0.49804f, 0.78431f, 0.94510f, 1.0f };
-	D3D12_CPU_DESCRIPTOR_HANDLE rtv = GetBackBufferRtv();
+	D3D12_CPU_DESCRIPTOR_HANDLE rtv = GetSceneRtv();
 	m_commandList->ClearRenderTargetView(rtv, clearColor, 0, nullptr);
 	m_commandList->ClearDepthStencilView(GetDsv(), D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 	RestoreMainTargets();

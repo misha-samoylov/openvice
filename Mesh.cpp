@@ -71,6 +71,8 @@ static HRESULT CreateMeshPso(
 	const D3D12_RASTERIZER_DESC& raster,
 	const D3D12_DEPTH_STENCIL_DESC& depth,
 	DXGI_FORMAT rtvFormat,
+	DXGI_FORMAT dsvFormat,
+	UINT sampleCount,
 	bool depthOnly,
 	ID3D12PipelineState** outPso)
 {
@@ -100,8 +102,8 @@ static HRESULT CreateMeshPso(
 	pso.NumRenderTargets = depthOnly ? 0 : 1;
 	if (!depthOnly)
 		pso.RTVFormats[0] = rtvFormat;
-	pso.DSVFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
-	pso.SampleDesc.Count = 1;
+	pso.DSVFormat = dsvFormat;
+	pso.SampleDesc.Count = sampleCount > 0 ? sampleCount : 1;
 	return device->CreateGraphicsPipelineState(&pso, IID_PPV_ARGS(outPso));
 }
 
@@ -121,10 +123,7 @@ HRESULT Mesh::EnsureSharedPipeline(DXRender* pRender)
 		return hr;
 	}
 
-	/*
-	 * Per-pixel RayQuery (SM 6.5) TDRs on this scene/GPU — ENABLE_RT_INLINE_PS=0.
-	 * pixel_shader.cso is analytical sun lighting only (no acceleration structure).
-	 */
+	/* Master CSM mesh PS (pixel_shader / pixel_shader_nort). */
 	s_rtPixelShader = false;
 	hr = D3DReadFileToBlob(L"pixel_shader.cso", &s_psBlob);
 	if (FAILED(hr)) {
@@ -141,7 +140,7 @@ HRESULT Mesh::EnsureSharedPipeline(DXRender* pRender)
 	}
 #else
 	else {
-		printf("[Info] Inline RT mesh PS disabled (ENABLE_RT_INLINE_PS=0) — master look + fullscreen RT shadows\n");
+		printf("[Info] Mesh PS: master CSM path (ENABLE_RT_INLINE_PS=0)\n");
 	}
 #endif
 
@@ -228,35 +227,38 @@ HRESULT Mesh::EnsureSharedPipeline(DXRender* pRender)
 	}
 
 	const DXGI_FORMAT rtv = DXGI_FORMAT_R8G8B8A8_UNORM;
+	const DXGI_FORMAT sceneDsv = DXGI_FORMAT_D24_UNORM_S8_UINT;
+	const DXGI_FORMAT shadowDsv = DXGI_FORMAT_D32_FLOAT;
+	const UINT msaa = pRender->GetMSAASampleCount();
 
 	auto createColorPsos = [&](ID3DBlob* ps) -> HRESULT {
 		HRESULT e = CreateMeshPso(pRender->GetDevice(), s_rootSig, s_vsBlob, ps,
 			MakeBlendOpaque(false), MakeRaster(D3D12_CULL_MODE_FRONT, false), MakeDepth(true),
-			rtv, false, &s_psoOpaque);
+			rtv, sceneDsv, msaa, false, &s_psoOpaque);
 		if (FAILED(e)) return e;
 		e = CreateMeshPso(pRender->GetDevice(), s_rootSig, s_vsBlob, ps,
 			MakeBlendOpaque(true), MakeRaster(D3D12_CULL_MODE_FRONT, false), MakeDepth(true),
-			rtv, false, &s_psoCutout);
+			rtv, sceneDsv, msaa, false, &s_psoCutout);
 		if (FAILED(e)) return e;
 		e = CreateMeshPso(pRender->GetDevice(), s_rootSig, s_vsBlob, ps,
 			MakeBlendSoft(), MakeRaster(D3D12_CULL_MODE_FRONT, false), MakeDepth(false),
-			rtv, false, &s_psoSoft);
+			rtv, sceneDsv, msaa, false, &s_psoSoft);
 		if (FAILED(e)) return e;
 		e = CreateMeshPso(pRender->GetDevice(), s_rootSig, s_vsBlob, ps,
 			MakeBlendOpaque(false), MakeRaster(D3D12_CULL_MODE_NONE, false), MakeDepth(true),
-			rtv, false, &s_psoOpaqueCullNone);
+			rtv, sceneDsv, msaa, false, &s_psoOpaqueCullNone);
 		if (FAILED(e)) return e;
 		e = CreateMeshPso(pRender->GetDevice(), s_rootSig, s_vsBlob, ps,
 			MakeBlendOpaque(true), MakeRaster(D3D12_CULL_MODE_NONE, false), MakeDepth(true),
-			rtv, false, &s_psoCutoutCullNone);
+			rtv, sceneDsv, msaa, false, &s_psoCutoutCullNone);
 		if (FAILED(e)) return e;
 		e = CreateMeshPso(pRender->GetDevice(), s_rootSig, s_vsBlob, ps,
 			MakeBlendSoft(), MakeRaster(D3D12_CULL_MODE_NONE, false), MakeDepth(false),
-			rtv, false, &s_psoSoftCullNone);
+			rtv, sceneDsv, msaa, false, &s_psoSoftCullNone);
 		if (FAILED(e)) return e;
 		e = CreateMeshPso(pRender->GetDevice(), s_rootSig, s_vsBlob, ps,
 			MakeBlendOpaque(false), MakeRaster(D3D12_CULL_MODE_NONE, true), MakeDepth(true),
-			rtv, false, &s_psoWire);
+			rtv, sceneDsv, msaa, false, &s_psoWire);
 		return e;
 	};
 
@@ -297,7 +299,7 @@ HRESULT Mesh::EnsureSharedPipeline(DXRender* pRender)
 		shadowR.SlopeScaledDepthBias = 1.0f;
 		hr = CreateMeshPso(pRender->GetDevice(), s_rootSig, s_vsBlob, s_shadowPsBlob,
 			MakeBlendOpaque(false), shadowR, MakeDepth(true),
-			rtv, true, &s_psoShadow);
+			rtv, shadowDsv, 1, true, &s_psoShadow);
 	}
 	if (FAILED(hr)) {
 		printf("Error: CreateGraphicsPipelineState (shadow) failed (0x%08X)\n", (unsigned)hr);
@@ -451,7 +453,6 @@ void Mesh::Render(DXRender* pRender, MeshRenderContext& ctx)
 	m_objectConstBuffer.fogEnd = ctx.fogEnd;
 	m_objectConstBuffer.receiveShadows =
 		(ctx.pass == MESH_PASS_COLOR) ? ctx.receiveShadows : 0.0f;
-	/* RT PS needs a TLAS VA; without it draw unshadowed (never skip the mesh). */
 	if (s_rtPixelShader && ctx.rtAccelVA == 0)
 		m_objectConstBuffer.receiveShadows = 0.0f;
 	m_objectConstBuffer.shadowBias = ctx.shadowBias;
@@ -480,14 +481,11 @@ void Mesh::Render(DXRender* pRender, MeshRenderContext& ctx)
 
 	/* Separate root tables — never rewrite a shared scratch descriptor (GPU reads at execute). */
 	cmd->SetGraphicsRootDescriptorTable(1, pRender->GetSrvGpu(texSrv));
-	/* t1 is Texture2D placeholder (CSM off) — same type as albedo, never a Texture2DArray. */
+	/* t1 = CSM Texture2DArray when shadows on; else bind albedo (type-compatible fallback). */
 	UINT shadowSrv = (ctx.pass == MESH_PASS_COLOR && ctx.shadowSrvIndex != UINT_MAX)
 		? ctx.shadowSrvIndex : texSrv;
 	cmd->SetGraphicsRootDescriptorTable(2, pRender->GetSrvGpu(shadowSrv));
 
-	/*
-	 * t2 is a root SRV (TLAS VA). Never bind 0 — that TDR/whitescreens with RayQuery PS.
-	 */
 	D3D12_GPU_VIRTUAL_ADDRESS tlasVA = ctx.rtAccelVA;
 	if (s_rtPixelShader) {
 		if (tlasVA == 0)
@@ -504,7 +502,8 @@ void Mesh::Render(DXRender* pRender, MeshRenderContext& ctx)
 		return;
 	cmd->SetGraphicsRootDescriptorTable(4, pRender->GetSamplerGpu(samp));
 	UINT shadowSamp = (ctx.pass == MESH_PASS_COLOR && ctx.shadowSamplerIndex != UINT_MAX)
-		? ctx.shadowSamplerIndex : samp;
+		? ctx.shadowSamplerIndex
+		: ((s_shadowSamplerIndex != UINT_MAX) ? s_shadowSamplerIndex : samp);
 	cmd->SetGraphicsRootDescriptorTable(5, pRender->GetSamplerGpu(shadowSamp));
 
 	cmd->DrawIndexedInstanced(m_countIndices, 1, 0, 0, 0);

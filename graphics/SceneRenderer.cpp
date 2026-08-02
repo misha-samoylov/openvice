@@ -279,8 +279,10 @@ void SceneRenderer::Render(DXRender* render, Camera* camera, Scene& scene, GameW
 	ctx.pass = MESH_PASS_COLOR;
 	ctx.viewProj = XMMatrixMultiply(view, proj);
 	FillCascadeMatrices(ctx, shadowsOn ? m_shadowMap.get() : nullptr);
-	ctx.shadowSrvIndex = shadowsOn ? m_shadowMap->GetSrvIndex() : UINT_MAX;
-	ctx.shadowSamplerIndex = shadowsOn ? m_shadowMap->GetCmpSamplerIndex() : UINT_MAX;
+	/* Always bind CSM array SRV when available (PS expects Texture2DArray at t1). */
+	ctx.shadowSrvIndex = m_shadowMap ? m_shadowMap->GetSrvIndex() : UINT_MAX;
+	ctx.shadowSamplerIndex = m_shadowMap ? m_shadowMap->GetCmpSamplerIndex() : UINT_MAX;
+	ctx.receiveShadows = shadowsOn ? 1.0f : 0.0f;
 
 	D3D12_GPU_VIRTUAL_ADDRESS tlasVA = 0;
 #if ENABLE_RT_SHADOWS
@@ -291,8 +293,6 @@ void SceneRenderer::Render(DXRender* render, Camera* camera, Scene& scene, GameW
 #endif
 	ctx.rtAccelVA = (Mesh::HasRtPixelShader() && tlasVA != 0) ? tlasVA : 0;
 	ctx.rtAccelSrvIndex = UINT_MAX;
-	ctx.receiveShadows = (Mesh::HasRtPixelShader() && tlasVA != 0 &&
-		m_rtShadows && m_rtShadows->IsReady()) ? 1.0f : 0.0f;
 
 	XMVECTOR sunDir = ComputeSunDirection(m_shadowMap.get());
 	XMStoreFloat3(&ctx.sunDir, sunDir);
@@ -354,16 +354,15 @@ void SceneRenderer::Render(DXRender* render, Camera* camera, Scene& scene, GameW
 #endif
 
 	/* =====================================================================
-	 * STAGE 1 — Raster (master look): textured meshes + fog (+ water/clouds)
+	 * STAGE 1 — Raster (master look): textured + CSM + fog (+ water/clouds)
 	 * ===================================================================== */
 	if (world.GetClouds())
 		world.GetClouds()->Render(render, camera, sunDir, settings.cloudsEnabled);
 	ctx.ClearBindings();
-	ctx.shadowSrvIndex = shadowsOn ? m_shadowMap->GetSrvIndex() : UINT_MAX;
-	ctx.shadowSamplerIndex = shadowsOn ? m_shadowMap->GetCmpSamplerIndex() : UINT_MAX;
+	ctx.shadowSrvIndex = m_shadowMap ? m_shadowMap->GetSrvIndex() : UINT_MAX;
+	ctx.shadowSamplerIndex = m_shadowMap ? m_shadowMap->GetCmpSamplerIndex() : UINT_MAX;
 	ctx.rtAccelVA = (Mesh::HasRtPixelShader() && tlasVA != 0) ? tlasVA : 0;
-	ctx.receiveShadows = (Mesh::HasRtPixelShader() && tlasVA != 0 &&
-		m_rtShadows && m_rtShadows->IsReady()) ? 1.0f : 0.0f;
+	ctx.receiveShadows = shadowsOn ? 1.0f : 0.0f;
 
 	const CollisionWorld* col = world.Collision();
 
@@ -379,21 +378,19 @@ void SceneRenderer::Render(DXRender* render, Camera* camera, Scene& scene, GameW
 	if (world.GetPlayer() && !world.ControllingVehicle())
 		world.GetPlayer()->Render(render, ctx);
 
-	/* Transparency / refraction (water): still raster — RT refraction is too costly. */
 	if (world.GetWater()) {
 		const bool reflectClouds = settings.cloudsEnabled && world.GetClouds() != nullptr;
-		world.GetWater()->Render(render, camera, m_frustum, DRAW_DISTANCE, sunDir,
+		world.GetWater()->Render(render, camera, m_frustum, CAMERA_FAR_PLANE, sunDir,
 			reflectClouds);
 	}
 
 	ctx.ClearBindings();
 	ctx.viewProj = XMMatrixMultiply(view, proj);
 	FillCascadeMatrices(ctx, shadowsOn ? m_shadowMap.get() : nullptr);
-	ctx.shadowSrvIndex = shadowsOn ? m_shadowMap->GetSrvIndex() : UINT_MAX;
-	ctx.shadowSamplerIndex = shadowsOn ? m_shadowMap->GetCmpSamplerIndex() : UINT_MAX;
+	ctx.shadowSrvIndex = m_shadowMap ? m_shadowMap->GetSrvIndex() : UINT_MAX;
+	ctx.shadowSamplerIndex = m_shadowMap ? m_shadowMap->GetCmpSamplerIndex() : UINT_MAX;
 	ctx.rtAccelVA = (Mesh::HasRtPixelShader() && tlasVA != 0) ? tlasVA : 0;
-	ctx.receiveShadows = (Mesh::HasRtPixelShader() && tlasVA != 0 &&
-		m_rtShadows && m_rtShadows->IsReady()) ? 1.0f : 0.0f;
+	ctx.receiveShadows = shadowsOn ? 1.0f : 0.0f;
 
 	scene.SortAlphaBackToFront(camera);
 
@@ -456,9 +453,6 @@ void SceneRenderer::Render(DXRender* render, Camera* camera, Scene& scene, GameW
 		m_ssao->Apply(render, camera);
 #endif
 
-	/* =====================================================================
-	 * STAGE 2 — RT sun shadows + RTAO: lerp(0.625,1,lit) * ao
-	 * ===================================================================== */
 #if ENABLE_RT_BOUNCE_PASS
 	if (m_rtBounce && m_rtShadows && m_rtShadows->IsReady() && m_rtBounce->HasShadeData() &&
 		(settings.shadowsEnabled || settings.rtaoEnabled)) {
@@ -474,7 +468,7 @@ void SceneRenderer::Render(DXRender* render, Camera* camera, Scene& scene, GameW
 	render->ResolveMSAA();
 
 	/* =====================================================================
-	 * STAGE 3 — PostFX (master colour filter / motion blur)
+	 * STAGE 2 — God rays + PostFX (after MSAA resolve, like master)
 	 * ===================================================================== */
 	if (m_godRays && settings.godRaysEnabled) {
 		render->ResolveDepthForSSAO();

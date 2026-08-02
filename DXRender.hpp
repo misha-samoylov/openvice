@@ -72,15 +72,15 @@ public:
 	ID3D12GraphicsCommandList* GetCommandList() { return m_commandList.Get(); }
 	ID3D12CommandQueue* GetQueue() { return m_queue.Get(); }
 
-	UINT GetDepthSrvIndex() const { return m_depthSrvIndex; }
+	UINT GetDepthSrvIndex() const;
 	ID3D12Resource* GetDepthResource() const { return m_depth.Get(); }
 	ID3D12Resource* GetBackBuffer() const { return m_renderTargets[m_frameIndex].Get(); }
-	ID3D12Resource* GetSceneColor() const { return GetBackBuffer(); }
+	ID3D12Resource* GetSceneColor() const;
 	D3D12_CPU_DESCRIPTOR_HANDLE GetBackBufferRtv() const;
-	D3D12_CPU_DESCRIPTOR_HANDLE GetSceneRtv() const { return GetBackBufferRtv(); }
+	D3D12_CPU_DESCRIPTOR_HANDLE GetSceneRtv() const;
 	D3D12_CPU_DESCRIPTOR_HANDLE GetDsv() const;
 
-	UINT GetMSAASampleCount() const { return 1; }
+	UINT GetMSAASampleCount() const { return m_msaaCount; }
 
 	HRESULT ChangeRasterizerStateToWireframe();
 	HRESULT ChangeRasterizerStateToSolid();
@@ -148,6 +148,8 @@ public:
 	D3D12_GPU_VIRTUAL_ADDRESS GetFallbackTlasVA() const { return m_fallbackTlasVA; }
 
 private:
+	static constexpr UINT kDesiredMSAA = 4;
+
 	struct FrameContext
 	{
 		ComPtr<ID3D12CommandAllocator> allocator;
@@ -166,6 +168,9 @@ private:
 	HRESULT CreateHeaps();
 	HRESULT CreateFrameResources();
 	HRESULT CreateDepth();
+	HRESULT CreateMSAAColor();
+	HRESULT CreateDepthResolveResources();
+	UINT PickMSAACount(DXGI_FORMAT format);
 	HRESULT CreateUploadRing();
 	void MoveToNextFrame();
 	void ProcessDeferredReleases(UINT64 completedFence);
@@ -199,11 +204,25 @@ private:
 
 	ComPtr<ID3D12Resource> m_renderTargets[kFrameCount];
 	UINT m_backBufferRtvIndices[kFrameCount] = {};
+	/* MSAA offscreen color (null / unused when m_msaaCount == 1). */
+	ComPtr<ID3D12Resource> m_sceneColor;
+	UINT m_sceneRtvIndex = UINT_MAX;
+	D3D12_RESOURCE_STATES m_sceneColorState = D3D12_RESOURCE_STATE_RENDER_TARGET;
+	bool m_ownsSceneColor = false;
+
 	ComPtr<ID3D12Resource> m_depth;
 	UINT m_depthDsvIndex = 0;
-	UINT m_depthSrvIndex = UINT_MAX;
+	UINT m_depthSrvIndex = UINT_MAX; /* single-sample depth SRV (or resolved) */
+	UINT m_depthMsaaSrvIndex = UINT_MAX;
+	ComPtr<ID3D12Resource> m_resolvedDepth;
+	UINT m_resolvedDepthRtvIndex = UINT_MAX;
+	UINT m_resolvedDepthSrvIndex = UINT_MAX;
+	ComPtr<ID3D12RootSignature> m_depthResolveRootSig;
+	ComPtr<ID3D12PipelineState> m_depthResolvePso;
 	D3D12_RESOURCE_STATES m_depthState = D3D12_RESOURCE_STATE_DEPTH_WRITE;
+	D3D12_RESOURCE_STATES m_resolvedDepthState = D3D12_RESOURCE_STATE_RENDER_TARGET;
 	D3D12_RESOURCE_STATES m_backBufferState[kFrameCount] = {};
+	UINT m_msaaCount = 1;
 
 	FrameContext m_frames[kFrameCount];
 	UINT m_frameIndex = 0;

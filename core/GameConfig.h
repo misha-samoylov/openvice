@@ -13,25 +13,22 @@
 #define WINDOW_FULLSCREEN 1
 #define WINDOW_TITLE L"openvice"
 
-#define CAMERA_FAR_PLANE 800.0f
-#define DRAW_DISTANCE 700.0f
-#define FOG_START_FACTOR 0.70f
-#define FOG_END_FACTOR 0.95f
+/* Match DX11 master look (fog / distance / CSM / SSAO). */
+#define CAMERA_FAR_PLANE 1500.0f
+#define DRAW_DISTANCE CAMERA_FAR_PLANE
+#define FOG_START_FACTOR 0.40f
+#define FOG_END_FACTOR 0.82f
 #define ENABLE_OCCLUSION_CULLING 0
-#define ENABLE_CSM_SHADOWS 0
-#define ENABLE_SSAO 0
-#define ENABLE_RT_SHADOWS 1
-/* Per-draw RayQuery in mesh PS TDRs — shadows via fullscreen pass instead. */
+#define ENABLE_CSM_SHADOWS 1
+#define ENABLE_SSAO 1
+#define ENABLE_RT_SHADOWS 0
+/* Per-draw RayQuery in mesh PS TDRs — keep off; master uses CSM. */
 #define ENABLE_RT_INLINE_PS 0
-/*
- * Master look + DX12 RT sun shadows:
- *   raster = textured + fog (same as DX11 master mesh PS)
- *   RtBouncePass = RayQuery sun shadows with master darken lerp(0.625,1,lit)
- * Full-scene primary RT stays off.
- */
-#define ENABLE_RT_BOUNCE_PASS 1
+/* RT bounce/full-scene off — picture matches master CSM path. */
+#define ENABLE_RT_BOUNCE_PASS 0
 #define ENABLE_RT_FULL_SCENE 0
 #define ENABLE_RT_FULL_HALF_RES 1
+
 
 /* Daytime hour for tobj visibility (re3 CTimeModelInfo). Night lights are off. */
 #define WORLD_HOUR 12

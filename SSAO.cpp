@@ -65,6 +65,7 @@ static HRESULT CreateFullscreenPso(
 	ID3DBlob* vs, ID3DBlob* ps,
 	const D3D12_BLEND_DESC& blend,
 	DXGI_FORMAT rtvFormat,
+	UINT sampleCount,
 	ID3D12PipelineState** outPso)
 {
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC pso = {};
@@ -79,7 +80,7 @@ static HRESULT CreateFullscreenPso(
 	pso.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
 	pso.NumRenderTargets = 1;
 	pso.RTVFormats[0] = rtvFormat;
-	pso.SampleDesc.Count = 1;
+	pso.SampleDesc.Count = sampleCount > 0 ? sampleCount : 1;
 	return device->CreateGraphicsPipelineState(&pso, IID_PPV_ARGS(outPso));
 }
 
@@ -221,11 +222,12 @@ HRESULT SSAO::Init(DXRender* render)
 	hr = D3DReadFileToBlob(L"ssao_composite_ps.cso", &psComp);
 	if (FAILED(hr)) { printf("Error: SSAO cannot read ssao_composite_ps.cso\n"); return hr; }
 
-	hr = CreateFullscreenPso(device, m_rootSig, vsBlob, psAO, MakeOpaqueBlend(), DXGI_FORMAT_R8_UNORM, &m_psoAO);
+	hr = CreateFullscreenPso(device, m_rootSig, vsBlob, psAO, MakeOpaqueBlend(), DXGI_FORMAT_R8_UNORM, 1, &m_psoAO);
 	if (FAILED(hr)) return hr;
-	hr = CreateFullscreenPso(device, m_rootSig, vsBlob, psBlur, MakeOpaqueBlend(), DXGI_FORMAT_R8_UNORM, &m_psoBlur);
+	hr = CreateFullscreenPso(device, m_rootSig, vsBlob, psBlur, MakeOpaqueBlend(), DXGI_FORMAT_R8_UNORM, 1, &m_psoBlur);
 	if (FAILED(hr)) return hr;
-	hr = CreateFullscreenPso(device, m_rootSig, vsBlob, psComp, MakeMultiplyBlend(), DXGI_FORMAT_R8G8B8A8_UNORM, &m_psoComposite);
+	hr = CreateFullscreenPso(device, m_rootSig, vsBlob, psComp, MakeMultiplyBlend(),
+		DXGI_FORMAT_R8G8B8A8_UNORM, render->GetMSAASampleCount(), &m_psoComposite);
 	vsBlob->Release();
 	psAO->Release();
 	psBlur->Release();

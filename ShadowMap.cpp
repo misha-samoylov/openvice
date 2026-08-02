@@ -32,8 +32,9 @@ HRESULT ShadowMap::Init(DXRender* render)
 		sinf(zenith) * cosf(azimuth),
 		0.0f));
 
+	/* Match master: R32 depth array for SampleCmp. */
 	HRESULT hr = render->CreateTexture2D(
-		MAP_SIZE, MAP_SIZE, DXGI_FORMAT_R24G8_TYPELESS,
+		MAP_SIZE, MAP_SIZE, DXGI_FORMAT_R32_TYPELESS,
 		D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL,
 		D3D12_RESOURCE_STATE_DEPTH_WRITE,
 		&m_texture, NUM_CASCADES, 1);
@@ -44,7 +45,7 @@ HRESULT ShadowMap::Init(DXRender* render)
 
 	for (UINT i = 0; i < NUM_CASCADES; i++) {
 		D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc = {};
-		dsvDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+		dsvDesc.Format = DXGI_FORMAT_D32_FLOAT;
 		dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2DARRAY;
 		dsvDesc.Texture2DArray.MipSlice = 0;
 		dsvDesc.Texture2DArray.FirstArraySlice = i;
@@ -60,7 +61,7 @@ HRESULT ShadowMap::Init(DXRender* render)
 	}
 
 	m_srvIndex = render->CreateTexture2DArraySrv(
-		m_texture, DXGI_FORMAT_R24_UNORM_X8_TYPELESS, NUM_CASCADES);
+		m_texture, DXGI_FORMAT_R32_FLOAT, NUM_CASCADES);
 	if (m_srvIndex == UINT_MAX) {
 		printf("Error: ShadowMap CreateTexture2DArraySrv failed\n");
 		return E_FAIL;

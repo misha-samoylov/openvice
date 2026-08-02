@@ -120,7 +120,7 @@ bool Clouds::CreatePipeline(DXRender* render)
 	sunPso.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
 	sunPso.NumRenderTargets = 1;
 	sunPso.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
-	sunPso.SampleDesc.Count = 1;
+	sunPso.SampleDesc.Count = render->GetMSAASampleCount();
 	hr = device->CreateGraphicsPipelineState(&sunPso, IID_PPV_ARGS(&m_psoSun));
 	vsSun->Release();
 	psSun->Release();
@@ -189,13 +189,14 @@ bool Clouds::CreatePipeline(DXRender* render)
 	cloudPso.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
 	cloudPso.NumRenderTargets = 1;
 	cloudPso.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
-	cloudPso.SampleDesc.Count = 1;
+	cloudPso.SampleDesc.Count = 1; /* offscreen cloud buffer is single-sample */
 	hr = device->CreateGraphicsPipelineState(&cloudPso, IID_PPV_ARGS(&m_psoCloud));
 	if (FAILED(hr)) {
 		vsCloud->Release(); psCloud->Release(); psComp->Release();
 		return false;
 	}
 
+	cloudPso.SampleDesc.Count = render->GetMSAASampleCount();
 	cloudPso.PS = { psComp->GetBufferPointer(), psComp->GetBufferSize() };
 	cloudPso.BlendState.RenderTarget[0].BlendEnable = TRUE;
 	cloudPso.BlendState.RenderTarget[0].SrcBlend = D3D12_BLEND_SRC_ALPHA;
