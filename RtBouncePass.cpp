@@ -600,8 +600,8 @@ void RtBouncePass::Apply(
 	cb.ShadowBias = 0.08f;
 	/* Shadow rays travel farther than mesh draw distance so distant casters still shade. */
 	cb.MaxRayT = DRAW_DISTANCE * 2.0f;
-	cb.AoRadius = 2.5f;
-	cb.AoStrength = enableRtao ? 0.50f : 0.0f;
+	cb.AoRadius = 3.0f;
+	cb.AoStrength = enableRtao ? 0.75f : 0.0f;
 	cb.BounceStrength = 0.0f;
 	cb.ReflectStrength = 0.0f;
 
@@ -635,7 +635,7 @@ void RtBouncePass::Apply(
 	render->BindBackBufferOnly();
 	DrawComposite(render, tlasVA);
 
-	render->RestoreMainTargets();
+	/* Stay on resolved back buffer (GodRays/PostFX follow); do not rebind MSAA. */
 	render->ApplyRasterizerState();
 	render->SetOpaqueState();
 }

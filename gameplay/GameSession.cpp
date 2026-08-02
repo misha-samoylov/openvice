@@ -99,9 +99,13 @@ void GameSession::HandleDebugHotkeys(
 
 	static bool f8WasDown = false;
 	bool f8Down = input->IsKey(DIK_F8);
-	if (f8Down && !f8WasDown && renderer.GetSSAO()) {
-		world.Settings().ssaoEnabled = !world.Settings().ssaoEnabled;
-		printf("[Info] SSAO %s (F8)\n", world.Settings().ssaoEnabled ? "ON" : "OFF");
+	if (f8Down && !f8WasDown) {
+		if (renderer.GetRtBounce()) {
+			world.Settings().rtaoEnabled = !world.Settings().rtaoEnabled;
+			printf("[Info] RTAO %s (F8)\n", world.Settings().rtaoEnabled ? "ON" : "OFF");
+		} else {
+			printf("[Warn] RTAO unavailable (no DXR / TLAS / bounce pass)\n");
+		}
 	}
 	f8WasDown = f8Down;
 

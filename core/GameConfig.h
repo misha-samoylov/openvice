@@ -13,19 +13,19 @@
 #define WINDOW_FULLSCREEN 1
 #define WINDOW_TITLE L"openvice"
 
-/* Match DX11 master look (fog / distance / CSM / SSAO). */
+/* Match DX11 master look (fog / distance / CSM) + RayQuery RTAO. */
 #define CAMERA_FAR_PLANE 1500.0f
 #define DRAW_DISTANCE CAMERA_FAR_PLANE
 #define FOG_START_FACTOR 0.40f
 #define FOG_END_FACTOR 0.82f
 #define ENABLE_OCCLUSION_CULLING 0
 #define ENABLE_CSM_SHADOWS 1
-#define ENABLE_SSAO 1
-#define ENABLE_RT_SHADOWS 0
+#define ENABLE_SSAO 0
+#define ENABLE_RT_SHADOWS 1
 /* Per-draw RayQuery in mesh PS TDRs — keep off; master uses CSM. */
 #define ENABLE_RT_INLINE_PS 0
-/* RT bounce/full-scene off — picture matches master CSM path. */
-#define ENABLE_RT_BOUNCE_PASS 0
+/* RT bounce pass provides RTAO (sun shadows stay on CSM). */
+#define ENABLE_RT_BOUNCE_PASS 1
 #define ENABLE_RT_FULL_SCENE 0
 #define ENABLE_RT_FULL_HALF_RES 1
 

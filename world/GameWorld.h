@@ -27,8 +27,8 @@ struct RenderSettings
 
 	RenderSettings()
 		: shadowsEnabled(true) /* CSM (F7) — same as DX11 master */
-		, ssaoEnabled(true)
-		, rtaoEnabled(false)
+		, ssaoEnabled(false)
+		, rtaoEnabled(true) /* Ray-traced AO (F8) via RtBouncePass */
 		, godRaysEnabled(true)
 		, cloudsEnabled(true)
 		, physicsDebugVisible(false)

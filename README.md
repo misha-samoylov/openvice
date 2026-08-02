@@ -9,7 +9,7 @@ Features:
 
 ### Render
 * DirectX 12 (Feature Level 12_0)
-* SSAO
+* Ray Traced Ambient Occlusion (RTAO)
 * Post processing color with Motion blur
 * Shadows (Cascaded Shadow Maps)
 * Volumetric God Rays
@@ -29,7 +29,7 @@ Open `openvice.sln` solution in **Microsoft Visual Studio 2019** (or newer) and 
 * `NUMAPD 2` - Change to control Cheetah
 * `F3` - Enable/disable debug line physics
 * `F7` - Enable/disable shadows
-* `F8` - Enable/disable SSAO
+* `F8` - Enable/disable RTAO
 * `F9` - Change post effects mode to: Off, Post FX, Post FX with Motion blur
 * `F10` - Enable/disable God rays
 * `NUMPAD 9` - Enable/disable clouds

@@ -441,8 +441,7 @@ void SceneRenderer::Render(DXRender* render, Camera* camera, Scene& scene, GameW
 		(m_ssao && settings.ssaoEnabled) ||
 #endif
 #if ENABLE_RT_BOUNCE_PASS
-		(m_rtBounce && m_rtShadows && m_rtShadows->IsReady() &&
-			(settings.shadowsEnabled || settings.rtaoEnabled)) ||
+		(m_rtBounce && m_rtShadows && m_rtShadows->IsReady() && settings.rtaoEnabled) ||
 #endif
 		(m_godRays && settings.godRaysEnabled);
 	if (needDepth)
@@ -453,23 +452,26 @@ void SceneRenderer::Render(DXRender* render, Camera* camera, Scene& scene, GameW
 		m_ssao->Apply(render, camera);
 #endif
 
+	render->ResolveMSAA();
+
+	/* =====================================================================
+	 * STAGE 2 — RTAO / God rays / PostFX on resolved back buffer
+	 * RTAO must run AFTER MSAA resolve (same as GodRays/PostFX): it copies
+	 * and composites onto the swapchain; resolving later would wipe it.
+	 * ===================================================================== */
 #if ENABLE_RT_BOUNCE_PASS
+	/* RTAO only — CSM keeps sun shadows (avoid double darkening). */
 	if (m_rtBounce && m_rtShadows && m_rtShadows->IsReady() && m_rtBounce->HasShadeData() &&
-		(settings.shadowsEnabled || settings.rtaoEnabled)) {
+		settings.rtaoEnabled) {
 		D3D12_GPU_VIRTUAL_ADDRESS tlas = m_rtShadows->GetGpuAddress();
 		if (tlas == 0)
 			tlas = render->GetFallbackTlasVA();
 		if (tlas != 0)
 			m_rtBounce->Apply(render, camera, sunDir, tlas,
-				settings.shadowsEnabled, settings.rtaoEnabled);
+				false, settings.rtaoEnabled);
 	}
 #endif
 
-	render->ResolveMSAA();
-
-	/* =====================================================================
-	 * STAGE 2 — God rays + PostFX (after MSAA resolve, like master)
-	 * ===================================================================== */
 	if (m_godRays && settings.godRaysEnabled) {
 		render->ResolveDepthForSSAO();
 		m_godRays->Apply(render, camera, sunDir);
