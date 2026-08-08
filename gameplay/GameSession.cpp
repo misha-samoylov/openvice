@@ -1,4 +1,5 @@
 #include "gameplay/GameSession.h"
+#include "ui/Hud.h"
 
 #include <stdio.h>
 #include <cmath>
@@ -116,6 +117,31 @@ void GameSession::HandleDebugHotkeys(
 		printf("[Info] Clouds %s (NUMPAD9)\n", world.Settings().cloudsEnabled ? "ON" : "OFF");
 	}
 	np9WasDown = np9Down;
+
+	static bool np4WasDown = false;
+	bool np4Down = input->IsKey(DIK_NUMPAD4);
+	if (np4Down && !np4WasDown && world.GetPlayer()) {
+		world.GetPlayer()->TakeDamage(15.0f);
+		printf("[Info] Took 15 damage (NUMPAD4) health=%.0f armour=%.0f\n",
+			world.GetPlayer()->GetHealth(), world.GetPlayer()->GetArmour());
+	}
+	np4WasDown = np4Down;
+
+	static bool np5WasDown = false;
+	bool np5Down = input->IsKey(DIK_NUMPAD5);
+	if (np5Down && !np5WasDown && world.GetPlayer()) {
+		world.GetPlayer()->Heal(25.0f);
+		printf("[Info] Healed +25 (NUMPAD5) health=%.0f\n", world.GetPlayer()->GetHealth());
+	}
+	np5WasDown = np5Down;
+
+	static bool np6WasDown = false;
+	bool np6Down = input->IsKey(DIK_NUMPAD6);
+	if (np6Down && !np6WasDown && world.GetPlayer()) {
+		world.GetPlayer()->SetArmour(100.0f);
+		printf("[Info] Armour full (NUMPAD6)\n");
+	}
+	np6WasDown = np6Down;
 }
 
 void GameSession::HandleCameraModeHotkeys(Input* input, Camera* camera, GameWorld& world)
@@ -309,4 +335,16 @@ void GameSession::HandleFrame(
 	HandleDebugHotkeys(input, render, world, renderer);
 	HandleCameraModeHotkeys(input, camera, world);
 	UpdateMovement(frameTime, input, camera, world);
+
+	if (renderer.GetHud() && !m_freeCamera)
+		renderer.GetHud()->Update(frameTime, world);
+
+	/* Death → respawn with full health (simple stand-in for wasted screen). */
+	if (world.GetPlayer() && world.GetPlayer()->IsDead()) {
+		Player* p = world.GetPlayer();
+		p->SetHealth(p->GetMaxHealth());
+		p->SetArmour(0.0f);
+		p->PlaceOnGround();
+		printf("[Info] Wasted — respawned\n");
+	}
 }

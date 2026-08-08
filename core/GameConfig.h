@@ -40,7 +40,13 @@
 #define GTA_VC_GENERIC_IDE "C:/Games/Grand Theft Auto Vice City/data/maps/generic.ide"
 #define GTA_VC_WATERPRO "C:/Games/Grand Theft Auto Vice City/data/waterpro.dat"
 #define GTA_VC_PARTICLE_TXD "C:/Games/Grand Theft Auto Vice City/models/particle.txd"
+#define GTA_VC_HUD_TXD "C:/Games/Grand Theft Auto Vice City/models/hud.txd"
+#define GTA_VC_FONTS_TXD "C:/Games/Grand Theft Auto Vice City/models/fonts.txd"
 #define GTA_VC_PED_IFP "C:/Games/Grand Theft Auto Vice City/anim/ped.ifp"
+
+/* re3/miami HUD is authored for 640x480; scale from that base. */
+#define HUD_BASE_WIDTH 640.0f
+#define HUD_BASE_HEIGHT 448.0f
 
 /* Map IDE/IPL basenames under data/maps/<name>/<name>.ide|.ipl */
 #define GTA_VC_MAP_COUNT 31

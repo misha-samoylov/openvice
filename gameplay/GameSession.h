@@ -21,6 +21,9 @@ public:
 		SceneRenderer& renderer
 	);
 
+	float GetCamYaw() const { return m_camYaw; }
+	bool IsFreeCamera() const { return m_freeCamera; }
+
 private:
 	void HandleDebugHotkeys(Input* input, DXRender* render, GameWorld& world, SceneRenderer& renderer);
 	void HandleCameraModeHotkeys(Input* input, Camera* camera, GameWorld& world);

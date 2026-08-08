@@ -169,6 +169,10 @@
     <ClCompile Include="gameplay\PlayerPhysics.cpp" />
     <ClCompile Include="graphics\SceneRenderer.cpp" />
     <ClCompile Include="graphics\TextureFactory.cpp" />
+    <ClCompile Include="ui\Sprite2d.cpp" />
+    <ClCompile Include="ui\HudFont.cpp" />
+    <ClCompile Include="ui\Radar.cpp" />
+    <ClCompile Include="ui\Hud.cpp" />
     <ClCompile Include="Input.cpp" />
     <ClCompile Include="loaders\AtomicList.cpp" />
     <ClCompile Include="loaders\COL.cpp" />
@@ -217,6 +221,10 @@
     <ClInclude Include="gameplay\GameSession.h" />
     <ClInclude Include="graphics\SceneRenderer.h" />
     <ClInclude Include="graphics\TextureFactory.h" />
+    <ClInclude Include="ui\Sprite2d.h" />
+    <ClInclude Include="ui\HudFont.h" />
+    <ClInclude Include="ui\Radar.h" />
+    <ClInclude Include="ui\Hud.h" />
     <ClInclude Include="Input.hpp" />
     <ClInclude Include="loaders\AtomicList.h" />
     <ClInclude Include="loaders\COL.hpp" />
@@ -383,6 +391,22 @@
       <ObjectFileName Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(OutDir)%(Filename).cso</ObjectFileName>
     </FxCompile>
     <FxCompile Include="shaders\godrays_composite_ps.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Pixel</ShaderType>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">4.0</ShaderModel>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Pixel</ShaderType>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">4.0</ShaderModel>
+      <ObjectFileName Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(OutDir)%(Filename).cso</ObjectFileName>
+      <ObjectFileName Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(OutDir)%(Filename).cso</ObjectFileName>
+    </FxCompile>
+    <FxCompile Include="shaders\hud_vs.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Vertex</ShaderType>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">4.0</ShaderModel>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Vertex</ShaderType>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">4.0</ShaderModel>
+      <ObjectFileName Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(OutDir)%(Filename).cso</ObjectFileName>
+      <ObjectFileName Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(OutDir)%(Filename).cso</ObjectFileName>
+    </FxCompile>
+    <FxCompile Include="shaders\hud_ps.hlsl">
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Pixel</ShaderType>
       <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">4.0</ShaderModel>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Pixel</ShaderType>

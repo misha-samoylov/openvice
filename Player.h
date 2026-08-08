@@ -38,6 +38,16 @@ public:
 	bool PlaceOnGround();
 	bool IsStanding() const { return m_isStanding; }
 
+	/* re3 CPed::m_fHealth / m_fArmour */
+	float GetHealth() const { return m_fHealth; }
+	float GetArmour() const { return m_fArmour; }
+	float GetMaxHealth() const { return MAX_HEALTH; }
+	void SetHealth(float h);
+	void SetArmour(float a);
+	void TakeDamage(float amount);
+	void Heal(float amount);
+	bool IsDead() const { return m_fHealth <= 0.0f; }
+
 	/* Disable ped capsule contacts (e.g. while driving so Cheetah doesn't hit Tommy). */
 	void SetCollisionEnabled(bool enabled);
 	bool IsCollisionEnabled() const { return m_collisionEnabled; }
@@ -101,6 +111,13 @@ private:
 	bool m_wasStanding;
 	bool m_collisionEnabled;
 	CollisionWorld* m_world;
+
+	/* re3 ped health — player starts at 100. */
+	static constexpr float MAX_HEALTH = 100.0f;
+	static constexpr float MAX_ARMOUR = 100.0f;
+	float m_fHealth;
+	float m_fArmour;
+	float m_fallSpeedPeak; /* most negative Y velocity while airborne */
 
 	btPairCachingGhostObject* m_ghost;
 	btCapsuleShape* m_capsule;

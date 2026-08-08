@@ -45,6 +45,8 @@ bool App::Initialize(HINSTANCE hInstance, int nCmdShow)
 
 	m_session.InitCameraState();
 
+	m_renderer.InitHud(m_render.get(), m_img.get());
+
 	printf("[Info] %s loaded\n", PROJECT_NAME);
 	return true;
 }
@@ -70,7 +72,9 @@ int App::Run()
 			m_session.HandleFrame(
 				frameTime, m_input.get(), m_camera.get(), m_render.get(),
 				m_world, m_renderer);
-			m_renderer.Render(m_render.get(), m_camera.get(), m_scene, m_world);
+			m_renderer.Render(
+				m_render.get(), m_camera.get(), m_scene, m_world,
+				m_session.GetCamYaw(), !m_session.IsFreeCamera());
 		}
 	}
 

@@ -34,10 +34,17 @@ Open `openvice.sln` solution in **Microsoft Visual Studio 2019** and click **Bui
 * `F9` - Change post effects mode to: Off, Post FX, Post FX with Motion blur
 * `F10` - Enable/disable God rays
 * `NUMPAD 9` - Enable/disable clouds
+* `NUMPAD 4` - Damage player (−15 HP)
+* `NUMPAD 5` - Heal player (+25 HP)
+* `NUMPAD 6` - Full armour
 * `WASD` - Controls character/vehicle/camera
-* `Space` - Vehicle brakes
+* `Space` - Jump / vehicle handbrake
+* `Shift` - Sprint
+* `Alt` - Walk
 * `Mouse`
 * `Mouse wheel` - Change camera speed, change camera+-
+
+HUD (re3/miami style): clock, money, health, armour, minimap radar.
 
 ## System requirements
 * Windows Vista or higher

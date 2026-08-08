@@ -1,4 +1,5 @@
 #include "graphics/SceneRenderer.h"
+#include "ui/Hud.h"
 #include "core/GameConfig.h"
 #include "core/AlphaFilter.h"
 
@@ -45,8 +46,24 @@ bool SceneRenderer::Init(DXRender* render)
 	return true;
 }
 
+bool SceneRenderer::InitHud(DXRender* render, IMG* img)
+{
+	m_hud.reset(new Hud());
+	if (!m_hud->Init(render, img)) {
+		printf("[Error] Hud init failed\n");
+		m_hud->Shutdown();
+		m_hud.reset();
+		return false;
+	}
+	return true;
+}
+
 void SceneRenderer::Shutdown()
 {
+	if (m_hud) {
+		m_hud->Shutdown();
+		m_hud.reset();
+	}
 	if (m_shadowMap) {
 		m_shadowMap->Cleanup();
 		m_shadowMap.reset();
@@ -82,7 +99,7 @@ static void FillCascadeMatrices(MeshRenderContext& ctx, ShadowMap* shadows)
 	ctx.cascadeSplits = shadows->GetSplitDistances();
 }
 
-void SceneRenderer::Render(DXRender* render, Camera* camera, Scene& scene, GameWorld& world)
+void SceneRenderer::Render(DXRender* render, Camera* camera, Scene& scene, GameWorld& world, float camYaw, bool showHud)
 {
 	XMMATRIX view = camera->GetView();
 	XMMATRIX proj = camera->GetProjection();
@@ -223,6 +240,10 @@ void SceneRenderer::Render(DXRender* render, Camera* camera, Scene& scene, GameW
 
 	if (m_postFX)
 		m_postFX->Apply(render);
+
+	if (m_hud && showHud) {
+		m_hud->Draw(render, world, camYaw);
+	}
 
 	render->RenderEnd();
 }

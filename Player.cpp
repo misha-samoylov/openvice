@@ -36,6 +36,9 @@ bool Player::Init(IMG* img, DXRender* render, IFP* ifp)
 	m_capsule = nullptr;
 	m_character = nullptr;
 	m_collisionEnabled = true;
+	m_fHealth = MAX_HEALTH;
+	m_fArmour = 0.0f;
+	m_fallSpeedPeak = 0.0f;
 	m_animTime = 0.0f;
 	m_animBlend = 1.0f;
 	m_wasMoving = false;
@@ -154,8 +157,21 @@ void Player::Update(float dt, float moveX, float moveZ, bool moving, bool walkin
 	if (dt > 0.1f)
 		dt = 0.1f;
 
+	bool wasStanding = m_isStanding;
 	SyncFromBullet();
-	m_wasStanding = m_isStanding;
+	m_wasStanding = wasStanding;
+
+	if (!m_isStanding) {
+		if (m_velY < m_fallSpeedPeak)
+			m_fallSpeedPeak = m_velY;
+	} else if (!wasStanding && m_fallSpeedPeak < -12.0f) {
+		/* Fall damage — similar spirit to re3 hard landings. */
+		float excess = -m_fallSpeedPeak - 12.0f;
+		TakeDamage(excess * 4.0f);
+		m_fallSpeedPeak = 0.0f;
+	} else if (m_isStanding) {
+		m_fallSpeedPeak = 0.0f;
+	}
 
 	float desiredVX = 0.0f;
 	float desiredVZ = 0.0f;
@@ -400,6 +416,49 @@ void Player::SetPosition(float x, float y, float z)
 	m_wasStanding = false;
 	m_isJumping = false;
 	m_landAnimTimer = 0.0f;
+	m_fallSpeedPeak = 0.0f;
+}
+
+void Player::SetHealth(float h)
+{
+	if (h < 0.0f) h = 0.0f;
+	if (h > MAX_HEALTH) h = MAX_HEALTH;
+	m_fHealth = h;
+}
+
+void Player::SetArmour(float a)
+{
+	if (a < 0.0f) a = 0.0f;
+	if (a > MAX_ARMOUR) a = MAX_ARMOUR;
+	m_fArmour = a;
+}
+
+void Player::TakeDamage(float amount)
+{
+	if (amount <= 0.0f || IsDead())
+		return;
+
+	if (m_fArmour > 0.0f) {
+		float absorbed = amount;
+		if (absorbed > m_fArmour)
+			absorbed = m_fArmour;
+		m_fArmour -= absorbed;
+		amount -= absorbed;
+	}
+	if (amount > 0.0f) {
+		m_fHealth -= amount;
+		if (m_fHealth < 0.0f)
+			m_fHealth = 0.0f;
+	}
+}
+
+void Player::Heal(float amount)
+{
+	if (amount <= 0.0f)
+		return;
+	m_fHealth += amount;
+	if (m_fHealth > MAX_HEALTH)
+		m_fHealth = MAX_HEALTH;
 }
 
 void Player::Cleanup()
